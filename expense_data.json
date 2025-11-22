@@ -1,0 +1,122 @@
+[
+    {
+        "date": "01/01/24",
+        "merchant": "Coffee Shop",
+        "category": "Food & Dining",
+        "card": "1234",
+        "amount": 45.50,
+        "month": "Jan 2024"
+    },
+    {
+        "date": "05/01/24",
+        "merchant": "Supermarket",
+        "category": "Groceries",
+        "card": "1234",
+        "amount": 320.00,
+        "month": "Jan 2024"
+    },
+    {
+        "date": "10/01/24",
+        "merchant": "Gas Station",
+        "category": "Transportation",
+        "card": "5678",
+        "amount": 180.00,
+        "month": "Jan 2024"
+    },
+    {
+        "date": "15/01/24",
+        "merchant": "Restaurant",
+        "category": "Food & Dining",
+        "card": "1234",
+        "amount": 125.00,
+        "month": "Jan 2024"
+    },
+    {
+        "date": "20/01/24",
+        "merchant": "Online Store",
+        "category": "Shopping",
+        "card": "5678",
+        "amount": 450.00,
+        "month": "Jan 2024"
+    },
+    {
+        "date": "03/02/24",
+        "merchant": "Coffee Shop",
+        "category": "Food & Dining",
+        "card": "1234",
+        "amount": 38.00,
+        "month": "Feb 2024"
+    },
+    {
+        "date": "07/02/24",
+        "merchant": "Supermarket",
+        "category": "Groceries",
+        "card": "1234",
+        "amount": 298.50,
+        "month": "Feb 2024"
+    },
+    {
+        "date": "12/02/24",
+        "merchant": "Pharmacy",
+        "category": "Healthcare",
+        "card": "5678",
+        "amount": 85.00,
+        "month": "Feb 2024"
+    },
+    {
+        "date": "18/02/24",
+        "merchant": "Cinema",
+        "category": "Entertainment",
+        "card": "1234",
+        "amount": 65.00,
+        "month": "Feb 2024"
+    },
+    {
+        "date": "25/02/24",
+        "merchant": "Gas Station",
+        "category": "Transportation",
+        "card": "5678",
+        "amount": 195.00,
+        "month": "Feb 2024"
+    },
+    {
+        "date": "05/03/24",
+        "merchant": "Restaurant",
+        "category": "Food & Dining",
+        "card": "1234",
+        "amount": 210.00,
+        "month": "Mar 2024"
+    },
+    {
+        "date": "10/03/24",
+        "merchant": "Supermarket",
+        "category": "Groceries",
+        "card": "1234",
+        "amount": 415.00,
+        "month": "Mar 2024"
+    },
+    {
+        "date": "15/03/24",
+        "merchant": "Tech Store",
+        "category": "Shopping",
+        "card": "5678",
+        "amount": 890.00,
+        "month": "Mar 2024"
+    },
+    {
+        "date": "22/03/24",
+        "merchant": "Coffee Shop",
+        "category": "Food & Dining",
+        "card": "1234",
+        "amount": 52.00,
+        "month": "Mar 2024"
+    },
+    {
+        "date": "28/03/24",
+        "merchant": "Gym",
+        "category": "Health & Fitness",
+        "card": "5678",
+        "amount": 150.00,
+        "month": "Mar 2024"
+    }
+]
