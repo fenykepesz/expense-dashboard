@@ -20,7 +20,7 @@ A beautiful, interactive expense tracking dashboard built with HTML, CSS, and Ch
 
 ## 🚀 Live Demo
 
-View the live dashboard: [Your GitHub Pages URL will be here]
+View the live dashboard: https://github.com/erozman/expense-dashboard
 
 ## 💻 Usage
 
@@ -58,7 +58,7 @@ This repository includes **sample data only**. Never commit your actual financia
 
 ## 📝 License
 
-Feel free to use and modify this dashboard for your personal or commercial projects.
+Feel free to use and modify this dashboard for your personal projects (not commercial)
 
 ## 🤝 Contributing
 
