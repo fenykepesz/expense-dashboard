@@ -16,16 +16,16 @@ A beautiful, interactive expense tracking dashboard built with HTML, CSS, and Ch
 ## Architecture
 
 ```
-??? backend/                 # FastAPI backend
-?   ??? main.py             # API endpoints
-?   ??? models.py           # Pydantic models
-?   ??? elasticsearch_client.py  # ES connection
-?   ??? requirements.txt    # Python dependencies
-??? scripts/
-?   ??? migrate_data.py     # Data migration script
-??? docker-compose.yml      # Elasticsearch + Kibana setup
-??? index.html              # Frontend dashboard
-??? expense_data.json       # Sample data
+backend/                      # FastAPI backend
+  main.py                     # API endpoints
+  models.py                   # Pydantic models
+  elasticsearch_client.py     # ES connection
+  requirements.txt            # Python dependencies
+scripts/
+  migrate_data.py             # Data migration script
+docker-compose.yml            # Elasticsearch + Kibana setup
+index.html                    # Frontend dashboard
+expense_data.json             # Sample data
 ```
 
 ## Prerequisites
