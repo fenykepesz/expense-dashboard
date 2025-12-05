@@ -11,6 +11,7 @@ A beautiful, interactive expense tracking dashboard built with HTML, CSS, and Ch
 - **Filtering**: Filter expenses by month, category, card, or search by merchant
 - **Full CRUD Operations**: Create, read, update, and delete expenses
 - **Elasticsearch Backend**: Fast, scalable search and storage
+- **Kibana Analytics**: Advanced data analysis, visualizations, and dashboards
 
 ## Architecture
 
@@ -22,6 +23,7 @@ A beautiful, interactive expense tracking dashboard built with HTML, CSS, and Ch
 ?   ??? requirements.txt    # Python dependencies
 ??? scripts/
 ?   ??? migrate_data.py     # Data migration script
+??? docker-compose.yml      # Elasticsearch + Kibana setup
 ??? index.html              # Frontend dashboard
 ??? expense_data.json       # Sample data
 ```
@@ -29,16 +31,98 @@ A beautiful, interactive expense tracking dashboard built with HTML, CSS, and Ch
 ## Prerequisites
 
 - Python 3.10+
-- Elasticsearch 8.x running on `localhost:9200`
+- Docker and Docker Compose
 
-## Setup
+## Quick Start with Docker Compose
+
+The easiest way to get started is using Docker Compose, which sets up both Elasticsearch and Kibana:
+
+```bash
+# Start Elasticsearch and Kibana
+docker-compose up -d
+
+# Wait for services to be healthy (about 30-60 seconds)
+docker-compose ps
+
+# Install Python dependencies
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Migrate sample data
+cd ../scripts
+python migrate_data.py
+
+# Start the API server
+cd ../backend
+uvicorn main:app --reload
+```
+
+### Access Points
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| **Dashboard** | `http://localhost:3000` | Expense dashboard (serve index.html) |
+| **API** | `http://localhost:8000` | FastAPI backend |
+| **API Docs** | `http://localhost:8000/docs` | Swagger UI |
+| **Kibana** | `http://localhost:5601` | Data analysis & visualization |
+| **Elasticsearch** | `http://localhost:9200` | Search engine |
+
+## Kibana Setup
+
+Once Kibana is running at `http://localhost:5601`:
+
+### 1. Create a Data View
+
+1. Go to **Stack Management** > **Data Views**
+2. Click **Create data view**
+3. Set name: `expenses`
+4. Set index pattern: `expenses`
+5. Click **Save data view to Kibana**
+
+### 2. Explore Your Data
+
+- **Discover**: Browse and search raw expense documents
+- **Visualize Library**: Create charts and graphs
+- **Dashboard**: Build custom analytics dashboards
+
+### 3. Example Visualizations to Create
+
+| Visualization | Type | Description |
+|---------------|------|-------------|
+| Monthly Spending | Line Chart | Track spending trends over time |
+| Category Breakdown | Pie Chart | See spending distribution by category |
+| Top Merchants | Bar Chart | Identify most frequent merchants |
+| Card Usage | Donut Chart | Compare spending across cards |
+| Spending Heatmap | Heatmap | Visualize spending patterns |
+
+### 4. Sample Kibana Queries
+
+In the **Discover** tab, try these KQL queries:
+
+```
+# High-value transactions
+amount > 200
+
+# Food-related expenses
+category: "Food & Dining" OR category: "Groceries"
+
+# Specific merchant search
+merchant: *Coffee*
+
+# Card filter
+card: "1234"
+
+# Date range (if using date field)
+date >= "01/01/24" AND date <= "31/03/24"
+```
+
+## Manual Setup (Without Docker Compose)
 
 ### 1. Start Elasticsearch
 
-Make sure Elasticsearch is running locally:
-
 ```bash
-# Using Docker
 docker run -d --name elasticsearch \
   -p 9200:9200 \
   -e "discovery.type=single-node" \
@@ -46,40 +130,43 @@ docker run -d --name elasticsearch \
   elasticsearch:8.12.0
 ```
 
-### 2. Install Python Dependencies
+### 2. Start Kibana (Optional)
+
+```bash
+docker run -d --name kibana \
+  -p 5601:5601 \
+  -e "ELASTICSEARCH_HOSTS=http://host.docker.internal:9200" \
+  kibana:8.12.0
+```
+
+### 3. Install Python Dependencies
 
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Migrate Sample Data
+### 4. Migrate Sample Data
 
 ```bash
 cd scripts
 python migrate_data.py
 ```
 
-### 4. Start the Backend
+### 5. Start the Backend
 
 ```bash
 cd backend
 uvicorn main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`
-
-### 5. Open the Dashboard
-
-Open `index.html` in your browser, or serve it with a local server:
+### 6. Serve the Dashboard
 
 ```bash
-# Using Python
 python -m http.server 3000
-
-# Then open http://localhost:3000
+# Open http://localhost:3000
 ```
 
 ## API Endpoints
@@ -106,12 +193,6 @@ python -m http.server 3000
 - `max_amount` - Maximum amount filter
 - `size` - Number of results (default: 1000)
 
-## API Documentation
-
-Interactive API docs available at:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -120,6 +201,22 @@ Interactive API docs available at:
 | `ELASTICSEARCH_INDEX` | `expenses` | Index name |
 | `ELASTICSEARCH_USERNAME` | - | Optional: ES username |
 | `ELASTICSEARCH_PASSWORD` | - | Optional: ES password |
+
+## Docker Commands
+
+```bash
+# Start services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+
+# Stop and remove data
+docker-compose down -v
+```
 
 ## License
 
