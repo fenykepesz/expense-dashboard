@@ -13,7 +13,7 @@ A beautiful, interactive expense tracking dashboard built with HTML, CSS, and Ch
 - **Elasticsearch Backend**: Fast, scalable search and storage
 - **Kibana Analytics**: Advanced data analysis, visualizations, and dashboards
 
-## Architecture
+## Project layout
 
 ```
 backend/                      # FastAPI backend
