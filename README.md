@@ -82,6 +82,24 @@ If you have data in the old format (DD/MM/YY), use the included Python script to
 python tools/convert_data.py input_data.json -o new_data.json
 ```
 
+## 📄 PDF Converter Tool [NEW]
+If you have a Bank Leumi credit card statement in PDF format, you can convert it directly to the dashboard's JSON format.
+
+### Installation
+```bash
+pip install pdfplumber
+```
+
+### Usage
+```bash
+python tools/pdf_to_json.py "path/to/your/statement.pdf" -o expenses.json
+```
+
+### Features
+- **Automatic Categorization**: Matches merchants to categories using patterns in `tools/category_rules.json`.
+- **RTL Hebrew Support**: Correctly handles reversed Hebrew text from Bank Leumi statements.
+- **Auto-Month/Year**: Calculates month names and years from transaction dates.
+
 ## �🛡️ Security
 - **XSS Protection**: Data rendering is sanitized to prevent Cross-Site Scripting attacks.
 - **SRI Check**: External libraries (Chart.js) are loaded with Subresource Integrity hashes.
