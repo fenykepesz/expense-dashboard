@@ -1,122 +1,191 @@
 [
     {
-        "date": "01/01/24",
+        "date": "2024-01-01",
+        "year": 2024,
+        "month": "January",
         "merchant": "Coffee Shop",
         "category": "Food & Dining",
         "card": "1234",
-        "amount": 45.50,
-        "month": "Jan 2024"
+        "amount": 45.50
     },
     {
-        "date": "05/01/24",
+        "date": "2024-01-05",
+        "year": 2024,
+        "month": "January",
         "merchant": "Supermarket",
         "category": "Groceries",
         "card": "1234",
-        "amount": 320.00,
-        "month": "Jan 2024"
+        "amount": 320.00
     },
     {
-        "date": "10/01/24",
+        "date": "2024-01-10",
+        "year": 2024,
+        "month": "January",
         "merchant": "Gas Station",
         "category": "Transportation",
         "card": "5678",
-        "amount": 180.00,
-        "month": "Jan 2024"
+        "amount": 180.00
     },
     {
-        "date": "15/01/24",
+        "date": "2024-01-15",
+        "year": 2024,
+        "month": "January",
         "merchant": "Restaurant",
         "category": "Food & Dining",
         "card": "1234",
-        "amount": 125.00,
-        "month": "Jan 2024"
+        "amount": 125.00
     },
     {
-        "date": "20/01/24",
+        "date": "2024-01-20",
+        "year": 2024,
+        "month": "January",
         "merchant": "Online Store",
         "category": "Shopping",
         "card": "5678",
-        "amount": 450.00,
-        "month": "Jan 2024"
+        "amount": 450.00
     },
     {
-        "date": "03/02/24",
+        "date": "2024-02-03",
+        "year": 2024,
+        "month": "February",
         "merchant": "Coffee Shop",
         "category": "Food & Dining",
         "card": "1234",
-        "amount": 38.00,
-        "month": "Feb 2024"
+        "amount": 38.00
     },
     {
-        "date": "07/02/24",
+        "date": "2024-02-07",
+        "year": 2024,
+        "month": "February",
         "merchant": "Supermarket",
         "category": "Groceries",
         "card": "1234",
-        "amount": 298.50,
-        "month": "Feb 2024"
+        "amount": 298.50
     },
     {
-        "date": "12/02/24",
+        "date": "2024-02-12",
+        "year": 2024,
+        "month": "February",
         "merchant": "Pharmacy",
         "category": "Healthcare",
         "card": "5678",
-        "amount": 85.00,
-        "month": "Feb 2024"
+        "amount": 85.00
     },
     {
-        "date": "18/02/24",
+        "date": "2024-02-18",
+        "year": 2024,
+        "month": "February",
         "merchant": "Cinema",
         "category": "Entertainment",
         "card": "1234",
-        "amount": 65.00,
-        "month": "Feb 2024"
+        "amount": 65.00
     },
     {
-        "date": "25/02/24",
+        "date": "2024-02-25",
+        "year": 2024,
+        "month": "February",
         "merchant": "Gas Station",
         "category": "Transportation",
         "card": "5678",
-        "amount": 195.00,
-        "month": "Feb 2024"
+        "amount": 195.00
     },
     {
-        "date": "05/03/24",
+        "date": "2024-03-05",
+        "year": 2024,
+        "month": "March",
         "merchant": "Restaurant",
         "category": "Food & Dining",
         "card": "1234",
-        "amount": 210.00,
-        "month": "Mar 2024"
+        "amount": 210.00
     },
     {
-        "date": "10/03/24",
+        "date": "2024-03-10",
+        "year": 2024,
+        "month": "March",
         "merchant": "Supermarket",
         "category": "Groceries",
         "card": "1234",
-        "amount": 415.00,
-        "month": "Mar 2024"
+        "amount": 415.00
     },
     {
-        "date": "15/03/24",
+        "date": "2024-03-15",
+        "year": 2024,
+        "month": "March",
         "merchant": "Tech Store",
         "category": "Shopping",
         "card": "5678",
-        "amount": 890.00,
-        "month": "Mar 2024"
+        "amount": 890.00
     },
     {
-        "date": "22/03/24",
+        "date": "2024-03-22",
+        "year": 2024,
+        "month": "March",
         "merchant": "Coffee Shop",
         "category": "Food & Dining",
         "card": "1234",
-        "amount": 52.00,
-        "month": "Mar 2024"
+        "amount": 52.00
     },
     {
-        "date": "28/03/24",
+        "date": "2024-03-28",
+        "year": 2024,
+        "month": "March",
         "merchant": "Gym",
         "category": "Health & Fitness",
         "card": "5678",
-        "amount": 150.00,
-        "month": "Mar 2024"
+        "amount": 150.00
+    },
+    {
+        "date": "2023-01-02",
+        "year": 2023,
+        "month": "January",
+        "merchant": "Coffee Shop",
+        "category": "Food & Dining",
+        "card": "1234",
+        "amount": 40.00
+    },
+    {
+        "date": "2023-01-08",
+        "year": 2023,
+        "month": "January",
+        "merchant": "Supermarket",
+        "category": "Groceries",
+        "card": "1234",
+        "amount": 280.00
+    },
+    {
+        "date": "2023-01-15",
+        "year": 2023,
+        "month": "January",
+        "merchant": "Gas Station",
+        "category": "Transportation",
+        "card": "5678",
+        "amount": 160.00
+    },
+    {
+        "date": "2023-02-05",
+        "year": 2023,
+        "month": "February",
+        "merchant": "Supermarket",
+        "category": "Groceries",
+        "card": "1234",
+        "amount": 250.00
+    },
+    {
+        "date": "2023-02-14",
+        "year": 2023,
+        "month": "February",
+        "merchant": "Restaurant",
+        "category": "Food & Dining",
+        "card": "1234",
+        "amount": 180.00
+    },
+    {
+        "date": "2023-03-10",
+        "year": 2023,
+        "month": "March",
+        "merchant": "Electronics",
+        "category": "Shopping",
+        "card": "5678",
+        "amount": 500.00
     }
 ]
