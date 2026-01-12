@@ -12,20 +12,55 @@
             box-sizing: border-box;
         }
 
+        :root {
+            /* Light Theme (Default) */
+            --bg-gradient-start: #667eea;
+            --bg-gradient-end: #764ba2;
+            --dashboard-bg: rgba(255, 255, 255, 0.95);
+            --card-bg: white;
+            --text-primary: #2c3e50;
+            --text-secondary: #7f8c8d;
+            --border-color: #f0f0f0;
+            --input-bg: white;
+            --input-border: #e0e6ed;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --table-header-bg: #f8f9fa;
+            --table-hover-bg: #f8f9fa;
+            --success-color: #4caf50;
+            --error-color: #f44336;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme Override */
+            --bg-gradient-start: #111827;
+            --bg-gradient-end: #1f2937;
+            --dashboard-bg: rgba(31, 41, 55, 0.95);
+            --card-bg: #1f2937;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --input-bg: #374151;
+            --input-border: #4b5563;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+            --table-header-bg: #111827;
+            --table-hover-bg: #374151;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
             min-height: 100vh;
             padding: 20px;
+            color: var(--text-primary);
         }
 
         .dashboard {
             max-width: 1400px;
             margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--dashboard-bg);
             border-radius: 20px;
             padding: 30px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 20px 40px var(--shadow-color);
             backdrop-filter: blur(10px);
         }
 
@@ -33,18 +68,41 @@
             text-align: center;
             margin-bottom: 40px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: 2px solid var(--border-color);
+            position: relative;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: none;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            font-size: 1.2em;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            background: var(--border-color);
         }
 
         .header h1 {
-            color: #2c3e50;
+            color: var(--text-primary);
             font-size: 2.5em;
             margin-bottom: 10px;
             font-weight: 700;
         }
 
         .header p {
-            color: #7f8c8d;
+            color: var(--text-secondary);
             font-size: 1.1em;
         }
 
@@ -125,17 +183,18 @@
 
         .control-group label {
             font-weight: 600;
-            color: #2c3e50;
+            color: var(--text-primary);
             font-size: 0.9em;
         }
 
         select,
         input {
             padding: 10px 15px;
-            border: 2px solid #e0e6ed;
+            border: 2px solid var(--input-border);
             border-radius: 8px;
             font-size: 14px;
-            background: white;
+            background: var(--input-bg);
+            color: var(--text-primary);
             transition: border-color 0.3s ease;
         }
 
@@ -161,15 +220,15 @@
         }
 
         .chart-container {
-            background: white;
+            background: var(--card-bg);
             padding: 25px;
             border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-            border: 1px solid #f0f0f0;
+            box-shadow: 0 5px 15px var(--shadow-color);
+            border: 1px solid var(--border-color);
         }
 
         .chart-container h3 {
-            color: #2c3e50;
+            color: var(--text-primary);
             margin-bottom: 20px;
             font-size: 1.3em;
             text-align: center;
@@ -181,15 +240,15 @@
         }
 
         .transactions-section {
-            background: white;
+            background: var(--card-bg);
             padding: 25px;
             border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-            border: 1px solid #f0f0f0;
+            box-shadow: 0 5px 15px var(--shadow-color);
+            border: 1px solid var(--border-color);
         }
 
         .transactions-section h3 {
-            color: #2c3e50;
+            color: var(--text-primary);
             margin-bottom: 20px;
             font-size: 1.3em;
         }
@@ -201,12 +260,12 @@
         }
 
         .transactions-table th {
-            background-color: #f8f9fa;
-            color: #2c3e50;
+            background-color: var(--table-header-bg);
+            color: var(--text-primary);
             font-weight: 600;
             padding: 15px 10px;
             text-align: center;
-            border-bottom: 2px solid #e9ecef;
+            border-bottom: 2px solid var(--border-color);
             font-size: 0.9em;
         }
 
@@ -220,9 +279,10 @@
 
         .transactions-table td {
             padding: 12px 10px;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             vertical-align: middle;
             text-align: center;
+            color: var(--text-primary);
         }
 
         .transactions-table td:first-child {
@@ -234,7 +294,7 @@
         }
 
         .transactions-table tr:hover {
-            background-color: #f8f9fa;
+            background-color: var(--table-hover-bg);
         }
 
         .transactions-table tr:last-child td {
@@ -335,114 +395,149 @@
 <body>
     <div class="dashboard">
         <div class="header">
-            <h1>💳 Personal Expense Dashboard</h1>
+            <h1>Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-
-            <div id="dataStatus" class="data-status data-loading">
-                📥 Loading expense data from expenses.json...
-            </div>
-
-            <!-- File Upload Section (fallback) -->
-            <div id="uploadSection" class="hidden"
-                style="margin-top: 20px; padding: 20px; border: 2px dashed #667eea; border-radius: 10px; background: rgba(102, 126, 234, 0.05);">
-                <h3 style="margin-bottom: 10px; color: #2c3e50;">📁 Upload Your Data File</h3>
-                <p style="margin-bottom: 15px; color: #7f8c8d; font-size: 0.9em;">
-                    Upload the expenses.json file or drag and drop it here
-                </p>
-                <input type="file" id="fileInput" accept=".json" style="display: none;">
-                <button onclick="document.getElementById('fileInput').click()"
-                    style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
-                    Choose File
-                </button>
-                <span id="fileName" style="color: #7f8c8d; font-size: 0.9em;"></span>
-            </div>
+            <button id="themeToggle" class="theme-toggle" title="Toggle Dark Mode">🌙</button>
+        </div>
+        <div id="dataStatus" class="data-status data-loading">
+            📥 Loading expense data from expenses.json...
         </div>
 
-        <div id="dashboardContent" class="hidden">
-            <div class="monthly-chart-container">
-                <div class="chart-container">
-                    <h3>📊 Monthly Spending Trend</h3>
-                    <div class="chart">
-                        <canvas id="monthlyChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="charts-grid">
-                <div class="chart-container">
-                    <h3>🥧 Spending by Category</h3>
-                    <div class="chart">
-                        <canvas id="categoryChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <h3>🏪 Top Merchants</h3>
-                    <div class="chart">
-                        <canvas id="merchantChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <h3>💳 Spending by Card</h3>
-                    <div class="chart">
-                        <canvas id="cardChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="summary-cards" id="summaryCards">
-                <!-- Summary cards will be populated by JavaScript -->
-            </div>
-
-            <div class="controls">
-                <div class="control-group">
-                    <label for="yearFilter">Filter by Year:</label>
-                    <select id="yearFilter">
-                        <option value="all">All Years</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="monthFilter">Filter by Month:</label>
-                    <select id="monthFilter">
-                        <option value="all">All Months</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="categoryFilter">Filter by Category:</label>
-                    <select id="categoryFilter">
-                        <option value="all">All Categories</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="cardFilter">Filter by Card:</label>
-                    <select id="cardFilter">
-                        <option value="all">All Cards</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="searchMerchant">Search Merchant:</label>
-                    <input type="text" id="searchMerchant" placeholder="Enter merchant name...">
-                </div>
-            </div>
-
-            <div class="transactions-section">
-                <h3>📋 Recent Transactions</h3>
-                <div id="transactionsList">
-                    <!-- Transactions will be populated by JavaScript -->
-                </div>
-            </div>
+        <!-- File Upload Section (fallback) -->
+        <div id="uploadSection" class="hidden"
+            style="margin-top: 20px; padding: 20px; border: 2px dashed #667eea; border-radius: 10px; background: rgba(102, 126, 234, 0.05);">
+            <h3 style="margin-bottom: 10px; color: #2c3e50;">📁 Upload Your Data File</h3>
+            <p style="margin-bottom: 15px; color: #7f8c8d; font-size: 0.9em;">
+                Upload the expenses.json file or drag and drop it here
+            </p>
+            <input type="file" id="fileInput" accept=".json" style="display: none;">
+            <button onclick="document.getElementById('fileInput').click()"
+                style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
+                Choose File
+            </button>
+            <span id="fileName" style="color: #7f8c8d; font-size: 0.9em;"></span>
         </div>
     </div>
 
+    <div id="dashboardContent" class="hidden">
+        <div class="monthly-chart-container">
+            <div class="chart-container">
+                <h3>📊 Monthly Spending Trend</h3>
+                <div class="chart">
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h3>🥧 Spending by Category</h3>
+                <div class="chart">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>🏪 Top Merchants</h3>
+                <div class="chart">
+                    <canvas id="merchantChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>💳 Spending by Card</h3>
+                <div class="chart">
+                    <canvas id="cardChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-cards" id="summaryCards">
+            <!-- Summary cards will be populated by JavaScript -->
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="yearFilter">Filter by Year:</label>
+                <select id="yearFilter">
+                    <option value="all">All Years</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="monthFilter">Filter by Month:</label>
+                <select id="monthFilter">
+                    <option value="all">All Months</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="categoryFilter">Filter by Category:</label>
+                <select id="categoryFilter">
+                    <option value="all">All Categories</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="cardFilter">Filter by Card:</label>
+                <select id="cardFilter">
+                    <option value="all">All Cards</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="searchMerchant">Search Merchant:</label>
+                <input type="text" id="searchMerchant" placeholder="Enter merchant name...">
+            </div>
+        </div>
+
+        <div class="transactions-section">
+            <h3>📋 Recent Transactions</h3>
+            <div id="transactionsList">
+                <!-- Transactions will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+    </div>
+
     <script>
+        // Global variables
         // Global variables
         let allExpenses = [];
         let filteredExpenses = [];
         let monthlyChart, categoryChart, merchantChart, cardChart;
 
+        // --- Theme Logic ---
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.getElementById('themeToggle').textContent = '☀️';
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                document.getElementById('themeToggle').textContent = '🌙';
+            }
+        }
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            if (newTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.getElementById('themeToggle').textContent = '☀️';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                document.getElementById('themeToggle').textContent = '🌙';
+                localStorage.setItem('theme', 'light');
+            }
+            updateDashboard(); // Re-render charts to update colors
+        });
+
+        // Initialize Theme on Load
+        initTheme();
+
+        // --- Helper Functions ---
         // Currency formatter
         const formatCurrency = (amount) => {
             return new Intl.NumberFormat('he-IL', {
-                style: 'currency',
                 currency: 'ILS'
             }).format(amount);
         };
@@ -467,6 +562,14 @@
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
+        }
+
+        function getThemeColors() {
+            const computed = getComputedStyle(document.documentElement);
+            return {
+                textColor: computed.getPropertyValue('--text-primary').trim(),
+                gridColor: computed.getPropertyValue('--border-color').trim()
+            };
         }
 
         // Load data from external JSON file
@@ -769,8 +872,9 @@
                     },
                     plugins: {
                         legend: {
-                            display: true, // Show legend to identify years
-                            position: 'top'
+                            display: true,
+                            position: 'top',
+                            labels: { color: getThemeColors().textColor }
                         },
                         tooltip: {
                             callbacks: {
@@ -781,13 +885,19 @@
                         }
                     },
                     scales: {
+                        x: {
+                            ticks: { color: getThemeColors().textColor },
+                            grid: { color: getThemeColors().gridColor }
+                        },
                         y: {
                             beginAtZero: true,
                             ticks: {
+                                color: getThemeColors().textColor,
                                 callback: function (value) {
                                     return formatCurrency(value);
                                 }
-                            }
+                            },
+                            grid: { color: getThemeColors().gridColor }
                         }
                     }
                 }
@@ -825,7 +935,8 @@
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            position: 'right'
+                            position: 'right',
+                            labels: { color: getThemeColors().textColor }
                         },
                         tooltip: {
                             callbacks: {
@@ -879,17 +990,21 @@
                     scales: {
                         x: {
                             ticks: {
+                                color: getThemeColors().textColor,
                                 maxRotation: 45,
                                 minRotation: 45
-                            }
+                            },
+                            grid: { color: getThemeColors().gridColor }
                         },
                         y: {
                             beginAtZero: true,
                             ticks: {
+                                color: getThemeColors().textColor,
                                 callback: function (value) {
                                     return formatCurrency(value);
                                 }
-                            }
+                            },
+                            grid: { color: getThemeColors().gridColor }
                         }
                     }
                 }
