@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,20 +12,55 @@
             box-sizing: border-box;
         }
 
+        :root {
+            /* Light Theme (Default) */
+            --bg-gradient-start: #667eea;
+            --bg-gradient-end: #764ba2;
+            --dashboard-bg: rgba(255, 255, 255, 0.95);
+            --card-bg: white;
+            --text-primary: #2c3e50;
+            --text-secondary: #7f8c8d;
+            --border-color: #f0f0f0;
+            --input-bg: white;
+            --input-border: #e0e6ed;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --table-header-bg: #f8f9fa;
+            --table-hover-bg: #f8f9fa;
+            --success-color: #4caf50;
+            --error-color: #f44336;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme Override */
+            --bg-gradient-start: #111827;
+            --bg-gradient-end: #1f2937;
+            --dashboard-bg: rgba(31, 41, 55, 0.95);
+            --card-bg: #1f2937;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --input-bg: #374151;
+            --input-border: #4b5563;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+            --table-header-bg: #111827;
+            --table-hover-bg: #374151;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
             min-height: 100vh;
             padding: 20px;
+            color: var(--text-primary);
         }
 
         .dashboard {
             max-width: 1400px;
             margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--dashboard-bg);
             border-radius: 20px;
             padding: 30px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 20px 40px var(--shadow-color);
             backdrop-filter: blur(10px);
         }
 
@@ -32,18 +68,41 @@
             text-align: center;
             margin-bottom: 40px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: 2px solid var(--border-color);
+            position: relative;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: none;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            font-size: 1.2em;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            background: var(--border-color);
         }
 
         .header h1 {
-            color: #2c3e50;
+            color: var(--text-primary);
             font-size: 2.5em;
             margin-bottom: 10px;
             font-weight: 700;
         }
 
         .header p {
-            color: #7f8c8d;
+            color: var(--text-secondary);
             font-size: 1.1em;
         }
 
@@ -124,20 +183,23 @@
 
         .control-group label {
             font-weight: 600;
-            color: #2c3e50;
+            color: var(--text-primary);
             font-size: 0.9em;
         }
 
-        select, input {
+        select,
+        input {
             padding: 10px 15px;
-            border: 2px solid #e0e6ed;
+            border: 2px solid var(--input-border);
             border-radius: 8px;
             font-size: 14px;
-            background: white;
+            background: var(--input-bg);
+            color: var(--text-primary);
             transition: border-color 0.3s ease;
         }
 
-        select:focus, input:focus {
+        select:focus,
+        input:focus {
             outline: none;
             border-color: #667eea;
         }
@@ -158,15 +220,15 @@
         }
 
         .chart-container {
-            background: white;
+            background: var(--card-bg);
             padding: 25px;
             border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-            border: 1px solid #f0f0f0;
+            box-shadow: 0 5px 15px var(--shadow-color);
+            border: 1px solid var(--border-color);
         }
 
         .chart-container h3 {
-            color: #2c3e50;
+            color: var(--text-primary);
             margin-bottom: 20px;
             font-size: 1.3em;
             text-align: center;
@@ -178,15 +240,15 @@
         }
 
         .transactions-section {
-            background: white;
+            background: var(--card-bg);
             padding: 25px;
             border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-            border: 1px solid #f0f0f0;
+            box-shadow: 0 5px 15px var(--shadow-color);
+            border: 1px solid var(--border-color);
         }
 
         .transactions-section h3 {
-            color: #2c3e50;
+            color: var(--text-primary);
             margin-bottom: 20px;
             font-size: 1.3em;
         }
@@ -198,12 +260,12 @@
         }
 
         .transactions-table th {
-            background-color: #f8f9fa;
-            color: #2c3e50;
+            background-color: var(--table-header-bg);
+            color: var(--text-primary);
             font-weight: 600;
             padding: 15px 10px;
             text-align: center;
-            border-bottom: 2px solid #e9ecef;
+            border-bottom: 2px solid var(--border-color);
             font-size: 0.9em;
         }
 
@@ -217,9 +279,10 @@
 
         .transactions-table td {
             padding: 12px 10px;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-color);
             vertical-align: middle;
             text-align: center;
+            color: var(--text-primary);
         }
 
         .transactions-table td:first-child {
@@ -231,7 +294,7 @@
         }
 
         .transactions-table tr:hover {
-            background-color: #f8f9fa;
+            background-color: var(--table-hover-bg);
         }
 
         .transactions-table tr:last-child td {
@@ -324,112 +387,157 @@
             }
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"
+        integrity="sha512-ElRFoEQdI5Ht6kZvyzXhYG9NqjtkmlkfYk0wr6wHxU9JEHakS7UJZNeml5ALk+8IKlU6jDgMabC3vkumRokgJA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
+
 <body>
     <div class="dashboard">
         <div class="header">
-            <h1>💳 Personal Expense Dashboard</h1>
+            <h1>Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            
-            <div id="dataStatus" class="data-status data-loading">
-                📥 Loading expense data from expenses.json...
-            </div>
-            
-            <!-- File Upload Section (fallback) -->
-            <div id="uploadSection" class="hidden" style="margin-top: 20px; padding: 20px; border: 2px dashed #667eea; border-radius: 10px; background: rgba(102, 126, 234, 0.05);">
-                <h3 style="margin-bottom: 10px; color: #2c3e50;">📁 Upload Your Data File</h3>
-                <p style="margin-bottom: 15px; color: #7f8c8d; font-size: 0.9em;">
-                    Upload the expenses.json file or drag and drop it here
-                </p>
-                <input type="file" id="fileInput" accept=".json" style="display: none;">
-                <button onclick="document.getElementById('fileInput').click()" 
-                        style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
-                    Choose File
-                </button>
-                <span id="fileName" style="color: #7f8c8d; font-size: 0.9em;"></span>
-            </div>
+            <button id="themeToggle" class="theme-toggle" title="Toggle Dark Mode">🌙</button>
+        </div>
+        <div id="dataStatus" class="data-status data-loading">
+            📥 Loading expense data from expenses.json...
         </div>
 
-        <div id="dashboardContent" class="hidden">
-            <div class="monthly-chart-container">
-                <div class="chart-container">
-                    <h3>📊 Monthly Spending Trend</h3>
-                    <div class="chart">
-                        <canvas id="monthlyChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="charts-grid">
-                <div class="chart-container">
-                    <h3>🥧 Spending by Category</h3>
-                    <div class="chart">
-                        <canvas id="categoryChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <h3>🏪 Top Merchants</h3>
-                    <div class="chart">
-                        <canvas id="merchantChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <h3>💳 Spending by Card</h3>
-                    <div class="chart">
-                        <canvas id="cardChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="summary-cards" id="summaryCards">
-                <!-- Summary cards will be populated by JavaScript -->
-            </div>
-
-            <div class="controls">
-                <div class="control-group">
-                    <label for="monthFilter">Filter by Month:</label>
-                    <select id="monthFilter">
-                        <option value="all">All Months</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="categoryFilter">Filter by Category:</label>
-                    <select id="categoryFilter">
-                        <option value="all">All Categories</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="cardFilter">Filter by Card:</label>
-                    <select id="cardFilter">
-                        <option value="all">All Cards</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="searchMerchant">Search Merchant:</label>
-                    <input type="text" id="searchMerchant" placeholder="Enter merchant name...">
-                </div>
-            </div>
-
-            <div class="transactions-section">
-                <h3>📋 Recent Transactions</h3>
-                <div id="transactionsList">
-                    <!-- Transactions will be populated by JavaScript -->
-                </div>
-            </div>
+        <!-- File Upload Section (fallback) -->
+        <div id="uploadSection" class="hidden"
+            style="margin-top: 20px; padding: 20px; border: 2px dashed #667eea; border-radius: 10px; background: rgba(102, 126, 234, 0.05);">
+            <h3 style="margin-bottom: 10px; color: #2c3e50;">📁 Upload Your Data File</h3>
+            <p style="margin-bottom: 15px; color: #7f8c8d; font-size: 0.9em;">
+                Upload the expenses.json file or drag and drop it here
+            </p>
+            <input type="file" id="fileInput" accept=".json" style="display: none;">
+            <button onclick="document.getElementById('fileInput').click()"
+                style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
+                Choose File
+            </button>
+            <span id="fileName" style="color: #7f8c8d; font-size: 0.9em;"></span>
         </div>
     </div>
 
+    <div id="dashboardContent" class="hidden">
+        <div class="monthly-chart-container">
+            <div class="chart-container">
+                <h3>📊 Monthly Spending Trend</h3>
+                <div class="chart">
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h3>🥧 Spending by Category</h3>
+                <div class="chart">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>🏪 Top Merchants</h3>
+                <div class="chart">
+                    <canvas id="merchantChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>💳 Spending by Card</h3>
+                <div class="chart">
+                    <canvas id="cardChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-cards" id="summaryCards">
+            <!-- Summary cards will be populated by JavaScript -->
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="yearFilter">Filter by Year:</label>
+                <select id="yearFilter">
+                    <option value="all">All Years</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="monthFilter">Filter by Month:</label>
+                <select id="monthFilter">
+                    <option value="all">All Months</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="categoryFilter">Filter by Category:</label>
+                <select id="categoryFilter">
+                    <option value="all">All Categories</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="cardFilter">Filter by Card:</label>
+                <select id="cardFilter">
+                    <option value="all">All Cards</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="searchMerchant">Search Merchant:</label>
+                <input type="text" id="searchMerchant" placeholder="Enter merchant name...">
+            </div>
+        </div>
+
+        <div class="transactions-section">
+            <h3>📋 Recent Transactions</h3>
+            <div id="transactionsList">
+                <!-- Transactions will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+    </div>
+
     <script>
+        // Global variables
         // Global variables
         let allExpenses = [];
         let filteredExpenses = [];
         let monthlyChart, categoryChart, merchantChart, cardChart;
 
+        // --- Theme Logic ---
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.getElementById('themeToggle').textContent = '☀️';
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                document.getElementById('themeToggle').textContent = '🌙';
+            }
+        }
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            if (newTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.getElementById('themeToggle').textContent = '☀️';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                document.getElementById('themeToggle').textContent = '🌙';
+                localStorage.setItem('theme', 'light');
+            }
+            updateDashboard(); // Re-render charts to update colors
+        });
+
+        // Initialize Theme on Load
+        initTheme();
+
+        // --- Helper Functions ---
         // Currency formatter
         const formatCurrency = (amount) => {
             return new Intl.NumberFormat('he-IL', {
-                style: 'currency',
                 currency: 'ILS'
             }).format(amount);
         };
@@ -441,8 +549,27 @@
                 'May': 5, 'June': 6, 'July': 7, 'August': 8,
                 'September': 9, 'October': 10, 'November': 11, 'December': 12
             };
-            
+
             return months.sort((a, b) => (monthOrder[a] || 0) - (monthOrder[b] || 0));
+        }
+
+        // Security: Helper to escape HTML to prevent XSS
+        function escapeHtml(unsafe) {
+            if (typeof unsafe !== 'string') return unsafe;
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function getThemeColors() {
+            const computed = getComputedStyle(document.documentElement);
+            return {
+                textColor: computed.getPropertyValue('--text-primary').trim(),
+                gridColor: computed.getPropertyValue('--border-color').trim()
+            };
         }
 
         // Load data from external JSON file
@@ -450,33 +577,33 @@
             const dataStatus = document.getElementById('dataStatus');
             const uploadSection = document.getElementById('uploadSection');
             const dashboardContent = document.getElementById('dashboardContent');
-            
+
             try {
                 const response = await fetch('./expenses.json');
-                
+
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-                
+
                 const data = await response.json();
-                
+
                 if (!Array.isArray(data) || data.length === 0) {
                     throw new Error('Invalid data format or empty dataset');
                 }
-                
+
                 allExpenses = data;
                 filteredExpenses = [...allExpenses];
-                
+
                 // Update status and show dashboard
                 dataStatus.className = 'data-status data-success';
                 dataStatus.innerHTML = `✅ Successfully loaded ${allExpenses.length} transactions`;
-                
+
                 setTimeout(() => {
                     dataStatus.style.display = 'none';
                     dashboardContent.classList.remove('hidden');
                     initializeDashboard();
                 }, 1500);
-                
+
             } catch (error) {
                 console.error('Error loading expense data:', error);
                 dataStatus.className = 'data-status data-error';
@@ -484,7 +611,7 @@
                     ❌ Auto-load failed: ${error.message}<br>
                     <small>Please upload your expenses.json file manually below</small>
                 `;
-                
+
                 // Show upload section as fallback
                 uploadSection.classList.remove('hidden');
                 setupFileUpload();
@@ -498,34 +625,34 @@
             const fileName = document.getElementById('fileName');
             const dataStatus = document.getElementById('dataStatus');
             const dashboardContent = document.getElementById('dashboardContent');
-            
+
             // File input change handler
-            fileInput.addEventListener('change', function(e) {
+            fileInput.addEventListener('change', function (e) {
                 const file = e.target.files[0];
                 if (file) {
                     fileName.textContent = `Selected: ${file.name}`;
                     handleFileUpload(file);
                 }
             });
-            
+
             // Drag and drop handlers
-            uploadSection.addEventListener('dragover', function(e) {
+            uploadSection.addEventListener('dragover', function (e) {
                 e.preventDefault();
                 uploadSection.style.background = 'rgba(102, 126, 234, 0.1)';
                 uploadSection.style.borderColor = '#4a5568';
             });
-            
-            uploadSection.addEventListener('dragleave', function(e) {
+
+            uploadSection.addEventListener('dragleave', function (e) {
                 e.preventDefault();
                 uploadSection.style.background = 'rgba(102, 126, 234, 0.05)';
                 uploadSection.style.borderColor = '#667eea';
             });
-            
-            uploadSection.addEventListener('drop', function(e) {
+
+            uploadSection.addEventListener('drop', function (e) {
                 e.preventDefault();
                 uploadSection.style.background = 'rgba(102, 126, 234, 0.05)';
                 uploadSection.style.borderColor = '#667eea';
-                
+
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     const file = files[0];
@@ -533,41 +660,41 @@
                     handleFileUpload(file);
                 }
             });
-            
+
             // File upload handler
             function handleFileUpload(file) {
                 const reader = new FileReader();
-                
-                reader.onload = function(e) {
+
+                reader.onload = function (e) {
                     try {
                         const content = e.target.result;
                         const data = JSON.parse(content);
-                        
+
                         if (!Array.isArray(data) || data.length === 0) {
                             throw new Error('Invalid data format or empty dataset');
                         }
-                        
+
                         allExpenses = data;
                         filteredExpenses = [...allExpenses];
-                        
+
                         // Update status and show dashboard
                         dataStatus.className = 'data-status data-success';
                         dataStatus.innerHTML = `✅ Successfully loaded ${allExpenses.length} transactions from ${file.name}`;
                         uploadSection.style.display = 'none';
-                        
+
                         setTimeout(() => {
                             dataStatus.style.display = 'none';
                             dashboardContent.classList.remove('hidden');
                             initializeDashboard();
                         }, 1500);
-                        
+
                     } catch (error) {
                         console.error('Error parsing file:', error);
                         dataStatus.className = 'data-status data-error';
                         dataStatus.innerHTML = `❌ Error parsing file: ${error.message}`;
                     }
                 };
-                
+
                 reader.readAsText(file);
             }
         }
@@ -581,10 +708,12 @@
 
         // Populate filter dropdowns
         function populateFilters() {
+            const years = [...new Set(allExpenses.map(exp => exp.year))].sort((a, b) => b - a);
             const months = [...new Set(allExpenses.map(exp => exp.month))];
-            const categories = [...new Set(allExpenses.map(exp => exp.category))];
-            const cards = [...new Set(allExpenses.map(exp => exp.card))];
+            const categories = [...new Set(allExpenses.map(exp => exp.category))].sort();
+            const cards = [...new Set(allExpenses.map(exp => exp.card))].sort();
 
+            populateDropdown('yearFilter', years);
             populateDropdown('monthFilter', sortMonthsChronologically(months));
             populateDropdown('categoryFilter', categories);
             populateDropdown('cardFilter', cards);
@@ -593,7 +722,7 @@
         function populateDropdown(elementId, options) {
             const select = document.getElementById(elementId);
             const currentOptions = Array.from(select.options).slice(1).map(opt => opt.value);
-            
+
             options.forEach(option => {
                 if (!currentOptions.includes(option)) {
                     const optionElement = document.createElement('option');
@@ -606,6 +735,7 @@
 
         // Setup event listeners
         function setupEventListeners() {
+            document.getElementById('yearFilter').addEventListener('change', applyFilters);
             document.getElementById('monthFilter').addEventListener('change', applyFilters);
             document.getElementById('categoryFilter').addEventListener('change', applyFilters);
             document.getElementById('cardFilter').addEventListener('change', applyFilters);
@@ -614,18 +744,20 @@
 
         // Apply filters
         function applyFilters() {
+            const yearFilter = document.getElementById('yearFilter').value;
             const monthFilter = document.getElementById('monthFilter').value;
             const categoryFilter = document.getElementById('categoryFilter').value;
             const cardFilter = document.getElementById('cardFilter').value;
             const searchTerm = document.getElementById('searchMerchant').value.toLowerCase();
 
             filteredExpenses = allExpenses.filter(expense => {
+                const yearMatch = yearFilter === 'all' || expense.year.toString() === yearFilter;
                 const monthMatch = monthFilter === 'all' || expense.month === monthFilter;
                 const categoryMatch = categoryFilter === 'all' || expense.category === categoryFilter;
                 const cardMatch = cardFilter === 'all' || expense.card === cardFilter;
                 const merchantMatch = expense.merchant.toLowerCase().includes(searchTerm);
 
-                return monthMatch && categoryMatch && cardMatch && merchantMatch;
+                return yearMatch && monthMatch && categoryMatch && cardMatch && merchantMatch;
             });
 
             updateDashboard();
@@ -678,16 +810,49 @@
             updateCardChart();
         }
 
-        // Monthly spending chart
+        // Monthly spending chart (Year-over-Year Comparison)
         function updateMonthlyChart() {
-            const monthlyData = {};
-            filteredExpenses.forEach(exp => {
-                monthlyData[exp.month] = (monthlyData[exp.month] || 0) + exp.amount;
+            // Group data by year and month
+            const yearlyData = {};
+            const years = [...new Set(filteredExpenses.map(exp => exp.year))].sort();
+
+            // If "All Years" is selected, we show multiple lines.
+            // If a specific year is selected, we still show standard line.
+
+            years.forEach(year => {
+                yearlyData[year] = {};
             });
 
-            // Sort months chronologically
-            const sortedMonths = sortMonthsChronologically(Object.keys(monthlyData));
-            const amounts = sortedMonths.map(month => monthlyData[month]);
+            filteredExpenses.forEach(exp => {
+                yearlyData[exp.year][exp.month] = (yearlyData[exp.year][exp.month] || 0) + exp.amount;
+            });
+
+            const allMonths = Object.keys(sortMonthsChronologically([
+                'January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'
+            ]));
+
+            // Pre-defined colors for different years to keep consistency
+            const colors = [
+                '#667eea', // Blue
+                '#f5576c', // Pink/Red
+                '#43e97b', // Green
+                '#f093fb', // Purple
+                '#fa709a'  // Orange-ish
+            ];
+
+            const datasets = years.map((year, index) => {
+                return {
+                    label: year.toString(),
+                    data: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+                        .map(month => yearlyData[year][month] || 0),
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length] + '20', // Add transparency
+                    borderWidth: 3,
+                    fill: false, // Don't fill for comparison clarity
+                    tension: 0.4
+                };
+            });
 
             const ctx = document.getElementById('monthlyChart');
             if (monthlyChart) monthlyChart.destroy();
@@ -695,33 +860,44 @@
             monthlyChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: sortedMonths,
-                    datasets: [{
-                        label: 'Monthly Spending',
-                        data: amounts,
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4
-                    }]
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: datasets
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
                     plugins: {
                         legend: {
-                            display: false
+                            display: true,
+                            position: 'top',
+                            labels: { color: getThemeColors().textColor }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return context.dataset.label + ': ' + formatCurrency(context.raw);
+                                }
+                            }
                         }
                     },
                     scales: {
+                        x: {
+                            ticks: { color: getThemeColors().textColor },
+                            grid: { color: getThemeColors().gridColor }
+                        },
                         y: {
                             beginAtZero: true,
                             ticks: {
-                                callback: function(value) {
+                                color: getThemeColors().textColor,
+                                callback: function (value) {
                                     return formatCurrency(value);
                                 }
-                            }
+                            },
+                            grid: { color: getThemeColors().gridColor }
                         }
                     }
                 }
@@ -759,11 +935,12 @@
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            position: 'right'
+                            position: 'right',
+                            labels: { color: getThemeColors().textColor }
                         },
                         tooltip: {
                             callbacks: {
-                                label: function(context) {
+                                label: function (context) {
                                     return context.label + ': ' + formatCurrency(context.raw);
                                 }
                             }
@@ -781,7 +958,7 @@
             });
 
             const sortedMerchants = Object.entries(merchantData)
-                .sort(([,a], [,b]) => b - a)
+                .sort(([, a], [, b]) => b - a)
                 .slice(0, 10);
 
             const merchants = sortedMerchants.map(([merchant,]) => merchant);
@@ -813,17 +990,21 @@
                     scales: {
                         x: {
                             ticks: {
+                                color: getThemeColors().textColor,
                                 maxRotation: 45,
                                 minRotation: 45
-                            }
+                            },
+                            grid: { color: getThemeColors().gridColor }
                         },
                         y: {
                             beginAtZero: true,
                             ticks: {
-                                callback: function(value) {
+                                color: getThemeColors().textColor,
+                                callback: function (value) {
                                     return formatCurrency(value);
                                 }
-                            }
+                            },
+                            grid: { color: getThemeColors().gridColor }
                         }
                     }
                 }
@@ -864,7 +1045,7 @@
                         },
                         tooltip: {
                             callbacks: {
-                                label: function(context) {
+                                label: function (context) {
                                     return context.label + ': ' + formatCurrency(context.raw);
                                 }
                             }
@@ -877,7 +1058,7 @@
         // Update transactions list
         function updateTransactionsList() {
             const transactionsList = document.getElementById('transactionsList');
-            
+
             if (filteredExpenses.length === 0) {
                 transactionsList.innerHTML = `
                     <div class="empty-state">
@@ -889,7 +1070,15 @@
             }
 
             // Helper function to parse date properly
+            // Input: YYYY-MM-DD
             function parseDate(dateStr) {
+                // If using new ISO format (YYYY-MM-DD)
+                if (dateStr.includes('-')) {
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    return new Date(year, month - 1, day);
+                }
+
+                // Fallback for old format (DD/MM/YY) just in case
                 const [day, month, year] = dateStr.split('/');
                 const fullYear = year.length === 2 ? '20' + year : year;
                 return new Date(fullYear, month - 1, day);
@@ -913,10 +1102,10 @@
                     <tbody>
                         ${sortedTransactions.map(transaction => `
                             <tr>
-                                <td>${transaction.date}</td>
-                                <td>${transaction.merchant}</td>
-                                <td><span class="category-cell">${transaction.category}</span></td>
-                                <td class="card-cell">*${transaction.card}</td>
+                                <td>${escapeHtml(transaction.date)}</td>
+                                <td>${escapeHtml(transaction.merchant)}</td>
+                                <td><span class="category-cell">${escapeHtml(transaction.category)}</span></td>
+                                <td class="card-cell">*${escapeHtml(transaction.card)}</td>
                                 <td class="amount-cell">${formatCurrency(transaction.amount)}</td>
                             </tr>
                         `).join('')}
@@ -929,4 +1118,5 @@
         document.addEventListener('DOMContentLoaded', loadExpenseData);
     </script>
 </body>
+
 </html>
