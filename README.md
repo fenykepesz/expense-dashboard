@@ -2,6 +2,8 @@
 
 A beautiful, interactive expense tracking dashboard built with HTML, CSS, and Chart.js.
 
+![Dashboard Preview](Screenshot.png)
+
 ## 🎯 Features
 
 - **Visual Analytics**: Interactive charts showing spending patterns
