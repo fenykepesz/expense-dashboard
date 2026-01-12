@@ -10,6 +10,9 @@ A beautiful, interactive expense tracking dashboard built with HTML, CSS, and Ch
   - Top merchants analysis (bar chart)
   - Card usage distribution (pie chart)
 
+- **Multi-Year Analysis**: 
+  - Filter expenses by specific year
+  - **Year-over-Year Comparison**: Overlay chart comparing monthly spending trends across different years
 - **Smart Filtering**: Filter expenses by year, month, category, and card
 
 - **Summary Cards**: Quick overview of total spending, average per transaction, and transaction count
@@ -57,15 +60,22 @@ The dashboard expects data in the following JSON format:
 ```json
 [
     {
-        "date": "01/01/24",
+        "date": "2024-01-01",
+        "year": 2024,
+        "month": "January",
         "merchant": "Merchant Name",
         "category": "Category Name",
         "card": "1234",
-        "amount": 100.00,
-        "month": "Jan 2024"
+        "amount": 100.00
     }
 ]
 ```
+
+> **Note**: Dates are now in ISO 8601 format (`YYYY-MM-DD`). Explicit `year` and `month` fields are required for filtering.
+
+## 🛡️ Security
+- **XSS Protection**: Data rendering is sanitized to prevent Cross-Site Scripting attacks.
+- **SRI Check**: External libraries (Chart.js) are loaded with Subresource Integrity hashes.
 
 ## 🔒 Privacy & Data Security
 
