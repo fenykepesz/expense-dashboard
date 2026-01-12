@@ -75,7 +75,14 @@ The dashboard expects data in the following JSON format:
 
 > **Note**: Dates are now in ISO 8601 format (`YYYY-MM-DD`). Explicit `year` and `month` fields are required for filtering.
 
-## 🛡️ Security
+## � Migration Tool
+If you have data in the old format (DD/MM/YY), use the included Python script to convert it:
+
+```bash
+python tools/convert_data.py input_data.json -o new_data.json
+```
+
+## �🛡️ Security
 - **XSS Protection**: Data rendering is sanitized to prevent Cross-Site Scripting attacks.
 - **SRI Check**: External libraries (Chart.js) are loaded with Subresource Integrity hashes.
 
