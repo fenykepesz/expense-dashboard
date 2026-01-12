@@ -327,7 +327,9 @@
             }
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"
+        integrity="sha512-ElRFoEQdI5Ht6kZvyzXhYG9NqjtkmlkfYk0wr6wHxU9JEHakS7UJZNeml5ALk+8IKlU6jDgMabC3vkumRokgJA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 
 <body>
@@ -454,6 +456,17 @@
             };
 
             return months.sort((a, b) => (monthOrder[a] || 0) - (monthOrder[b] || 0));
+        }
+
+        // Security: Helper to escape HTML to prevent XSS
+        function escapeHtml(unsafe) {
+            if (typeof unsafe !== 'string') return unsafe;
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
 
         // Load data from external JSON file
@@ -974,10 +987,10 @@
                     <tbody>
                         ${sortedTransactions.map(transaction => `
                             <tr>
-                                <td>${transaction.date}</td>
-                                <td>${transaction.merchant}</td>
-                                <td><span class="category-cell">${transaction.category}</span></td>
-                                <td class="card-cell">*${transaction.card}</td>
+                                <td>${escapeHtml(transaction.date)}</td>
+                                <td>${escapeHtml(transaction.merchant)}</td>
+                                <td><span class="category-cell">${escapeHtml(transaction.category)}</span></td>
+                                <td class="card-cell">*${escapeHtml(transaction.card)}</td>
                                 <td class="amount-cell">${formatCurrency(transaction.amount)}</td>
                             </tr>
                         `).join('')}
