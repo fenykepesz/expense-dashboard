@@ -99,6 +99,7 @@ python tools/pdf_to_json.py "path/to/your/statement.pdf" -o expenses.json
 - **Automatic Categorization**: Matches merchants to categories using patterns in `tools/category_rules.json`.
 - **RTL Hebrew Support**: Correctly handles reversed Hebrew text from Bank Leumi statements.
 - **Auto-Month/Year**: Calculates month names and years from transaction dates.
+- **Installment Support**: Properly extracts installment transactions, recording the monthly payment amount.
 
 ## �🛡️ Security
 - **XSS Protection**: Data rendering is sanitized to prevent Cross-Site Scripting attacks.
