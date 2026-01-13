@@ -115,12 +115,13 @@ def extract_transactions(pdf_path):
     # Pattern to match transaction lines
     # Format: charge_amount type original_amount merchant date
     # Example: 10.00 הליגר הקסע 10.00 קסויקה 28/11/25
-    # Transaction types can appear in two formats due to PDF extraction inconsistencies:
-    # - הליגר הקסע / ל"וח לקייס / םימולשתב הקסע (normal direction)
-    # - הקסע רגילה / סייקל חו"ל / עסקה בתשלומים (reversed - as written in Hebrew)
+    # Transaction types can appear in multiple formats due to PDF extraction inconsistencies:
+    # Regular: הליגר הקסע / הקסע רגילה
+    # Foreign: ל"וח לקייס / ל"חו לקייס
+    # Installment: םימולשתב הקסע / הליגר םימולשת תקסע
     transaction_pattern = re.compile(
-        r'([\d,]+\.?\d*)\s+'           # Charge amount
-        r'(?:הליגר הקסע|םימולשתב הקסע|ל"וח לקייס|הקסע רגילה|ל"חו לקייס)\s+'  # Transaction type (both directions)
+        r'(-?[\d,]+\.?\d*)\s+'         # Charge amount (can be negative for refunds)
+        r'(?:הליגר הקסע|םימולשתב הקסע|ל"וח לקייס|הקסע רגילה|ל"חו לקייס|הליגר םימולשת תקסע)\s+'  # Transaction type
         r'([\d,]+\.?\d*)\s+'           # Original amount
         r'(.+?)\s+'                     # Merchant name
         r'(\d{2}/\d{2}/\d{2})'         # Date DD/MM/YY
@@ -147,11 +148,11 @@ def extract_transactions(pdf_path):
                     merchant = fix_hebrew_text(match.group(3).strip())
                     date_str = match.group(4)
                     
-                    # Skip zero or negative amounts (refunds handled separately)
+                    # Skip zero or negative amounts (card fees and refunds)
                     try:
                         amount = float(charge_amount)
                         if amount <= 0:
-                            continue
+                            continue  # Skip: 0.00 (waived fees) and negative (refunds/credits)
                     except ValueError:
                         continue
                     
