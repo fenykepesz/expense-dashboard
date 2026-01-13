@@ -90,6 +90,11 @@ If you have a Bank Leumi credit card statement in PDF format, you can convert it
 pip install pdfplumber
 ```
 
+**Optional**: For proper Hebrew text direction support (recommended for Bank Leumi statements):
+```bash
+pip install python-bidi
+```
+
 ### Usage
 ```bash
 python tools/pdf_to_json.py "path/to/your/statement.pdf" -o expenses.json

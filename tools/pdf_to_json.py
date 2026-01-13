@@ -21,6 +21,46 @@ except ImportError:
     print("Error: pdfplumber is required. Install with: pip install pdfplumber")
     exit(1)
 
+try:
+    from bidi.algorithm import get_display
+    BIDI_AVAILABLE = True
+except ImportError:
+    BIDI_AVAILABLE = False
+
+
+def fix_hebrew_text(text):
+    """
+    Fix Hebrew text that was extracted in reversed order from PDF.
+
+    Hebrew text in PDFs is often stored in logical (visual) order but appears
+    reversed when extracted. This function uses the Unicode BiDi algorithm
+    to properly reorder the text.
+
+    If python-bidi is not available, returns text as-is with a warning.
+    """
+    if not text:
+        return text
+
+    # Check if text contains Hebrew characters
+    has_hebrew = any('\u0590' <= char <= '\u05FF' for char in text)
+
+    if not has_hebrew:
+        return text
+
+    if not BIDI_AVAILABLE:
+        # Return as-is but warn user once
+        if not hasattr(fix_hebrew_text, '_warned'):
+            print("Warning: python-bidi not installed. Hebrew text may appear reversed.")
+            print("Install with: pip install python-bidi")
+            fix_hebrew_text._warned = True
+        return text
+
+    try:
+        # Use BiDi algorithm to fix text direction
+        return get_display(text)
+    except Exception:
+        return text
+
 
 def load_category_rules(rules_path=None):
     """Load category mapping rules from JSON file."""
@@ -117,7 +157,7 @@ def extract_transactions(pdf_path):
                 if match:
                     charge_amount = match.group(1).replace(',', '')
                     original_amount = match.group(2).replace(',', '')
-                    merchant = match.group(3).strip()
+                    merchant = fix_hebrew_text(match.group(3).strip())
                     date_str = match.group(4)
                     
                     # Skip zero or negative amounts (refunds handled separately)
