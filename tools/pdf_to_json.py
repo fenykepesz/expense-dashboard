@@ -39,13 +39,15 @@ def categorize_merchant(merchant, rules):
     """
     Categorize a merchant based on keyword matching.
     Returns the category or 'Uncategorized' if no match.
+
+    Note: rules should be pre-processed with lowercase keys for efficiency.
     """
     merchant_lower = merchant.lower()
-    
-    for keyword, category in rules.items():
-        if keyword.lower() in merchant_lower:
+
+    for keyword_lower, category in rules.items():
+        if keyword_lower in merchant_lower:
             return category
-    
+
     return "Uncategorized"
 
 
@@ -66,7 +68,7 @@ def get_month_name(date_str):
     try:
         dt = datetime.strptime(date_str, "%Y-%m-%d")
         return dt.strftime("%B")
-    except:
+    except ValueError:
         return "Unknown"
 
 
@@ -75,8 +77,8 @@ def get_year(date_str):
     try:
         dt = datetime.strptime(date_str, "%Y-%m-%d")
         return dt.year
-    except:
-        return 2025
+    except ValueError:
+        return datetime.now().year
 
 
 def extract_transactions(pdf_path):
@@ -162,7 +164,10 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None):
     """
     # Load category rules
     rules = load_category_rules(rules_path)
-    
+
+    # Pre-process rules for case-insensitive matching
+    rules_lower = {k.lower(): v for k, v in rules.items()}
+
     # Extract card number
     card = extract_card_number(pdf_path)
     
@@ -171,16 +176,19 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None):
     
     # Convert to dashboard format
     expenses = []
+    skipped_count = 0
     for tx in raw_transactions:
         iso_date = parse_date(tx['raw_date'])
         if not iso_date:
+            print(f"Warning: Skipping transaction with invalid date '{tx['raw_date']}' from merchant: {tx['merchant']}")
+            skipped_count += 1
             continue
-        
+
         expense = {
             "date": iso_date,
             "merchant": tx['merchant'],
             "amount": tx['amount'],
-            "category": categorize_merchant(tx['merchant'], rules),
+            "category": categorize_merchant(tx['merchant'], rules_lower),
             "month": get_month_name(iso_date),
             "year": get_year(iso_date),
             "card": card
@@ -195,7 +203,10 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None):
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(expenses, f, indent=4, ensure_ascii=False)
         print(f"Saved {len(expenses)} transactions to {output_path}")
-    
+
+    if skipped_count > 0:
+        print(f"Note: Skipped {skipped_count} transaction(s) with invalid dates")
+
     return expenses
 
 
