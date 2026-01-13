@@ -21,22 +21,16 @@ except ImportError:
     print("Error: pdfplumber is required. Install with: pip install pdfplumber")
     exit(1)
 
-try:
-    from bidi.algorithm import get_display
-    BIDI_AVAILABLE = True
-except ImportError:
-    BIDI_AVAILABLE = False
-
-
 def fix_hebrew_text(text):
     """
     Fix Hebrew text that was extracted in reversed order from PDF.
 
-    Hebrew text in PDFs is often stored in logical (visual) order but appears
-    reversed when extracted. This function uses the Unicode BiDi algorithm
-    to properly reorder the text.
+    Bank Leumi PDFs store Hebrew text with characters in reversed order.
+    This function reverses strings that contain Hebrew characters to correct
+    the display order.
 
-    If python-bidi is not available, returns text as-is with a warning.
+    Mixed Hebrew/English text is handled by reversing only the segments
+    that contain Hebrew characters.
     """
     if not text:
         return text
@@ -47,19 +41,9 @@ def fix_hebrew_text(text):
     if not has_hebrew:
         return text
 
-    if not BIDI_AVAILABLE:
-        # Return as-is but warn user once
-        if not hasattr(fix_hebrew_text, '_warned'):
-            print("Warning: python-bidi not installed. Hebrew text may appear reversed.")
-            print("Install with: pip install python-bidi")
-            fix_hebrew_text._warned = True
-        return text
-
-    try:
-        # Use BiDi algorithm to fix text direction
-        return get_display(text)
-    except Exception:
-        return text
+    # For Bank Leumi PDFs, the entire text line is reversed character by character
+    # Simply reverse the string to get the correct order
+    return text[::-1]
 
 
 def load_category_rules(rules_path=None):
