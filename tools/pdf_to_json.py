@@ -111,18 +111,30 @@ def extract_transactions(pdf_path):
     Returns a list of raw transaction dictionaries.
     """
     transactions = []
-    
-    # Pattern to match transaction lines
+
+    # Pattern to match regular/foreign transaction lines
     # Format: charge_amount type original_amount merchant date
     # Example: 10.00 הליגר הקסע 10.00 קסויקה 28/11/25
     # Transaction types can appear in multiple formats due to PDF extraction inconsistencies:
     # Regular: הליגר הקסע / הקסע רגילה
     # Foreign: ל"וח לקייס / ל"חו לקייס
-    # Installment: םימולשתב הקסע / הליגר םימולשת תקסע
-    transaction_pattern = re.compile(
+    regular_pattern = re.compile(
         r'(-?[\d,]+\.?\d*)\s+'         # Charge amount (can be negative for refunds)
-        r'(?:הליגר הקסע|םימולשתב הקסע|ל"וח לקייס|הקסע רגילה|ל"חו לקייס|הליגר םימולשת תקסע)\s+'  # Transaction type
+        r'(?:הליגר הקסע|ל"וח לקייס|הקסע רגילה|ל"חו לקייס)\s+'  # Transaction type (non-installment)
         r'([\d,]+\.?\d*)\s+'           # Original amount
+        r'(.+?)\s+'                     # Merchant name
+        r'(\d{2}/\d{2}/\d{2})'         # Date DD/MM/YY
+    )
+
+    # Pattern to match installment transaction lines
+    # Format: charge_amount type1 type2 original_amount merchant date
+    # Installment format has TWO transaction type strings
+    # Example: 105.00 םימולשתב הקסע הליגר םימולשת תקסע 1,260.00 ספוש!הלאוו 03/02/25
+    installment_pattern = re.compile(
+        r'(-?[\d,]+\.?\d*)\s+'         # Charge amount (monthly payment)
+        r'(?:םימולשתב הקסע|הליגר םימולשת תקסע)\s+'  # First transaction type
+        r'(?:םימולשתב הקסע|הליגר םימולשת תקסע)\s+'  # Second transaction type (yes, both!)
+        r'([\d,]+\.?\d*)\s+'           # Original total amount
         r'(.+?)\s+'                     # Merchant name
         r'(\d{2}/\d{2}/\d{2})'         # Date DD/MM/YY
     )
@@ -139,15 +151,19 @@ def extract_transactions(pdf_path):
                 # Skip header lines and totals
                 if 'בויח םוכס' in line or 'כ"הס' in line:
                     continue
-                
-                # Try to match transaction pattern
-                match = transaction_pattern.search(line)
+
+                # Try to match regular transaction pattern first
+                match = regular_pattern.search(line)
+                if not match:
+                    # Try installment pattern
+                    match = installment_pattern.search(line)
+
                 if match:
                     charge_amount = match.group(1).replace(',', '')
                     original_amount = match.group(2).replace(',', '')
                     merchant = fix_hebrew_text(match.group(3).strip())
                     date_str = match.group(4)
-                    
+
                     # Skip zero or negative amounts (card fees and refunds)
                     try:
                         amount = float(charge_amount)
@@ -155,7 +171,7 @@ def extract_transactions(pdf_path):
                             continue  # Skip: 0.00 (waived fees) and negative (refunds/credits)
                     except ValueError:
                         continue
-                    
+
                     transactions.append({
                         'raw_date': date_str,
                         'merchant': merchant,
