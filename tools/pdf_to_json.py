@@ -115,10 +115,12 @@ def extract_transactions(pdf_path):
     # Pattern to match transaction lines
     # Format: charge_amount type original_amount merchant date
     # Example: 10.00 הליגר הקסע 10.00 קסויקה 28/11/25
-    # Transaction types: הליגר הקסע (regular), םימולשתב הקסע (installment), ל"וח לקייס (foreign)
+    # Transaction types can appear in two formats due to PDF extraction inconsistencies:
+    # - הליגר הקסע / ל"וח לקייס / םימולשתב הקסע (normal direction)
+    # - הקסע רגילה / סייקל חו"ל / עסקה בתשלומים (reversed - as written in Hebrew)
     transaction_pattern = re.compile(
         r'([\d,]+\.?\d*)\s+'           # Charge amount
-        r'(?:הליגר הקסע|םימולשתב הקסע|ל"וח לקייס)\s+'  # Transaction type
+        r'(?:הליגר הקסע|םימולשתב הקסע|ל"וח לקייס|הקסע רגילה|ל"חו לקייס)\s+'  # Transaction type (both directions)
         r'([\d,]+\.?\d*)\s+'           # Original amount
         r'(.+?)\s+'                     # Merchant name
         r'(\d{2}/\d{2}/\d{2})'         # Date DD/MM/YY
