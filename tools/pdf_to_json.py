@@ -113,11 +113,12 @@ def extract_transactions(pdf_path):
     transactions = []
     
     # Pattern to match transaction lines
-    # Format: amount type amount merchant date
+    # Format: charge_amount type original_amount merchant date
     # Example: 10.00 הליגר הקסע 10.00 קסויקה 28/11/25
+    # Transaction types: הליגר הקסע (regular), םימולשתב הקסע (installment), ל"וח לקייס (foreign)
     transaction_pattern = re.compile(
         r'([\d,]+\.?\d*)\s+'           # Charge amount
-        r'(?:הליגר הקסע|םימולשתב הקסע)\s+'  # Transaction type (regular or installment)
+        r'(?:הליגר הקסע|םימולשתב הקסע|ל"וח לקייס)\s+'  # Transaction type
         r'([\d,]+\.?\d*)\s+'           # Original amount
         r'(.+?)\s+'                     # Merchant name
         r'(\d{2}/\d{2}/\d{2})'         # Date DD/MM/YY
