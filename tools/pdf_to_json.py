@@ -185,24 +185,91 @@ def extract_card_number(pdf_path):
     """Extract card last 4 digits from PDF."""
     with pdfplumber.open(pdf_path) as pdf:
         text = pdf.pages[0].extract_text() if pdf.pages else ""
-        
+
         # Look for card number in title (e.g., "9334 דראקרטסמ ימואל סיטרכל")
         match = re.search(r'(\d{4})\s+דראקרטסמ|(\d{4})\s+הזיו', text)
         if match:
             return match.group(1) or match.group(2)
-    
+
     return "0000"
 
 
-def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None):
+def get_available_categories():
+    """Return a list of standard expense categories."""
+    return [
+        "Groceries",
+        "Restaurants",
+        "Food Delivery",
+        "Transportation",
+        "Shopping",
+        "Technology",
+        "Entertainment",
+        "Telecommunications",
+        "Insurance",
+        "Banking Fees",
+        "Healthcare",
+        "Utilities",
+        "General Services",
+        "Other"
+    ]
+
+
+def interactive_categorize_merchant(merchant, existing_rules):
+    """
+    Prompt user to categorize a merchant interactively.
+    Returns the selected category and a keyword to save for future matching.
+    """
+    categories = get_available_categories()
+
+    print(f"\n>> New merchant: {merchant}")
+    print("Available categories:")
+    for i, cat in enumerate(categories, 1):
+        print(f"  {i}. {cat}")
+
+    while True:
+        try:
+            choice = input("\nSelect category number (or 's' to skip): ").strip().lower()
+
+            if choice == 's':
+                return "Uncategorized", None
+
+            category_idx = int(choice) - 1
+            if 0 <= category_idx < len(categories):
+                selected_category = categories[category_idx]
+
+                # Ask for keyword to save
+                print(f"\n[OK] Category: {selected_category}")
+                keyword = input(f"Enter keyword to match (default: '{merchant}'): ").strip()
+                if not keyword:
+                    keyword = merchant
+
+                return selected_category, keyword
+            else:
+                print("Invalid choice. Try again.")
+        except ValueError:
+            print("Invalid input. Enter a number or 's' to skip.")
+
+
+def save_category_rules(rules, rules_path=None):
+    """Save updated category rules to JSON file."""
+    if rules_path is None:
+        rules_path = Path(__file__).parent / "category_rules.json"
+
+    with open(rules_path, 'w', encoding='utf-8') as f:
+        json.dump(rules, f, indent=4, ensure_ascii=False)
+    print(f"[OK] Updated category rules saved to {rules_path}")
+
+
+def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None, interactive=False):
     """
     Main conversion function.
-    
+
     Args:
         pdf_path: Path to the Bank Leumi PDF statement
         output_path: Output JSON file path (optional)
         rules_path: Path to category rules JSON (optional)
-    
+        interactive: Enable interactive categorization for unknown merchants (optional)
+
     Returns:
         List of converted expense dictionaries
     """
@@ -214,13 +281,16 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None):
 
     # Extract card number
     card = extract_card_number(pdf_path)
-    
+
     # Extract raw transactions
     raw_transactions = extract_transactions(pdf_path)
-    
+
     # Convert to dashboard format
     expenses = []
     skipped_count = 0
+    uncategorized_merchants = {}  # Track uncategorized merchants
+    new_rules = {}  # Track newly added rules
+
     for tx in raw_transactions:
         iso_date = parse_date(tx['raw_date'])
         if not iso_date:
@@ -228,25 +298,58 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None):
             skipped_count += 1
             continue
 
+        category = categorize_merchant(tx['merchant'], rules_lower)
+
+        # Track uncategorized merchants for interactive mode
+        if category == "Uncategorized" and interactive:
+            if tx['merchant'] not in uncategorized_merchants:
+                uncategorized_merchants[tx['merchant']] = True
+
         expense = {
             "date": iso_date,
             "merchant": tx['merchant'],
             "amount": tx['amount'],
-            "category": categorize_merchant(tx['merchant'], rules_lower),
+            "category": category,
             "month": get_month_name(iso_date),
             "year": get_year(iso_date),
             "card": card
         }
         expenses.append(expense)
     
+    # Interactive categorization for uncategorized merchants
+    if interactive and uncategorized_merchants:
+        print(f"\n{'='*60}")
+        print(f"Found {len(uncategorized_merchants)} uncategorized merchant(s)")
+        print(f"{'='*60}")
+
+        for merchant in uncategorized_merchants:
+            category, keyword = interactive_categorize_merchant(merchant, rules)
+
+            if keyword:
+                # Add new rule
+                new_rules[keyword] = category
+                rules_lower[keyword.lower()] = category
+
+                # Update all matching expenses
+                for expense in expenses:
+                    if expense['merchant'] == merchant:
+                        expense['category'] = category
+
+        # Save updated rules if any were added
+        if new_rules:
+            # Merge with original rules
+            updated_rules = {**rules, **new_rules}
+            save_category_rules(updated_rules, rules_path)
+            print(f"\n[OK] Added {len(new_rules)} new categorization rule(s)")
+
     # Sort by date descending
     expenses.sort(key=lambda x: x['date'], reverse=True)
-    
+
     # Save to file if output path provided
     if output_path:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(expenses, f, indent=4, ensure_ascii=False)
-        print(f"Saved {len(expenses)} transactions to {output_path}")
+        print(f"\n[OK] Saved {len(expenses)} transactions to {output_path}")
 
     if skipped_count > 0:
         print(f"Note: Skipped {skipped_count} transaction(s) with invalid dates")
@@ -263,14 +366,16 @@ def main():
                         help="Output JSON file path (default: expenses_converted.json)")
     parser.add_argument("-r", "--rules", default=None,
                         help="Path to category rules JSON (default: tools/category_rules.json)")
-    
+    parser.add_argument("-i", "--interactive", action="store_true",
+                        help="Enable interactive categorization for unknown merchants")
+
     args = parser.parse_args()
-    
+
     if not os.path.exists(args.pdf):
         print(f"Error: PDF file not found: {args.pdf}")
         return
-    
-    expenses = convert_pdf_to_json(args.pdf, args.output, args.rules)
+
+    expenses = convert_pdf_to_json(args.pdf, args.output, args.rules, args.interactive)
     
     print(f"\nExtracted {len(expenses)} transactions")
     print(f"Categories found:")
