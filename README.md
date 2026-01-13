@@ -91,12 +91,26 @@ pip install pdfplumber
 ```
 
 ### Usage
+
+**Basic usage:**
 ```bash
 python tools/pdf_to_json.py "path/to/your/statement.pdf" -o expenses.json
 ```
 
+**Interactive mode** (categorize unknown merchants):
+```bash
+python tools/pdf_to_json.py "path/to/your/statement.pdf" -o expenses.json -i
+```
+
+The interactive mode (`-i` flag) will:
+1. Identify all uncategorized merchants
+2. Prompt you to select a category for each
+3. Ask for a keyword to match (defaults to full merchant name)
+4. Save the new rules to `category_rules.json` for future use
+
 ### Features
 - **Automatic Categorization**: Matches merchants to categories using patterns in `tools/category_rules.json`.
+- **Interactive Categorization**: Quickly categorize unknown merchants and save rules for future PDFs.
 - **RTL Hebrew Support**: Correctly handles reversed Hebrew text from Bank Leumi statements.
 - **Auto-Month/Year**: Calculates month names and years from transaction dates.
 - **Installment Support**: Properly extracts installment transactions, recording the monthly payment amount.
