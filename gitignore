@@ -4,6 +4,10 @@
 real_expense_data.json
 my_expenses.json
 
+# Bank statement exports
+*.xlsx
+*.xls
+
 # System files
 .DS_Store
 Thumbs.db

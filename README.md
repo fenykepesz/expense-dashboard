@@ -117,6 +117,35 @@ The interactive mode (`-i` flag) will:
 - **Auto-Month/Year**: Calculates month names and years from transaction dates.
 - **Installment Support**: Properly extracts installment transactions, recording the monthly payment amount.
 
+## 📊 Excel Converter Tool [NEW]
+If you have a Bank Leumi Excel export (.xls) containing all your cards' transactions, you can convert it directly to the dashboard's JSON format. This is often more convenient than the PDF converter since **one file contains all cards**.
+
+> **Note**: Bank Leumi's .xls export is actually an HTML file — no additional Python packages are required.
+
+### Usage
+
+**Basic usage (ILS transactions only):**
+```bash
+python tools/excel_to_json.py "path/to/your/export.xls" -o expenses.json
+```
+
+**Include foreign currency transactions (converted to ILS):**
+```bash
+python tools/excel_to_json.py "path/to/your/export.xls" -o expenses.json --usd-rate 3.65 --eur-rate 3.92
+```
+
+**Interactive mode** (categorize unknown merchants):
+```bash
+python tools/excel_to_json.py "path/to/your/export.xls" -o expenses.json -i
+```
+
+### Features
+- **All Cards in One File**: Processes all credit cards from a single Bank Leumi export — no need to run the converter per card.
+- **Automatic Categorization**: Same keyword-based categorization as the PDF converter using `tools/category_rules.json`.
+- **Interactive Categorization**: Same interactive mode as the PDF converter for unknown merchants.
+- **Foreign Currency Support**: Convert USD/EUR/GBP transactions to ILS using exchange rates you provide.
+- **Zero Dependencies**: Uses only Python standard library (no pip install needed).
+
 ##  🛡️ Security
 - **XSS Protection**: Data rendering is sanitized to prevent Cross-Site Scripting attacks.
 - **SRI Check**: External libraries (Chart.js) are loaded with Subresource Integrity hashes.
