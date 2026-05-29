@@ -2,7 +2,8 @@ import json
 import argparse
 from datetime import datetime
 import calendar
-import sys
+
+__version__ = "1.0.0"
 
 # Mapping of month numbers to names for English month names
 MONTH_NAMES = {i: calendar.month_name[i] for i in range(1, 13)}
@@ -68,6 +69,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert legacy expense JSON data to the new dashboard format.")
     parser.add_argument("input", help="Path to the input JSON file (legacy format)")
     parser.add_argument("-o", "--output", default="expenses_v2.json", help="Path to the output JSON file (default: expenses_v2.json)")
+    parser.add_argument("--version", action="version", version=f"convert_data {__version__}")
     
     args = parser.parse_args()
     

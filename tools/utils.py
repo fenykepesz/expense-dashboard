@@ -9,6 +9,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+__version__ = "1.0.0"
+
 
 def load_category_rules(rules_path=None):
     """Load category mapping rules from JSON file."""
