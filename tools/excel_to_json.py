@@ -30,6 +30,7 @@ from utils import (
     get_year,
     run_interactive_categorization,
     save_expenses_json,
+    save_to_db,
     print_summary,
 )
 
@@ -319,6 +320,8 @@ def main():
                         help="EUR to ILS exchange rate (e.g., 3.92)")
     parser.add_argument("--gbp-rate", type=float, default=None,
                         help="GBP to ILS exchange rate (e.g., 4.55)")
+    parser.add_argument("--db", default=None,
+                        help="SQLite database path to write transactions into (e.g., expenses.db)")
     parser.add_argument("--version", action="version", version=f"excel_to_json {__version__}")
 
     args = parser.parse_args()
@@ -336,9 +339,16 @@ def main():
     if args.gbp_rate:
         exchange_rates["GBP"] = args.gbp_rate
 
+    # When --db is given without -o, skip JSON output
+    output_path = args.output if not args.db else None
+
     expenses = convert_excel_to_json(
-        args.excel, args.output, args.rules, args.interactive, exchange_rates
+        args.excel, output_path, args.rules, args.interactive, exchange_rates
     )
+
+    if args.db:
+        save_to_db(expenses, args.db)
+
     print_summary(expenses)
 
 
