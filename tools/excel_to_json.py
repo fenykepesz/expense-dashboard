@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from utils import (
+    __version__,
     load_category_rules,
     categorize_merchant,
     parse_date,
@@ -318,6 +319,7 @@ def main():
                         help="EUR to ILS exchange rate (e.g., 3.92)")
     parser.add_argument("--gbp-rate", type=float, default=None,
                         help="GBP to ILS exchange rate (e.g., 4.55)")
+    parser.add_argument("--version", action="version", version=f"excel_to_json {__version__}")
 
     args = parser.parse_args()
 

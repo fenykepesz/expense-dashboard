@@ -24,6 +24,7 @@ except ImportError:
     exit(1)
 
 from utils import (
+    __version__,
     load_category_rules,
     categorize_merchant,
     parse_date,
@@ -226,6 +227,7 @@ def main():
                         help="Path to category rules JSON (default: tools/category_rules.json)")
     parser.add_argument("-i", "--interactive", action="store_true",
                         help="Enable interactive categorization for unknown merchants")
+    parser.add_argument("--version", action="version", version=f"pdf_to_json {__version__}")
 
     args = parser.parse_args()
 
