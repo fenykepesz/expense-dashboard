@@ -445,7 +445,7 @@
             <button id="themeToggle" class="theme-toggle" title="Toggle Dark Mode">🌙</button>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.0.0</span>
+            <span class="version-badge">v1.1.0</span>
         </div>
 
         <div id="dataStatus" class="data-status data-loading">
@@ -627,7 +627,7 @@
             const dashboardContent = document.getElementById('dashboardContent');
 
             try {
-                const response = await fetch('./expenses.json');
+                const response = await fetch('/api/transactions');
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);

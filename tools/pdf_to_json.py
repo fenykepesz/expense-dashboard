@@ -32,6 +32,7 @@ from utils import (
     get_year,
     run_interactive_categorization,
     save_expenses_json,
+    save_to_db,
     print_summary,
 )
 
@@ -227,6 +228,8 @@ def main():
                         help="Path to category rules JSON (default: tools/category_rules.json)")
     parser.add_argument("-i", "--interactive", action="store_true",
                         help="Enable interactive categorization for unknown merchants")
+    parser.add_argument("--db", default=None,
+                        help="SQLite database path to write transactions into (e.g., expenses.db)")
     parser.add_argument("--version", action="version", version=f"pdf_to_json {__version__}")
 
     args = parser.parse_args()
@@ -235,7 +238,14 @@ def main():
         print(f"Error: PDF file not found: {args.pdf}")
         return
 
-    expenses = convert_pdf_to_json(args.pdf, args.output, args.rules, args.interactive)
+    # When --db is given without -o, skip JSON output
+    output_path = args.output if not args.db else None
+
+    expenses = convert_pdf_to_json(args.pdf, output_path, args.rules, args.interactive)
+
+    if args.db:
+        save_to_db(expenses, args.db)
+
     print_summary(expenses)
 
 

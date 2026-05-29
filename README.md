@@ -53,9 +53,25 @@ This software is provided "AS IS" without warranty of any kind, express or impli
 
 ## 💻 Usage
 
+### Prerequisites
+```bash
+pip install -r requirements.txt
+```
+
+### Running the dashboard
+
 1. Clone this repository
-2. Open `index.html` in your browser
-3. The dashboard will load sample data from `expense_data.json`
+2. Migrate the sample data into SQLite:
+   ```bash
+   python tools/migrate_to_db.py expense_data.json
+   ```
+3. Start the local server:
+   ```bash
+   python app.py
+   ```
+4. Open `http://localhost:5000` in your browser
+
+> **Note**: The dashboard is now served by a local Flask server backed by SQLite (`expenses.db`). The database file is git-ignored — your financial data never leaves your machine.
 
 ## 📊 Data Format
 
