@@ -15,7 +15,7 @@ Check off items as they ship; add new ideas freely.
 
 ## Architecture
 
-- [ ] **Migrate to a database backend** — replace the flat JSON file with a lightweight DB (e.g. SQLite) that supports proper querying and search; no heavy infrastructure, just something more robust than a single file
+- [x] **Migrate to a database backend** — SQLite + Flask backend shipped in v1.1.0; `db.py`, `app.py`, `--db` flag on converters, migration script
 
 ---
 
