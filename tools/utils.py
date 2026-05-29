@@ -6,10 +6,11 @@ and interactive categorization used by both PDF and Excel converters.
 """
 
 import json
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 
 def load_category_rules(rules_path=None):
@@ -186,6 +187,31 @@ def save_expenses_json(expenses, output_path):
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(expenses, f, indent=4, ensure_ascii=False)
     print(f"\n[OK] Saved {len(expenses)} transactions to {output_path}")
+
+
+def save_to_db(expenses, db_path):
+    """Insert a list of expense dicts into a SQLite database."""
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS transactions (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            date     TEXT    NOT NULL,
+            merchant TEXT    NOT NULL,
+            amount   REAL    NOT NULL,
+            category TEXT    NOT NULL,
+            month    TEXT    NOT NULL,
+            year     INTEGER NOT NULL,
+            card     TEXT    NOT NULL
+        )
+    """)
+    conn.executemany(
+        "INSERT INTO transactions (date, merchant, amount, category, month, year, card) "
+        "VALUES (:date, :merchant, :amount, :category, :month, :year, :card)",
+        expenses,
+    )
+    conn.commit()
+    conn.close()
+    print(f"\n[OK] Inserted {len(expenses)} transactions into {db_path}")
 
 
 def print_summary(expenses):

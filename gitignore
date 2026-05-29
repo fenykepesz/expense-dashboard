@@ -1,3 +1,6 @@
+# SQLite database (contains real financial data - DO NOT COMMIT)
+*.db
+
 # Private financial data - DO NOT COMMIT
 *_real.json
 *_private.json
