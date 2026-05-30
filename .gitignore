@@ -1,6 +1,7 @@
 # Personal financial data — never commit
 *.db
 tools/expenses_*.json
+tools/category_rules.json
 
 # Raw bank export files
 tools/*.xls
