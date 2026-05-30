@@ -440,6 +440,17 @@
 
         .import-dropzone p { color: var(--text-secondary); margin-top: 8px; font-size: 0.9em; }
 
+        .import-dropzone.compact {
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            text-align: left;
+            cursor: default;
+        }
+
+        .import-dropzone.compact:hover { border-color: var(--input-border); background: none; }
+
         .fx-rates {
             display: flex;
             gap: 12px;
@@ -490,13 +501,14 @@
         .merchant-search {
             width: 100%;
             max-width: 320px;
-            padding: 9px 14px;
+            padding: 0 14px;
+            height: 38px;
             border: 1px solid var(--input-border);
             border-radius: 8px;
             background: var(--input-bg);
             color: var(--text-primary);
             font-size: 0.9em;
-            margin-bottom: 16px;
+            box-sizing: border-box;
         }
 
         .merchants-table select {
@@ -517,6 +529,90 @@
             white-space: nowrap;
         }
 
+        tr.import-uncategorized td {
+            background: rgba(255, 193, 7, 0.08);
+        }
+
+        .cat-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.82em;
+            font-weight: 500;
+            background: var(--table-header-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .cat-pill.is-custom { border-color: #667eea; color: #667eea; }
+
+        .cat-pill-count {
+            font-size: 0.75em;
+            color: var(--text-secondary);
+        }
+
+        .cat-pill-del {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #ef4444;
+            font-size: 1em;
+            padding: 0;
+            line-height: 1;
+            opacity: 0.6;
+        }
+
+        .cat-pill-del:hover { opacity: 1; }
+
+        .cat-pill-lock { opacity: 0.35; font-size: 0.85em; }
+
+        .tx-excluded td { color: var(--text-secondary); }
+        .tx-excluded .amount-cell { text-decoration: line-through; }
+
+        .btn-excl {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 1em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            opacity: 0.55;
+            transition: opacity 0.15s;
+        }
+        .btn-excl:hover { opacity: 1; }
+        .tx-excluded .btn-excl { color: var(--success-color); opacity: 0.8; }
+
+        .excluded-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8em;
+            background: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.25);
+            border-radius: 20px;
+            padding: 3px 10px;
+        }
+
+        .tooltip-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.7em;
+            font-style: normal;
+            cursor: help;
+            margin-left: 3px;
+            flex-shrink: 0;
+        }
+
         .btn-save-merchant {
             padding: 5px 14px;
             font-size: 0.8em;
@@ -529,6 +625,43 @@
         }
 
         .btn-save-merchant.visible { display: inline-block; }
+
+        .merchant-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .merchant-cat-filter {
+            padding: 0 14px;
+            height: 38px;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 0.9em;
+            box-sizing: border-box;
+        }
+
+        .sortable-th {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .sortable-th:hover { color: #667eea; }
+
+        .sort-indicator {
+            display: inline-block;
+            margin-left: 4px;
+            font-size: 0.75em;
+            opacity: 0.5;
+        }
+
+        .sortable-th.sort-asc .sort-indicator,
+        .sortable-th.sort-desc .sort-indicator { opacity: 1; color: #667eea; }
 
         @media (max-width: 768px) {
             .dashboard {
@@ -598,8 +731,8 @@
             <button class="tab-btn" data-tab="merchants">🏪 Merchants</button>
         </nav>
 
-        <!-- File Upload Section (fallback) -->
-        <div id="uploadSection" class="hidden"
+        <!-- Legacy JSON upload fallback — superseded by Import tab, kept hidden -->
+        <div id="uploadSection" class="hidden" style="display:none !important;"
             style="margin-top: 20px; padding: 20px; border: 2px dashed #667eea; border-radius: 10px; background: rgba(102, 126, 234, 0.05);">
             <h3 style="margin-bottom: 10px; color: #2c3e50;">📁 Upload Your Data File</h3>
             <p style="margin-bottom: 15px; color: #7f8c8d; font-size: 0.9em;">
@@ -674,13 +807,37 @@
                     </select>
                 </div>
                 <div class="control-group">
+                    <label for="statusFilter">Status:</label>
+                    <select id="statusFilter">
+                        <option value="all">All</option>
+                        <option value="active">Active only</option>
+                        <option value="excluded">Excluded only</option>
+                    </select>
+                </div>
+                <div class="control-group">
                     <label for="searchMerchant">Search Merchant:</label>
                     <input type="text" id="searchMerchant" placeholder="Enter merchant name...">
                 </div>
             </div>
 
             <div class="transactions-section">
-                <h3>📋 Recent Transactions</h3>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <h3 style="margin-bottom:0;">📋 Recent Transactions</h3>
+                        <span id="excludedPill" class="excluded-pill" style="display:none;"></span>
+                    </div>
+                    <label style="font-size:0.85em;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">
+                        Show
+                        <select id="txPageSize" onchange="updateTransactionsList()" style="padding:4px 8px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text-primary);font-size:1em;">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="0" selected>All</option>
+                        </select>
+                        of <span id="txTotalCount">0</span>
+                    </label>
+                </div>
                 <div id="transactionsList">
                     <!-- Transactions will be populated by JavaScript -->
                 </div>
@@ -719,7 +876,7 @@
                 <div id="importPreview" class="import-preview hidden">
                     <h4 style="margin-bottom:12px;" id="importSummary"></h4>
                     <div id="importDuplicateWarning" class="duplicate-warning hidden"></div>
-                    <div style="max-height:300px;overflow-y:auto;margin-bottom:16px;">
+                    <div style="height:300px;min-height:150px;overflow-y:auto;margin-bottom:16px;resize:vertical;border:1px solid var(--border-color);border-radius:8px;">
                         <table class="transactions-table" id="importPreviewTable">
                             <thead><tr>
                                 <th>Date</th><th>Merchant</th><th>Category</th><th>Card</th><th>Amount</th>
@@ -735,16 +892,43 @@
 
         <!-- ===== Merchants Tab ===== -->
         <div id="tab-merchants" class="hidden">
+
+            <!-- Manage Categories panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <h3 style="margin:0;">🗂 Manage Categories</h3>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="newCategoryInput" placeholder="New category name…"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;"
+                            onkeydown="if(event.key==='Enter') addNewCategory()">
+                        <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addNewCategory()">+ Add</button>
+                    </div>
+                </div>
+                <div id="categoriesList" style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <span style="color:var(--text-secondary);font-size:0.9em;">Loading…</span>
+                </div>
+            </div>
+
             <div class="chart-container">
-                <h3>🏪 Merchant Manager</h3>
-                <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9em;">
-                    View all merchants in the database. Change a category and optionally save it as a rule for future imports.
-                </p>
-                <input type="text" class="merchant-search" id="merchantSearch" placeholder="Search merchants..." oninput="filterMerchantTable()">
+                <div style="margin-bottom:16px;">
+                    <h3 style="margin-bottom:4px;">🏪 Merchant Manager</h3>
+                    <p style="color:var(--text-secondary);font-size:0.9em;margin:0;">
+                        Change a category and optionally save it as a rule for future imports.
+                    </p>
+                </div>
+                <div class="merchant-controls">
+                    <input type="text" class="merchant-search" id="merchantSearch" placeholder="Search merchants..." oninput="applyMerchantsFiltersAndSort()">
+                    <select class="merchant-cat-filter" id="merchantCatFilter" onchange="applyMerchantsFiltersAndSort()">
+                        <option value="all">All Categories</option>
+                    </select>
+                </div>
                 <div style="overflow-x:auto;">
                     <table class="transactions-table merchants-table" id="merchantsTable">
                         <thead><tr>
-                            <th>Merchant</th><th>Category</th><th>Transactions</th><th>Save as rule</th><th></th>
+                            <th class="sortable-th" data-col="merchant" onclick="sortMerchants('merchant')">Merchant <span class="sort-indicator">↕</span></th>
+                            <th class="sortable-th" data-col="category" onclick="sortMerchants('category')">Category <span class="sort-indicator">↕</span></th>
+                            <th class="sortable-th sort-desc" data-col="count" onclick="sortMerchants('count')">Transactions <span class="sort-indicator">▼</span></th>
+                            <th>Save as rule</th><th></th>
                         </tr></thead>
                         <tbody id="merchantsBody">
                             <tr><td colspan="5" class="no-data">Loading...</td></tr>
@@ -761,6 +945,7 @@
         // Global variables
         let allExpenses = [];
         let filteredExpenses = [];
+        let displayExpenses = [];
         let monthlyChart, categoryChart, merchantChart, cardChart;
 
         // --- Theme Logic ---
@@ -849,14 +1034,23 @@
 
                 const data = await response.json();
 
-                if (!Array.isArray(data) || data.length === 0) {
-                    throw new Error('Invalid data format or empty dataset');
+                if (!Array.isArray(data)) {
+                    throw new Error('Unexpected response from server');
                 }
 
                 allExpenses = data;
-                filteredExpenses = [...allExpenses];
+                displayExpenses = [...allExpenses];
+                filteredExpenses = allExpenses.filter(e => !e.excluded);
 
-                // Update status and show dashboard
+                if (allExpenses.length === 0) {
+                    dataStatus.className = 'data-status data-error';
+                    dataStatus.innerHTML = `📭 No transactions yet — use the <strong>Import</strong> tab to load your bank export.`;
+                    dashboardContent.classList.remove('hidden');
+                    initializeDashboard();
+                    switchTab('import');
+                    return;
+                }
+
                 dataStatus.className = 'data-status data-success';
                 dataStatus.innerHTML = `✅ Successfully loaded ${allExpenses.length} transactions`;
 
@@ -869,14 +1063,7 @@
             } catch (error) {
                 console.error('Error loading expense data:', error);
                 dataStatus.className = 'data-status data-error';
-                dataStatus.innerHTML = `
-                    ❌ Auto-load failed: ${error.message}<br>
-                    <small>Please upload your expenses.json file manually below</small>
-                `;
-
-                // Show upload section as fallback
-                uploadSection.classList.remove('hidden');
-                setupFileUpload();
+                dataStatus.innerHTML = `❌ Could not reach the server: ${error.message}`;
             }
         }
 
@@ -937,7 +1124,8 @@
                         }
 
                         allExpenses = data;
-                        filteredExpenses = [...allExpenses];
+                        displayExpenses = [...allExpenses];
+                        filteredExpenses = allExpenses.filter(e => !e.excluded);
 
                         // Update status and show dashboard
                         dataStatus.className = 'data-status data-success';
@@ -1057,6 +1245,7 @@
             document.getElementById('monthFilter').addEventListener('change', applyFilters);
             document.getElementById('categoryFilter').addEventListener('change', applyFilters);
             document.getElementById('cardFilter').addEventListener('change', applyFilters);
+            document.getElementById('statusFilter').addEventListener('change', applyFilters);
             document.getElementById('searchMerchant').addEventListener('input', applyFilters);
         }
 
@@ -1068,15 +1257,21 @@
             const cardFilter = document.getElementById('cardFilter').value;
             const searchTerm = document.getElementById('searchMerchant').value.toLowerCase();
 
-            filteredExpenses = allExpenses.filter(expense => {
+            const statusFilter = document.getElementById('statusFilter').value;
+
+            displayExpenses = allExpenses.filter(expense => {
                 const yearMatch = selectedYears === 'all' || selectedYears.includes(expense.year);
                 const monthMatch = monthFilter === 'all' || expense.month === monthFilter;
                 const categoryMatch = categoryFilter === 'all' || expense.category === categoryFilter;
                 const cardMatch = cardFilter === 'all' || expense.card === cardFilter;
                 const merchantMatch = expense.merchant.toLowerCase().includes(searchTerm);
+                const statusMatch = statusFilter === 'all'
+                    || (statusFilter === 'active' && !expense.excluded)
+                    || (statusFilter === 'excluded' && expense.excluded);
 
-                return yearMatch && monthMatch && categoryMatch && cardMatch && merchantMatch;
+                return yearMatch && monthMatch && categoryMatch && cardMatch && merchantMatch && statusMatch;
             });
+            filteredExpenses = displayExpenses.filter(e => !e.excluded);
 
             updateDashboard();
         }
@@ -1387,34 +1582,50 @@
         function updateTransactionsList() {
             const transactionsList = document.getElementById('transactionsList');
 
-            if (filteredExpenses.length === 0) {
+            if (displayExpenses.length === 0) {
                 transactionsList.innerHTML = `
                     <div class="empty-state">
                         <h3>No transactions found</h3>
                         <p>Try adjusting your filters or add some expense data</p>
                     </div>
                 `;
+                const pill = document.getElementById('excludedPill');
+                if (pill) pill.style.display = 'none';
                 return;
             }
 
             // Helper function to parse date properly
             // Input: YYYY-MM-DD
             function parseDate(dateStr) {
-                // If using new ISO format (YYYY-MM-DD)
                 if (dateStr.includes('-')) {
                     const [year, month, day] = dateStr.split('-').map(Number);
                     return new Date(year, month - 1, day);
                 }
-
-                // Fallback for old format (DD/MM/YY) just in case
                 const [day, month, year] = dateStr.split('/');
                 const fullYear = year.length === 2 ? '20' + year : year;
                 return new Date(fullYear, month - 1, day);
             }
 
-            const sortedTransactions = [...filteredExpenses]
-                .sort((a, b) => parseDate(a.date) - parseDate(b.date))
-                .slice(0, 50);
+            const pageSizeEl = document.getElementById('txPageSize');
+            const pageSize = pageSizeEl ? parseInt(pageSizeEl.value) : 0;
+            const sorted = [...displayExpenses].sort((a, b) => parseDate(b.date) - parseDate(a.date));
+            const sortedTransactions = pageSize === 0 ? sorted : sorted.slice(0, pageSize);
+
+            const totalCountEl = document.getElementById('txTotalCount');
+            if (totalCountEl) totalCountEl.textContent = filteredExpenses.length;
+
+            // Update excluded pill
+            const excludedInView = displayExpenses.filter(e => e.excluded);
+            const pill = document.getElementById('excludedPill');
+            if (pill) {
+                if (excludedInView.length > 0) {
+                    const excTotal = excludedInView.reduce((s, e) => s + e.amount, 0);
+                    pill.textContent = `⊘ ${excludedInView.length} excluded · ${formatCurrency(excTotal)}`;
+                    pill.style.display = 'inline-flex';
+                } else {
+                    pill.style.display = 'none';
+                }
+            }
 
             transactionsList.innerHTML = `
                 <table class="transactions-table">
@@ -1425,16 +1636,18 @@
                             <th>Category</th>
                             <th>Card Number</th>
                             <th>Amount</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${sortedTransactions.map(transaction => `
-                            <tr>
-                                <td>${escapeHtml(transaction.date)}</td>
-                                <td>${escapeHtml(transaction.merchant)}</td>
-                                <td><span class="category-cell">${escapeHtml(transaction.category)}</span></td>
-                                <td class="card-cell">*${escapeHtml(transaction.card)}</td>
-                                <td class="amount-cell">${formatCurrency(transaction.amount)}</td>
+                        ${sortedTransactions.map(t => `
+                            <tr class="${t.excluded ? 'tx-excluded' : ''}">
+                                <td>${escapeHtml(t.date)}</td>
+                                <td>${escapeHtml(t.merchant)}</td>
+                                <td><span class="category-cell">${escapeHtml(t.category)}</span></td>
+                                <td class="card-cell">*${escapeHtml(t.card)}</td>
+                                <td class="amount-cell">${formatCurrency(t.amount)}</td>
+                                <td><button class="btn-excl" onclick="toggleExclude(${t.id})" title="${t.excluded ? 'Restore to calculations' : 'Exclude from calculations'}">${t.excluded ? '↺' : '⊘'}</button></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -1443,7 +1656,10 @@
         }
 
         // Load data when page loads
-        document.addEventListener('DOMContentLoaded', loadExpenseData);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadExpenseData();
+            fetch('/api/categories').then(r => r.json()).then(cats => { availableCategories = cats; });
+        });
 
         // =====================================================================
         // Tab Navigation
@@ -1459,7 +1675,8 @@
             Object.entries(TAB_IDS).forEach(([key, id]) => {
                 document.getElementById(id).classList.toggle('hidden', key !== name);
             });
-            if (name === 'merchants') loadMerchants();
+            if (name === 'merchants') { loadMerchants(); loadCategoriesPanel(); }
+            if (name === 'dashboard') { loadExpenseData(); }
         }
 
         // =====================================================================
@@ -1484,8 +1701,19 @@
             if (file) selectImportFile(file);
         });
 
+        const DROPZONE_FULL_HTML = `
+            <div style="font-size:2em;">📂</div>
+            <strong>Drag &amp; drop a file here</strong>
+            <p>or <span style="color:#667eea;cursor:pointer;" onclick="document.getElementById('importFileInput').click()">browse to choose</span></p>
+            <p id="importFileName" style="color:#667eea;margin-top:8px;font-weight:600;"></p>`;
+
         function selectImportFile(file) {
-            document.getElementById('importFileName').textContent = file.name;
+            const dz = document.getElementById('importDropzone');
+            dz.classList.add('compact');
+            dz.innerHTML = `
+                <span style="font-size:0.9em;">📄 <strong>${escapeHtml(file.name)}</strong></span>
+                <span style="font-size:0.82em;color:#667eea;cursor:pointer;white-space:nowrap;margin-left:12px;"
+                      onclick="document.getElementById('importFileInput').click()">Change file</span>`;
             document.getElementById('importBtn').disabled = false;
             document.getElementById('importBtn')._file = file;
             document.getElementById('importPreview').classList.add('hidden');
@@ -1522,13 +1750,46 @@
             }
         }
 
+        function importCategoryOpts(current) {
+            const cats = availableCategories.length ? availableCategories : ['Uncategorized'];
+            const list = cats.includes(current) ? cats : [current, ...cats];
+            return list.map(c =>
+                `<option value="${escapeHtml(c)}"${c === current ? ' selected' : ''}>${escapeHtml(c)}</option>`
+            ).join('');
+        }
+
+        function onImportCatChange(select, idx) {
+            importedTransactions[idx].category = select.value;
+            const row = select.closest('tr');
+            row.classList.toggle('import-uncategorized', select.value === 'Uncategorized');
+        }
+
+        function renderImportPreviewBody() {
+            const visible = importedTransactions;
+            document.getElementById('importPreviewBody').innerHTML = visible.map((t, i) => `
+                <tr class="${t.category === 'Uncategorized' ? 'import-uncategorized' : ''}">
+                    <td>${escapeHtml(t.date)}</td>
+                    <td>${escapeHtml(t.merchant)}</td>
+                    <td>
+                        <select style="font-size:0.82em;padding:3px 6px;border-radius:5px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-primary);"
+                            onchange="onImportCatChange(this, ${i})">
+                            ${importCategoryOpts(t.category)}
+                        </select>
+                    </td>
+                    <td class="card-cell">*${escapeHtml(t.card)}</td>
+                    <td class="amount-cell">${formatCurrency(t.amount)}</td>
+                </tr>
+            `).join('');
+        }
+
         function showImportPreview(result) {
             const preview = document.getElementById('importPreview');
             const warning = document.getElementById('importDuplicateWarning');
-            const body = document.getElementById('importPreviewBody');
 
-            document.getElementById('importSummary').textContent =
-                `Found ${result.transactions.length} transactions`;
+            const uncatCount = result.transactions.filter(t => t.category === 'Uncategorized').length;
+            let summary = `Found ${result.transactions.length} transactions`;
+            if (uncatCount > 0) summary += ` — <span style="color:#ffc107;">⚠ ${uncatCount} uncategorized</span>`;
+            document.getElementById('importSummary').innerHTML = summary;
 
             if (result.duplicate_count > 0) {
                 warning.textContent = `⚠️ ${result.duplicate_count} transaction(s) look like duplicates (same date, merchant, amount, and card already in the database). You can still import — duplicates will be added as separate entries.`;
@@ -1537,16 +1798,7 @@
                 warning.classList.add('hidden');
             }
 
-            body.innerHTML = result.transactions.slice(0, 50).map(t => `
-                <tr>
-                    <td>${escapeHtml(t.date)}</td>
-                    <td>${escapeHtml(t.merchant)}</td>
-                    <td><span class="category-cell">${escapeHtml(t.category)}</span></td>
-                    <td class="card-cell">*${escapeHtml(t.card)}</td>
-                    <td class="amount-cell">${formatCurrency(t.amount)}</td>
-                </tr>
-            `).join('');
-
+            renderImportPreviewBody();
             preview.classList.remove('hidden');
         }
 
@@ -1568,7 +1820,8 @@
                 // Refresh dashboard data
                 const data = await fetch('/api/transactions').then(r => r.json());
                 allExpenses = data;
-                filteredExpenses = [...allExpenses];
+                displayExpenses = [...allExpenses];
+                filteredExpenses = allExpenses.filter(e => !e.excluded);
                 updateDashboard();
                 switchTab('dashboard');
             } catch (err) {
@@ -1582,10 +1835,12 @@
         function resetImport() {
             importedTransactions = [];
             document.getElementById('importFileInput').value = '';
-            document.getElementById('importFileName').textContent = '';
             document.getElementById('importBtn').disabled = true;
             document.getElementById('importBtn')._file = null;
             document.getElementById('importPreview').classList.add('hidden');
+            const dz = document.getElementById('importDropzone');
+            dz.classList.remove('compact');
+            dz.innerHTML = DROPZONE_FULL_HTML;
         }
 
         // =====================================================================
@@ -1601,7 +1856,15 @@
             ]);
             allMerchants = await merchantResp.json();
             availableCategories = await catResp.json();
-            renderMerchantTable(allMerchants);
+
+            // Populate category filter with categories actually present in the data
+            const usedCats = [...new Set(allMerchants.map(m => m.category))].sort();
+            const catFilter = document.getElementById('merchantCatFilter');
+            catFilter.innerHTML = '<option value="all">All Categories</option>' +
+                usedCats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            catFilter.value = 'all';
+
+            applyMerchantsFiltersAndSort();
         }
 
         function renderMerchantTable(merchants) {
@@ -1611,7 +1874,10 @@
                 return;
             }
             body.innerHTML = merchants.map(m => {
-                const opts = availableCategories.map(c =>
+                const cats = availableCategories.includes(m.category)
+                    ? availableCategories
+                    : [m.category, ...availableCategories];
+                const opts = cats.map(c =>
                     `<option value="${escapeHtml(c)}"${c === m.category ? ' selected' : ''}>${escapeHtml(c)}</option>`
                 ).join('');
                 return `
@@ -1626,6 +1892,7 @@
                     <td style="text-align:center;">
                         <label class="save-rule-label">
                             <input type="checkbox" class="merchant-save-rule"> Save rule
+                            <span class="tooltip-icon" title="Also saves this merchant→category mapping to category_rules.json, so future imports categorize it automatically.">ℹ</span>
                         </label>
                     </td>
                     <td>
@@ -1681,9 +1948,110 @@
             }
         }
 
-        function filterMerchantTable() {
+        let merchantSortCol = 'count';
+        let merchantSortAsc = false;
+
+        function sortMerchants(col) {
+            if (merchantSortCol === col) {
+                merchantSortAsc = !merchantSortAsc;
+            } else {
+                merchantSortCol = col;
+                merchantSortAsc = col !== 'count'; // count defaults desc, others asc
+            }
+            // Update header indicators
+            document.querySelectorAll('.sortable-th').forEach(th => {
+                const isActive = th.dataset.col === col;
+                th.classList.toggle('sort-asc', isActive && merchantSortAsc);
+                th.classList.toggle('sort-desc', isActive && !merchantSortAsc);
+                th.querySelector('.sort-indicator').textContent = isActive ? (merchantSortAsc ? '▲' : '▼') : '↕';
+            });
+            applyMerchantsFiltersAndSort();
+        }
+
+        function applyMerchantsFiltersAndSort() {
             const q = document.getElementById('merchantSearch').value.toLowerCase();
-            renderMerchantTable(allMerchants.filter(m => m.merchant.toLowerCase().includes(q)));
+            const cat = document.getElementById('merchantCatFilter').value;
+
+            let result = allMerchants.filter(m => {
+                const matchesText = m.merchant.toLowerCase().includes(q);
+                const matchesCat = cat === 'all' || m.category === cat;
+                return matchesText && matchesCat;
+            });
+
+            result = [...result].sort((a, b) => {
+                let va = a[merchantSortCol], vb = b[merchantSortCol];
+                if (typeof va === 'string') va = va.toLowerCase();
+                if (typeof vb === 'string') vb = vb.toLowerCase();
+                if (va < vb) return merchantSortAsc ? -1 : 1;
+                if (va > vb) return merchantSortAsc ? 1 : -1;
+                return 0;
+            });
+
+            renderMerchantTable(result);
+        }
+
+        // Keep old name as alias so existing oninput still works
+        function filterMerchantTable() { applyMerchantsFiltersAndSort(); }
+
+        async function loadCategoriesPanel() {
+            const resp = await fetch('/api/categories/details');
+            const cats = await resp.json();
+            const list = document.getElementById('categoriesList');
+            list.innerHTML = cats.map(c => `
+                <span class="cat-pill${c.is_builtin ? '' : ' is-custom'}">
+                    ${escapeHtml(c.name)}
+                    <span class="cat-pill-count" title="${c.count} merchant${c.count !== 1 ? 's' : ''}">(${c.count})</span>
+                    ${c.name === 'Uncategorized'
+                        ? '<span class="cat-pill-lock" title="Required — cannot be deleted">🔒</span>'
+                        : `<button class="cat-pill-del" title="Delete category" onclick="deleteCategory('${escapeHtml(c.name).replace(/'/g, "\\'")}')">✕</button>`
+                    }
+                </span>
+            `).join('');
+        }
+
+        async function addNewCategory() {
+            const input = document.getElementById('newCategoryInput');
+            const name = input.value.trim();
+            if (!name) return;
+            const resp = await fetch('/api/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name }),
+            });
+            const result = await resp.json();
+            if (!resp.ok) { alert(result.error || 'Failed to add category'); return; }
+            input.value = '';
+            await loadMerchants();
+            loadCategoriesPanel();
+            alert(`✅ Category "${name}" added.`);
+        }
+
+        async function toggleExclude(id) {
+            const expense = allExpenses.find(e => e.id === id);
+            if (!expense) return;
+            const newExcluded = !expense.excluded;
+            const resp = await fetch(`/api/transactions/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ excluded: newExcluded }),
+            });
+            if (!resp.ok) { alert('Failed to update transaction'); return; }
+            expense.excluded = newExcluded;
+            filteredExpenses = displayExpenses.filter(e => !e.excluded);
+            updateDashboard();
+        }
+
+        async function deleteCategory(name) {
+            if (!confirm(`Delete category "${name}"?\n\nAll transactions in this category will be moved to "Uncategorized".`)) return;
+            const resp = await fetch(`/api/categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
+            const result = await resp.json();
+            if (!resp.ok) { alert(result.error || 'Failed to delete category'); return; }
+            availableCategories = result.categories;
+            allMerchants.forEach(m => { if (m.category === name) m.category = 'Uncategorized'; });
+            allExpenses.forEach(e => { if (e.category === name) e.category = 'Uncategorized'; });
+            filteredExpenses.forEach(e => { if (e.category === name) e.category = 'Uncategorized'; });
+            loadCategoriesPanel();
+            await loadMerchants();
         }
     </script>
 </body>

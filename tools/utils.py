@@ -10,7 +10,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 
 def load_category_rules(rules_path=None):
@@ -87,24 +87,96 @@ def get_year(date_str):
         return datetime.now().year
 
 
+CUSTOM_CATEGORIES_PATH = Path(__file__).parent / "categories.json"
+DELETED_BUILTINS_PATH = Path(__file__).parent / "deleted_builtins.json"
+
+BUILTIN_CATEGORIES = [
+    "Banking Fees",
+    "Banking Services",
+    "Entertainment",
+    "Food Delivery",
+    "General Services",
+    "Groceries",
+    "Healthcare",
+    "Insurance",
+    "Other",
+    "Photography",
+    "Restaurants",
+    "Shopping",
+    "Technology",
+    "Telecommunications",
+    "Transportation",
+    "Uncategorized",
+    "Utilities",
+]
+
+
+def _load_custom_categories():
+    if CUSTOM_CATEGORIES_PATH.exists():
+        try:
+            with open(CUSTOM_CATEGORIES_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return []
+
+
+def _save_custom_categories(custom):
+    with open(CUSTOM_CATEGORIES_PATH, 'w', encoding='utf-8') as f:
+        json.dump(custom, f, indent=4, ensure_ascii=False)
+
+
+def _load_deleted_builtins():
+    if DELETED_BUILTINS_PATH.exists():
+        try:
+            with open(DELETED_BUILTINS_PATH, 'r', encoding='utf-8') as f:
+                return set(json.load(f))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return set()
+
+
+def _save_deleted_builtins(deleted):
+    with open(DELETED_BUILTINS_PATH, 'w', encoding='utf-8') as f:
+        json.dump(sorted(deleted), f, indent=4, ensure_ascii=False)
+
+
 def get_available_categories():
-    """Return the standard list of expense categories."""
-    return [
-        "Groceries",
-        "Restaurants",
-        "Food Delivery",
-        "Transportation",
-        "Shopping",
-        "Technology",
-        "Entertainment",
-        "Telecommunications",
-        "Insurance",
-        "Banking Fees",
-        "Healthcare",
-        "Utilities",
-        "General Services",
-        "Other"
-    ]
+    """Return active built-in categories merged with any user-added ones, sorted."""
+    custom = _load_custom_categories()
+    deleted = _load_deleted_builtins()
+    active_builtins = [c for c in BUILTIN_CATEGORIES if c not in deleted]
+    return sorted(set(active_builtins) | set(custom))
+
+
+def add_category(name):
+    """Persist a new category. Re-activates a deleted built-in if applicable. Returns updated list."""
+    deleted = _load_deleted_builtins()
+    if name in deleted:
+        deleted.discard(name)
+        _save_deleted_builtins(deleted)
+    elif name not in BUILTIN_CATEGORIES:
+        custom = _load_custom_categories()
+        if name not in custom:
+            custom.append(name)
+            _save_custom_categories(custom)
+    return get_available_categories()
+
+
+def delete_category(name):
+    """Remove a category. Only 'Uncategorized' is protected. Returns updated list."""
+    if name == 'Uncategorized':
+        raise ValueError('"Uncategorized" cannot be deleted.')
+    if name in BUILTIN_CATEGORIES:
+        deleted = _load_deleted_builtins()
+        deleted.add(name)
+        _save_deleted_builtins(deleted)
+    else:
+        custom = _load_custom_categories()
+        if name in custom:
+            custom.remove(name)
+            _save_custom_categories(custom)
+    return get_available_categories()
 
 
 def interactive_categorize_merchant(merchant, existing_rules):

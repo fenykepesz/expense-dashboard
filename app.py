@@ -6,7 +6,7 @@ from flask import Flask, jsonify, send_from_directory, request
 
 # Allow importing converter tools
 sys.path.insert(0, str(Path(__file__).parent / "tools"))
-from utils import get_available_categories, load_category_rules, save_category_rules
+from utils import BUILTIN_CATEGORIES, get_available_categories, add_category, delete_category, load_category_rules, save_category_rules
 
 import db
 
@@ -29,6 +29,15 @@ def get_transactions():
 def delete_transaction(transaction_id):
     db.delete_transaction(transaction_id)
     return jsonify({'deleted': transaction_id})
+
+
+@app.route('/api/transactions/<int:transaction_id>', methods=['PATCH'])
+def patch_transaction(transaction_id):
+    data = request.get_json()
+    if data is None or 'excluded' not in data:
+        return jsonify({'error': 'excluded field required'}), 400
+    db.set_transaction_excluded(transaction_id, data['excluded'])
+    return jsonify({'id': transaction_id, 'excluded': data['excluded']})
 
 
 # --- Import ---
@@ -118,6 +127,39 @@ def update_merchant():
 @app.route('/api/categories')
 def get_categories():
     return jsonify(get_available_categories())
+
+
+@app.route('/api/categories/details')
+def get_categories_details():
+    cats = get_available_categories()
+    category_counts = {}
+    for r in db.get_merchants():
+        category_counts[r['category']] = category_counts.get(r['category'], 0) + 1
+    return jsonify([
+        {'name': c, 'is_builtin': c in BUILTIN_CATEGORIES, 'count': category_counts.get(c, 0)}
+        for c in cats
+    ])
+
+
+@app.route('/api/categories', methods=['POST'])
+def create_category():
+    data = request.get_json()
+    name = (data or {}).get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'name is required'}), 400
+    updated = add_category(name)
+    return jsonify({'categories': updated}), 201
+
+
+@app.route('/api/categories/<path:name>', methods=['DELETE'])
+def remove_category(name):
+    try:
+        updated = delete_category(name)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    # Move affected transactions to Uncategorized
+    db.update_merchant_category_by_category(name, 'Uncategorized')
+    return jsonify({'categories': updated})
 
 
 if __name__ == '__main__':

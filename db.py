@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     month       TEXT    NOT NULL,
     year        INTEGER NOT NULL,
     card        TEXT    NOT NULL,
-    imported_at TEXT    NOT NULL DEFAULT ''
+    imported_at TEXT    NOT NULL DEFAULT '',
+    excluded    INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -33,7 +34,11 @@ def init_db(db_path=None):
         try:
             conn.execute("ALTER TABLE transactions ADD COLUMN imported_at TEXT NOT NULL DEFAULT ''")
         except sqlite3.OperationalError:
-            pass  # Column already exists
+            pass
+        try:
+            conn.execute("ALTER TABLE transactions ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
 
 
 def insert_transactions(expenses, db_path=None, imported_at=None):
@@ -56,10 +61,18 @@ def insert_transactions(expenses, db_path=None, imported_at=None):
 def get_all_transactions(db_path=None):
     with _connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT id, date, merchant, amount, category, month, year, card "
+            "SELECT id, date, merchant, amount, category, month, year, card, excluded "
             "FROM transactions ORDER BY date DESC"
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def set_transaction_excluded(transaction_id, excluded, db_path=None):
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE transactions SET excluded = ? WHERE id = ?",
+            (1 if excluded else 0, transaction_id),
+        )
 
 
 def delete_transaction(transaction_id, db_path=None):
@@ -76,6 +89,14 @@ def get_merchants(db_path=None):
             "ORDER BY count DESC"
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def update_merchant_category_by_category(old_category, new_category, db_path=None):
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE transactions SET category = ? WHERE category = ?",
+            (new_category, old_category),
+        )
 
 
 def update_merchant_category(merchant, new_category, db_path=None):

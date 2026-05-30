@@ -1,0 +1,18 @@
+# Personal financial data — never commit
+*.db
+tools/expenses_*.json
+
+# Raw bank export files
+tools/*.xls
+tools/*.xlsx
+tools/*.pdf
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE / OS
+.claude/
+*.code-workspace
+.DS_Store
