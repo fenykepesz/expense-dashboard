@@ -276,4 +276,4 @@ def update_config():
 if __name__ == '__main__':
     db.init_db()
     print("Expense Dashboard running at http://localhost:5000")
-    app.run(debug=True)
+    app.run(debug=True, exclude_patterns=['*.zip', '*.db'])
