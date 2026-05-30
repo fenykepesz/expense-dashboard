@@ -66,16 +66,13 @@
 
         .header {
             text-align: center;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 28px;
+            padding-bottom: 0;
             position: relative;
         }
 
         .theme-toggle {
-            position: absolute;
-            top: 0;
-            right: 0;
+            position: static;
             background: none;
             border: 2px solid var(--border-color);
             border-radius: 50%;
@@ -394,8 +391,10 @@
         /* --- Tab Navigation --- */
         .tab-nav {
             display: flex;
+            justify-content: center;
             gap: 4px;
-            margin-bottom: 28px;
+            margin-top: 16px;
+            margin-bottom: 0;
             border-bottom: 2px solid var(--border-color);
             padding-bottom: 0;
         }
@@ -714,22 +713,32 @@
 <body>
     <div class="dashboard">
         <div class="header">
-            <button id="themeToggle" class="theme-toggle" title="Toggle Dark Mode">🌙</button>
+            <!-- Left: backup download -->
+            <div style="position:absolute;top:0;left:0;display:flex;align-items:center;gap:8px;">
+                <button class="btn btn-ghost" style="font-size:0.8em;padding:5px 12px;" onclick="downloadBackup()">⬇ Backup</button>
+                <span id="backupStatus" style="font-size:0.78em;color:var(--text-secondary);">Checking…</span>
+            </div>
+            <!-- Right: folder config + theme toggle -->
+            <div style="position:absolute;top:0;right:0;display:flex;align-items:center;gap:8px;">
+                <input id="backupPathInput" type="text" style="font-size:0.78em;padding:4px 8px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text-secondary);width:180px;" placeholder="./backups" title="Backup folder">
+                <button class="btn btn-ghost" style="font-size:0.78em;padding:4px 10px;" onclick="saveBackupPath()">Save</button>
+                <button id="themeToggle" class="theme-toggle" title="Toggle Dark Mode">🌙</button>
+            </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
             <span class="version-badge">v1.4.0</span>
+
+            <!-- Tab Navigation -->
+            <nav class="tab-nav">
+                <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
+                <button class="tab-btn" data-tab="import">📥 Import</button>
+                <button class="tab-btn" data-tab="merchants">🏪 Merchants</button>
+            </nav>
         </div>
 
         <div id="dataStatus" class="data-status data-loading">
             📥 Loading expense data...
         </div>
-
-        <!-- Tab Navigation -->
-        <nav class="tab-nav">
-            <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
-            <button class="tab-btn" data-tab="import">📥 Import</button>
-            <button class="tab-btn" data-tab="merchants">🏪 Merchants</button>
-        </nav>
 
         <!-- Legacy JSON upload fallback — superseded by Import tab, kept hidden -->
         <div id="uploadSection" class="hidden" style="display:none !important;"
@@ -747,17 +756,6 @@
         </div>
 
         <div id="dashboardContent" class="hidden">
-
-            <!-- Backup bar -->
-            <div id="backupBar" style="display:flex;align-items:center;gap:14px;padding:10px 14px;margin-bottom:18px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:10px;flex-wrap:wrap;">
-                <button class="btn btn-ghost" style="font-size:0.85em;padding:6px 14px;" onclick="downloadBackup()">⬇ Download Backup</button>
-                <span id="backupStatus" style="font-size:0.82em;color:var(--text-secondary);">Checking backup…</span>
-                <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-                    <label style="font-size:0.82em;color:var(--text-secondary);white-space:nowrap;">Backup folder:</label>
-                    <input id="backupPathInput" type="text" style="font-size:0.82em;padding:4px 10px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text-primary);width:260px;" placeholder="./backups">
-                    <button class="btn btn-ghost" style="font-size:0.82em;padding:4px 12px;" onclick="saveBackupPath()">Save</button>
-                </div>
-            </div>
 
             <div class="monthly-chart-container">
                 <div class="chart-container">
