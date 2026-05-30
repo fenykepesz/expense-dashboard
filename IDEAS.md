@@ -19,6 +19,13 @@ Check off items as they ship; add new ideas freely.
 
 ---
 
+## Data & Backup
+
+- [ ] **Migrate categories to DB** — move custom categories and deleted built-ins from JSON files into a `categories` table in SQLite; single source of truth, simpler backup (v1.4.0)
+- [ ] **Backup facility** — "Download Backup" button in UI exports a timestamped `.zip` of the DB; auto-backup before each import as safety net (v1.4.0)
+
+---
+
 ## Transaction Management
 
 - [x] **Exclude transactions** — soft-hide individual transactions from calculations and charts; restore any time; filter by excluded status; excluded pill shows count + total (v1.3.0)
