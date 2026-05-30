@@ -78,3 +78,66 @@ def test_results_ordered_by_date_desc(tmp_db):
     rows = db.get_all_transactions(tmp_db)
     dates = [r["date"] for r in rows]
     assert dates == sorted(dates, reverse=True)
+
+
+def test_imported_at_is_set(tmp_db):
+    db.insert_transactions(SAMPLE[:1], tmp_db)
+    import sqlite3
+    conn = sqlite3.connect(tmp_db)
+    row = conn.execute("SELECT imported_at FROM transactions").fetchone()
+    conn.close()
+    assert row[0] and row[0] != ''
+
+
+def test_imported_at_custom_value(tmp_db):
+    db.insert_transactions(SAMPLE[:1], tmp_db, imported_at="migrated")
+    import sqlite3
+    conn = sqlite3.connect(tmp_db)
+    row = conn.execute("SELECT imported_at FROM transactions").fetchone()
+    conn.close()
+    assert row[0] == "migrated"
+
+
+def test_get_merchants_groups_correctly(tmp_db):
+    db.insert_transactions(SAMPLE, tmp_db)
+    merchants = db.get_merchants(tmp_db)
+    assert len(merchants) == 3
+    names = {m["merchant"] for m in merchants}
+    assert "Coffee Shop" in names
+    assert all("count" in m for m in merchants)
+
+
+def test_get_merchants_ordered_by_count(tmp_db):
+    # Insert Coffee Shop twice, others once
+    db.insert_transactions(SAMPLE, tmp_db)
+    db.insert_transactions(SAMPLE[:1], tmp_db)  # extra Coffee Shop
+    merchants = db.get_merchants(tmp_db)
+    assert merchants[0]["merchant"] == "Coffee Shop"
+    assert merchants[0]["count"] == 2
+
+
+def test_update_merchant_category(tmp_db):
+    db.insert_transactions(SAMPLE, tmp_db)
+    db.update_merchant_category("Coffee Shop", "Entertainment", tmp_db)
+    rows = db.get_all_transactions(tmp_db)
+    coffee = [r for r in rows if r["merchant"] == "Coffee Shop"]
+    assert all(r["category"] == "Entertainment" for r in coffee)
+
+
+def test_check_duplicates_exact_match(tmp_db):
+    db.insert_transactions(SAMPLE[:1], tmp_db)
+    count = db.check_duplicates(SAMPLE[:1], tmp_db)
+    assert count == 1
+
+
+def test_check_duplicates_no_match(tmp_db):
+    db.insert_transactions(SAMPLE[:1], tmp_db)
+    different = [{"date": "2025-06-01", "merchant": "New Shop", "amount": 99.0, "card": "9999"}]
+    assert db.check_duplicates(different, tmp_db) == 0
+
+
+def test_check_duplicates_partial(tmp_db):
+    db.insert_transactions(SAMPLE, tmp_db)
+    # First two match, last is new
+    new_txn = [{"date": "2025-01-01", "merchant": "Brand New", "amount": 1.0, "card": "0000"}]
+    assert db.check_duplicates(SAMPLE[:2] + new_txn, tmp_db) == 2
