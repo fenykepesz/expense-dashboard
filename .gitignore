@@ -3,6 +3,14 @@
 tools/expenses_*.json
 tools/category_rules.json
 
+# Category data (now stored in DB)
+tools/categories.json
+tools/deleted_builtins.json
+
+# Backup config and backup files
+config.json
+backups/
+
 # Raw bank export files
 tools/*.xls
 tools/*.xlsx

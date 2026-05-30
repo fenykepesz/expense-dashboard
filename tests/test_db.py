@@ -141,3 +141,89 @@ def test_check_duplicates_partial(tmp_db):
     # First two match, last is new
     new_txn = [{"date": "2025-01-01", "merchant": "Brand New", "amount": 1.0, "card": "0000"}]
     assert db.check_duplicates(SAMPLE[:2] + new_txn, tmp_db) == 2
+
+
+# ── Category tests ────────────────────────────────────────────────────────────
+
+def test_init_db_seeds_builtin_categories(tmp_db):
+    cats = db.get_categories(tmp_db)
+    names = [c["name"] for c in cats]
+    # All builtins must be present; extra custom ones from migration are fine
+    for builtin in db.BUILTIN_CATEGORIES:
+        assert builtin in names
+
+
+def test_get_categories_excludes_deleted(tmp_db):
+    db.delete_category("Photography", tmp_db)
+    names = [c["name"] for c in db.get_categories(tmp_db)]
+    assert "Photography" not in names
+
+
+def test_add_custom_category(tmp_db):
+    db.add_category("Pet Care", tmp_db)
+    names = [c["name"] for c in db.get_categories(tmp_db)]
+    assert "Pet Care" in names
+
+
+def test_add_category_returns_sorted_list(tmp_db):
+    result = db.add_category("Zzz Last", tmp_db)
+    assert result == sorted(result)
+
+
+def test_delete_builtin_soft_deletes(tmp_db):
+    db.delete_category("Photography", tmp_db)
+    import sqlite3
+    conn = sqlite3.connect(tmp_db)
+    row = conn.execute(
+        "SELECT is_deleted FROM categories WHERE name = 'Photography'"
+    ).fetchone()
+    conn.close()
+    assert row[0] == 1
+
+
+def test_delete_custom_hard_deletes(tmp_db):
+    db.add_category("Temp Cat", tmp_db)
+    db.delete_category("Temp Cat", tmp_db)
+    import sqlite3
+    conn = sqlite3.connect(tmp_db)
+    row = conn.execute(
+        "SELECT * FROM categories WHERE name = 'Temp Cat'"
+    ).fetchone()
+    conn.close()
+    assert row is None
+
+
+def test_delete_uncategorized_raises(tmp_db):
+    with pytest.raises(ValueError):
+        db.delete_category("Uncategorized", tmp_db)
+
+
+def test_restore_deleted_builtin(tmp_db):
+    db.delete_category("Photography", tmp_db)
+    db.add_category("Photography", tmp_db)
+    names = [c["name"] for c in db.get_categories(tmp_db)]
+    assert "Photography" in names
+
+
+def test_get_categories_is_builtin_flag(tmp_db):
+    db.add_category("Custom One", tmp_db)
+    cats = {c["name"]: c["is_builtin"] for c in db.get_categories(tmp_db)}
+    assert cats["Groceries"] == 1
+    assert cats["Custom One"] == 0
+
+
+# ── Settings tests ────────────────────────────────────────────────────────────
+
+def test_set_and_get_setting(tmp_db):
+    db.set_setting("test_key", "hello", tmp_db)
+    assert db.get_setting("test_key", tmp_db) == "hello"
+
+
+def test_get_missing_setting_returns_none(tmp_db):
+    assert db.get_setting("nonexistent", tmp_db) is None
+
+
+def test_set_setting_overwrites(tmp_db):
+    db.set_setting("k", "v1", tmp_db)
+    db.set_setting("k", "v2", tmp_db)
+    assert db.get_setting("k", tmp_db) == "v2"

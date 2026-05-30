@@ -21,8 +21,8 @@ Check off items as they ship; add new ideas freely.
 
 ## Data & Backup
 
-- [ ] **Migrate categories to DB** — move custom categories and deleted built-ins from JSON files into a `categories` table in SQLite; single source of truth, simpler backup (v1.4.0)
-- [ ] **Backup facility** — "Download Backup" button in UI exports a timestamped `.zip` of the DB; auto-backup before each import as safety net (v1.4.0)
+- [x] **Migrate categories to DB** — `categories` table in SQLite; migration from JSON on first run; single source of truth (v1.4.0)
+- [x] **Backup facility** — "Download Backup" button exports timestamped `.zip`; auto-backup on import confirm and every 30 days; configurable backup folder; "Last backed up" indicator (v1.4.0)
 
 ---
 

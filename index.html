@@ -747,6 +747,18 @@
         </div>
 
         <div id="dashboardContent" class="hidden">
+
+            <!-- Backup bar -->
+            <div id="backupBar" style="display:flex;align-items:center;gap:14px;padding:10px 14px;margin-bottom:18px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:10px;flex-wrap:wrap;">
+                <button class="btn btn-ghost" style="font-size:0.85em;padding:6px 14px;" onclick="downloadBackup()">⬇ Download Backup</button>
+                <span id="backupStatus" style="font-size:0.82em;color:var(--text-secondary);">Checking backup…</span>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                    <label style="font-size:0.82em;color:var(--text-secondary);white-space:nowrap;">Backup folder:</label>
+                    <input id="backupPathInput" type="text" style="font-size:0.82em;padding:4px 10px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text-primary);width:260px;" placeholder="./backups">
+                    <button class="btn btn-ghost" style="font-size:0.82em;padding:4px 12px;" onclick="saveBackupPath()">Save</button>
+                </div>
+            </div>
+
             <div class="monthly-chart-container">
                 <div class="chart-container">
                     <h3>📊 Monthly Spending Trend</h3>
@@ -1658,6 +1670,7 @@
         // Load data when page loads
         document.addEventListener('DOMContentLoaded', () => {
             loadExpenseData();
+            loadBackupInfo();
             fetch('/api/categories').then(r => r.json()).then(cats => { availableCategories = cats; });
         });
 
@@ -1676,7 +1689,7 @@
                 document.getElementById(id).classList.toggle('hidden', key !== name);
             });
             if (name === 'merchants') { loadMerchants(); loadCategoriesPanel(); }
-            if (name === 'dashboard') { loadExpenseData(); }
+            if (name === 'dashboard') { loadExpenseData(); loadBackupInfo(); }
         }
 
         // =====================================================================
@@ -2024,6 +2037,73 @@
             await loadMerchants();
             loadCategoriesPanel();
             alert(`✅ Category "${name}" added.`);
+        }
+
+        // =====================================================================
+        // Backup
+        // =====================================================================
+
+        async function loadBackupInfo() {
+            try {
+                const resp = await fetch('/api/backup/info');
+                const info = await resp.json();
+
+                const statusEl = document.getElementById('backupStatus');
+                if (info.last_backup_at) {
+                    const last = new Date(info.last_backup_at);
+                    const days = Math.floor((Date.now() - last) / 86400000);
+                    const label = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+                    const warn = days >= 30 ? ' ⚠️' : '';
+                    statusEl.textContent = `Last backup: ${label}${warn}`;
+                    statusEl.style.color = days >= 30 ? '#f44336' : 'var(--text-secondary)';
+                } else {
+                    statusEl.textContent = 'No backup yet';
+                    statusEl.style.color = '#f44336';
+                }
+
+                const pathInput = document.getElementById('backupPathInput');
+                if (pathInput) pathInput.value = info.backup_path || './backups';
+            } catch (e) {
+                document.getElementById('backupStatus').textContent = 'Backup info unavailable';
+            }
+        }
+
+        async function downloadBackup() {
+            const btn = event.currentTarget;
+            btn.textContent = '⏳ Creating backup…';
+            btn.disabled = true;
+            try {
+                const resp = await fetch('/api/backup');
+                if (!resp.ok) { alert('Backup failed'); return; }
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = resp.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || 'backup.zip';
+                a.click();
+                URL.revokeObjectURL(url);
+                await loadBackupInfo();
+            } catch (e) {
+                alert('Backup failed: ' + e.message);
+            } finally {
+                btn.textContent = '⬇ Download Backup';
+                btn.disabled = false;
+            }
+        }
+
+        async function saveBackupPath() {
+            const path = document.getElementById('backupPathInput').value.trim();
+            if (!path) return;
+            const resp = await fetch('/api/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ backup_path: path }),
+            });
+            if (resp.ok) {
+                alert(`✅ Backup folder set to: ${path}`);
+            } else {
+                alert('Failed to save backup path');
+            }
         }
 
         async function toggleExclude(id) {

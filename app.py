@@ -1,17 +1,95 @@
+import json
+import os
 import sys
 import tempfile
-import os
+import zipfile
+from datetime import datetime
 from pathlib import Path
-from flask import Flask, jsonify, send_from_directory, request
 
-# Allow importing converter tools
+from flask import Flask, jsonify, send_file, send_from_directory, request
+
 sys.path.insert(0, str(Path(__file__).parent / "tools"))
-from utils import BUILTIN_CATEGORIES, get_available_categories, add_category, delete_category, load_category_rules, save_category_rules
+from utils import load_category_rules, save_category_rules
 
 import db
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 
+CONFIG_PATH = Path(__file__).parent / "config.json"
+DEFAULT_BACKUP_PATH = Path(__file__).parent / "backups"
+AUTO_BACKUP_DAYS = 30
+
+
+# ── Config helpers ────────────────────────────────────────────────────────────
+
+def _load_config():
+    if CONFIG_PATH.exists():
+        try:
+            return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"backup_path": str(DEFAULT_BACKUP_PATH)}
+
+
+def _save_config(config):
+    CONFIG_PATH.write_text(json.dumps(config, indent=4), encoding="utf-8")
+
+
+def _backup_dir():
+    return Path(_load_config().get("backup_path", str(DEFAULT_BACKUP_PATH)))
+
+
+# ── Backup helpers ────────────────────────────────────────────────────────────
+
+def _create_backup():
+    """Create a timestamped zip of the DB. Returns the zip path."""
+    backup_dir = _backup_dir()
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    zip_path = backup_dir / f"backup_{timestamp}.zip"
+
+    # Use SQLite backup API for a consistent snapshot
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        import sqlite3
+        src = sqlite3.connect(str(db.DB_PATH))
+        dst = sqlite3.connect(tmp_path)
+        src.backup(dst)
+        dst.close()
+        src.close()
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(tmp_path, "expenses.db")
+    finally:
+        os.unlink(tmp_path)
+
+    db.set_setting("last_backup_at", datetime.now().isoformat(timespec="seconds"))
+
+    # Keep only the 10 most recent backups
+    backups = sorted(backup_dir.glob("backup_*.zip"))
+    for old in backups[:-10]:
+        old.unlink()
+
+    return zip_path
+
+
+def _maybe_auto_backup():
+    """Auto-backup if last backup is older than AUTO_BACKUP_DAYS days (or never)."""
+    last = db.get_setting("last_backup_at")
+    if last:
+        try:
+            if (datetime.now() - datetime.fromisoformat(last)).days < AUTO_BACKUP_DAYS:
+                return
+        except ValueError:
+            pass
+    try:
+        _create_backup()
+    except Exception:
+        pass  # Never fail a request due to backup error
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
@@ -22,6 +100,7 @@ def index():
 
 @app.route('/api/transactions')
 def get_transactions():
+    _maybe_auto_backup()
     return jsonify(db.get_all_transactions())
 
 
@@ -78,10 +157,7 @@ def import_file():
         os.unlink(tmp_path)
 
     duplicate_count = db.check_duplicates(expenses)
-    return jsonify({
-        'transactions': expenses,
-        'duplicate_count': duplicate_count,
-    })
+    return jsonify({'transactions': expenses, 'duplicate_count': duplicate_count})
 
 
 @app.route('/api/import/confirm', methods=['POST'])
@@ -90,8 +166,13 @@ def import_confirm():
     if not data or 'transactions' not in data:
         return jsonify({'error': 'No transactions provided'}), 400
 
-    expenses = data['transactions']
-    count = db.insert_transactions(expenses)
+    # Auto-backup before inserting new data
+    try:
+        _create_backup()
+    except Exception:
+        pass
+
+    count = db.insert_transactions(data['transactions'])
     return jsonify({'inserted': count}), 201
 
 
@@ -126,19 +207,12 @@ def update_merchant():
 
 @app.route('/api/categories')
 def get_categories():
-    return jsonify(get_available_categories())
+    return jsonify([c['name'] for c in db.get_categories()])
 
 
 @app.route('/api/categories/details')
 def get_categories_details():
-    cats = get_available_categories()
-    category_counts = {}
-    for r in db.get_merchants():
-        category_counts[r['category']] = category_counts.get(r['category'], 0) + 1
-    return jsonify([
-        {'name': c, 'is_builtin': c in BUILTIN_CATEGORIES, 'count': category_counts.get(c, 0)}
-        for c in cats
-    ])
+    return jsonify(db.get_category_details())
 
 
 @app.route('/api/categories', methods=['POST'])
@@ -147,19 +221,56 @@ def create_category():
     name = (data or {}).get('name', '').strip()
     if not name:
         return jsonify({'error': 'name is required'}), 400
-    updated = add_category(name)
+    updated = db.add_category(name)
     return jsonify({'categories': updated}), 201
 
 
 @app.route('/api/categories/<path:name>', methods=['DELETE'])
 def remove_category(name):
     try:
-        updated = delete_category(name)
+        updated = db.delete_category(name)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
-    # Move affected transactions to Uncategorized
     db.update_merchant_category_by_category(name, 'Uncategorized')
     return jsonify({'categories': updated})
+
+
+# --- Backup ---
+
+@app.route('/api/backup')
+def download_backup():
+    try:
+        zip_path = _create_backup()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    return send_file(str(zip_path), as_attachment=True, download_name=zip_path.name)
+
+
+@app.route('/api/backup/info')
+def backup_info():
+    last = db.get_setting("last_backup_at")
+    config = _load_config()
+    return jsonify({
+        "last_backup_at": last,
+        "backup_path": config.get("backup_path", str(DEFAULT_BACKUP_PATH)),
+    })
+
+
+# --- Config ---
+
+@app.route('/api/config')
+def get_config():
+    return jsonify(_load_config())
+
+
+@app.route('/api/config', methods=['PUT'])
+def update_config():
+    data = request.get_json()
+    config = _load_config()
+    if 'backup_path' in data:
+        config['backup_path'] = data['backup_path']
+    _save_config(config)
+    return jsonify(config)
 
 
 if __name__ == '__main__':
