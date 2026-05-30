@@ -10,7 +10,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 
 def load_category_rules(rules_path=None):
@@ -189,28 +189,38 @@ def save_expenses_json(expenses, output_path):
     print(f"\n[OK] Saved {len(expenses)} transactions to {output_path}")
 
 
-def save_to_db(expenses, db_path):
+def save_to_db(expenses, db_path, imported_at=None):
     """Insert a list of expense dicts into a SQLite database."""
+    from datetime import datetime as _dt
+    ts = imported_at or _dt.now().isoformat(timespec="seconds")
     conn = sqlite3.connect(str(db_path))
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            date     TEXT    NOT NULL,
-            merchant TEXT    NOT NULL,
-            amount   REAL    NOT NULL,
-            category TEXT    NOT NULL,
-            month    TEXT    NOT NULL,
-            year     INTEGER NOT NULL,
-            card     TEXT    NOT NULL
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            date        TEXT    NOT NULL,
+            merchant    TEXT    NOT NULL,
+            amount      REAL    NOT NULL,
+            category    TEXT    NOT NULL,
+            month       TEXT    NOT NULL,
+            year        INTEGER NOT NULL,
+            card        TEXT    NOT NULL,
+            imported_at TEXT    NOT NULL DEFAULT ''
         )
     """)
+    try:
+        conn.execute("ALTER TABLE transactions ADD COLUMN imported_at TEXT NOT NULL DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    rows = [{**e, "imported_at": ts} for e in expenses]
     conn.executemany(
-        "INSERT INTO transactions (date, merchant, amount, category, month, year, card) "
-        "VALUES (:date, :merchant, :amount, :category, :month, :year, :card)",
-        expenses,
+        "INSERT INTO transactions "
+        "(date, merchant, amount, category, month, year, card, imported_at) "
+        "VALUES (:date, :merchant, :amount, :category, :month, :year, :card, :imported_at)",
+        rows,
     )
     conn.commit()
     conn.close()
+    print(f"\n[OK] Inserted {len(expenses)} transactions into {db_path}")
     print(f"\n[OK] Inserted {len(expenses)} transactions into {db_path}")
 
 
