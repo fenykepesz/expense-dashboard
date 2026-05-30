@@ -38,7 +38,7 @@ def main():
         print("Error: JSON file must contain an array of expense objects.")
         sys.exit(1)
 
-    save_to_db(expenses, args.db)
+    save_to_db(expenses, args.db, imported_at="migrated")
     print(f"[OK] Migration complete — {len(expenses)} records written to {args.db}")
 
 

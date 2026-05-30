@@ -391,6 +391,145 @@
             display: none;
         }
 
+        /* --- Tab Navigation --- */
+        .tab-nav {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 28px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0;
+        }
+
+        .tab-btn {
+            padding: 10px 24px;
+            border: none;
+            background: none;
+            color: var(--text-secondary);
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            border-radius: 6px 6px 0 0;
+            transition: color 0.2s, border-color 0.2s;
+        }
+
+        .tab-btn:hover { color: var(--text-primary); }
+
+        .tab-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        /* --- Import Tab --- */
+        .import-dropzone {
+            border: 2px dashed var(--input-border);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .import-dropzone:hover,
+        .import-dropzone.drag-over {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .import-dropzone p { color: var(--text-secondary); margin-top: 8px; font-size: 0.9em; }
+
+        .fx-rates {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .fx-rates label { font-size: 0.85em; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px; }
+
+        .fx-rates input {
+            width: 90px;
+            padding: 6px 8px;
+            border: 1px solid var(--input-border);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 0.9em;
+        }
+
+        .import-preview { margin-top: 20px; }
+
+        .duplicate-warning {
+            background: rgba(255, 193, 7, 0.15);
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 14px;
+            color: var(--text-primary);
+            font-size: 0.9em;
+        }
+
+        .btn {
+            padding: 9px 22px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover { opacity: 0.85; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #4caf50; color: white; }
+        .btn-ghost { background: var(--border-color); color: var(--text-primary); }
+
+        /* --- Merchants Tab --- */
+        .merchant-search {
+            width: 100%;
+            max-width: 320px;
+            padding: 9px 14px;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 0.9em;
+            margin-bottom: 16px;
+        }
+
+        .merchants-table select {
+            padding: 5px 8px;
+            border: 1px solid var(--input-border);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 0.85em;
+        }
+
+        .save-rule-label {
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        .btn-save-merchant {
+            padding: 5px 14px;
+            font-size: 0.8em;
+            border: none;
+            border-radius: 6px;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            display: none;
+        }
+
+        .btn-save-merchant.visible { display: inline-block; }
+
         @media (max-width: 768px) {
             .dashboard {
                 padding: 20px;
@@ -445,12 +584,19 @@
             <button id="themeToggle" class="theme-toggle" title="Toggle Dark Mode">🌙</button>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.1.0</span>
+            <span class="version-badge">v1.2.0</span>
         </div>
 
         <div id="dataStatus" class="data-status data-loading">
-            📥 Loading expense data from expenses.json...
+            📥 Loading expense data...
         </div>
+
+        <!-- Tab Navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
+            <button class="tab-btn" data-tab="import">📥 Import</button>
+            <button class="tab-btn" data-tab="merchants">🏪 Merchants</button>
+        </nav>
 
         <!-- File Upload Section (fallback) -->
         <div id="uploadSection" class="hidden"
@@ -540,6 +686,74 @@
                 </div>
             </div>
         </div> <!-- Close dashboardContent -->
+
+        <!-- ===== Import Tab ===== -->
+        <div id="tab-import" class="hidden">
+            <div class="chart-container">
+                <h3>📥 Import Bank Export</h3>
+                <p style="color:var(--text-secondary);margin-bottom:18px;font-size:0.9em;">
+                    Upload a Bank Leumi <strong>.xls</strong> (Excel) or <strong>.pdf</strong> statement.
+                    The file is processed locally and never leaves your machine.
+                </p>
+
+                <div id="importDropzone" class="import-dropzone">
+                    <div style="font-size:2em;">📂</div>
+                    <strong>Drag &amp; drop a file here</strong>
+                    <p>or <span style="color:#667eea;cursor:pointer;" onclick="document.getElementById('importFileInput').click()">browse to choose</span></p>
+                    <p id="importFileName" style="color:#667eea;margin-top:8px;font-weight:600;"></p>
+                </div>
+                <input type="file" id="importFileInput" accept=".xls,.xlsx,.pdf" style="display:none;">
+
+                <details style="margin-bottom:16px;">
+                    <summary style="cursor:pointer;color:var(--text-secondary);font-size:0.85em;">Exchange rates (optional — for foreign currency transactions)</summary>
+                    <div class="fx-rates" style="margin-top:10px;">
+                        <label>USD → ILS <input type="number" id="fxUsd" placeholder="e.g. 3.65" step="0.01"></label>
+                        <label>EUR → ILS <input type="number" id="fxEur" placeholder="e.g. 3.92" step="0.01"></label>
+                        <label>GBP → ILS <input type="number" id="fxGbp" placeholder="e.g. 4.55" step="0.01"></label>
+                    </div>
+                </details>
+
+                <button class="btn btn-primary" id="importBtn" disabled onclick="runImport()">Import</button>
+
+                <!-- Preview panel (hidden until server responds) -->
+                <div id="importPreview" class="import-preview hidden">
+                    <h4 style="margin-bottom:12px;" id="importSummary"></h4>
+                    <div id="importDuplicateWarning" class="duplicate-warning hidden"></div>
+                    <div style="max-height:300px;overflow-y:auto;margin-bottom:16px;">
+                        <table class="transactions-table" id="importPreviewTable">
+                            <thead><tr>
+                                <th>Date</th><th>Merchant</th><th>Category</th><th>Card</th><th>Amount</th>
+                            </tr></thead>
+                            <tbody id="importPreviewBody"></tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-success" id="importConfirmBtn" onclick="confirmImport()">✅ Confirm Import</button>
+                    <button class="btn btn-ghost" style="margin-left:8px;" onclick="resetImport()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== Merchants Tab ===== -->
+        <div id="tab-merchants" class="hidden">
+            <div class="chart-container">
+                <h3>🏪 Merchant Manager</h3>
+                <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9em;">
+                    View all merchants in the database. Change a category and optionally save it as a rule for future imports.
+                </p>
+                <input type="text" class="merchant-search" id="merchantSearch" placeholder="Search merchants..." oninput="filterMerchantTable()">
+                <div style="overflow-x:auto;">
+                    <table class="transactions-table merchants-table" id="merchantsTable">
+                        <thead><tr>
+                            <th>Merchant</th><th>Category</th><th>Transactions</th><th>Save as rule</th><th></th>
+                        </tr></thead>
+                        <tbody id="merchantsBody">
+                            <tr><td colspan="5" class="no-data">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div> <!-- Close dashboard -->
 
     <script>
@@ -1230,6 +1444,247 @@
 
         // Load data when page loads
         document.addEventListener('DOMContentLoaded', loadExpenseData);
+
+        // =====================================================================
+        // Tab Navigation
+        // =====================================================================
+        const TAB_IDS = { dashboard: 'dashboardContent', import: 'tab-import', merchants: 'tab-merchants' };
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+        });
+
+        function switchTab(name) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+            Object.entries(TAB_IDS).forEach(([key, id]) => {
+                document.getElementById(id).classList.toggle('hidden', key !== name);
+            });
+            if (name === 'merchants') loadMerchants();
+        }
+
+        // =====================================================================
+        // Import Tab
+        // =====================================================================
+        let importedTransactions = [];
+
+        const importDropzone = document.getElementById('importDropzone');
+        const importFileInput = document.getElementById('importFileInput');
+
+        importFileInput.addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (file) selectImportFile(file);
+        });
+
+        importDropzone.addEventListener('dragover', e => { e.preventDefault(); importDropzone.classList.add('drag-over'); });
+        importDropzone.addEventListener('dragleave', () => importDropzone.classList.remove('drag-over'));
+        importDropzone.addEventListener('drop', e => {
+            e.preventDefault();
+            importDropzone.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file) selectImportFile(file);
+        });
+
+        function selectImportFile(file) {
+            document.getElementById('importFileName').textContent = file.name;
+            document.getElementById('importBtn').disabled = false;
+            document.getElementById('importBtn')._file = file;
+            document.getElementById('importPreview').classList.add('hidden');
+        }
+
+        async function runImport() {
+            const file = document.getElementById('importBtn')._file;
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            const usd = document.getElementById('fxUsd').value;
+            const eur = document.getElementById('fxEur').value;
+            const gbp = document.getElementById('fxGbp').value;
+            if (usd) formData.append('usd_rate', usd);
+            if (eur) formData.append('eur_rate', eur);
+            if (gbp) formData.append('gbp_rate', gbp);
+
+            document.getElementById('importBtn').textContent = 'Processing…';
+            document.getElementById('importBtn').disabled = true;
+
+            try {
+                const resp = await fetch('/api/import', { method: 'POST', body: formData });
+                const result = await resp.json();
+                if (!resp.ok) { alert(result.error || 'Import failed'); return; }
+
+                importedTransactions = result.transactions;
+                showImportPreview(result);
+            } catch (err) {
+                alert('Import error: ' + err.message);
+            } finally {
+                document.getElementById('importBtn').textContent = 'Import';
+                document.getElementById('importBtn').disabled = false;
+            }
+        }
+
+        function showImportPreview(result) {
+            const preview = document.getElementById('importPreview');
+            const warning = document.getElementById('importDuplicateWarning');
+            const body = document.getElementById('importPreviewBody');
+
+            document.getElementById('importSummary').textContent =
+                `Found ${result.transactions.length} transactions`;
+
+            if (result.duplicate_count > 0) {
+                warning.textContent = `⚠️ ${result.duplicate_count} transaction(s) look like duplicates (same date, merchant, amount, and card already in the database). You can still import — duplicates will be added as separate entries.`;
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+
+            body.innerHTML = result.transactions.slice(0, 50).map(t => `
+                <tr>
+                    <td>${escapeHtml(t.date)}</td>
+                    <td>${escapeHtml(t.merchant)}</td>
+                    <td><span class="category-cell">${escapeHtml(t.category)}</span></td>
+                    <td class="card-cell">*${escapeHtml(t.card)}</td>
+                    <td class="amount-cell">${formatCurrency(t.amount)}</td>
+                </tr>
+            `).join('');
+
+            preview.classList.remove('hidden');
+        }
+
+        async function confirmImport() {
+            document.getElementById('importConfirmBtn').textContent = 'Saving…';
+            document.getElementById('importConfirmBtn').disabled = true;
+
+            try {
+                const resp = await fetch('/api/import/confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactions: importedTransactions }),
+                });
+                const result = await resp.json();
+                if (!resp.ok) { alert(result.error || 'Save failed'); return; }
+
+                alert(`✅ Successfully imported ${result.inserted} transactions.`);
+                resetImport();
+                // Refresh dashboard data
+                const data = await fetch('/api/transactions').then(r => r.json());
+                allExpenses = data;
+                filteredExpenses = [...allExpenses];
+                updateDashboard();
+                switchTab('dashboard');
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                document.getElementById('importConfirmBtn').textContent = '✅ Confirm Import';
+                document.getElementById('importConfirmBtn').disabled = false;
+            }
+        }
+
+        function resetImport() {
+            importedTransactions = [];
+            document.getElementById('importFileInput').value = '';
+            document.getElementById('importFileName').textContent = '';
+            document.getElementById('importBtn').disabled = true;
+            document.getElementById('importBtn')._file = null;
+            document.getElementById('importPreview').classList.add('hidden');
+        }
+
+        // =====================================================================
+        // Merchants Tab
+        // =====================================================================
+        let allMerchants = [];
+        let availableCategories = [];
+
+        async function loadMerchants() {
+            const [merchantResp, catResp] = await Promise.all([
+                fetch('/api/merchants'),
+                fetch('/api/categories'),
+            ]);
+            allMerchants = await merchantResp.json();
+            availableCategories = await catResp.json();
+            renderMerchantTable(allMerchants);
+        }
+
+        function renderMerchantTable(merchants) {
+            const body = document.getElementById('merchantsBody');
+            if (!merchants.length) {
+                body.innerHTML = '<tr><td colspan="5" class="no-data">No transactions in database yet.</td></tr>';
+                return;
+            }
+            body.innerHTML = merchants.map(m => {
+                const opts = availableCategories.map(c =>
+                    `<option value="${escapeHtml(c)}"${c === m.category ? ' selected' : ''}>${escapeHtml(c)}</option>`
+                ).join('');
+                return `
+                <tr data-merchant="${escapeHtml(m.merchant)}">
+                    <td>${escapeHtml(m.merchant)}</td>
+                    <td>
+                        <select class="merchant-cat-select" onchange="onMerchantCatChange(this)">
+                            ${opts}
+                        </select>
+                    </td>
+                    <td style="text-align:center;">${m.count}</td>
+                    <td style="text-align:center;">
+                        <label class="save-rule-label">
+                            <input type="checkbox" class="merchant-save-rule"> Save rule
+                        </label>
+                    </td>
+                    <td>
+                        <button class="btn-save-merchant" onclick="saveMerchant(this)">Save</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function onMerchantCatChange(select) {
+            const row = select.closest('tr');
+            row.querySelector('.btn-save-merchant').classList.add('visible');
+        }
+
+        async function saveMerchant(btn) {
+            const row = btn.closest('tr');
+            const merchant = row.dataset.merchant;
+            const newCategory = row.querySelector('.merchant-cat-select').value;
+            const saveRule = row.querySelector('.merchant-save-rule').checked;
+
+            btn.textContent = 'Saving…';
+            btn.disabled = true;
+
+            try {
+                const resp = await fetch('/api/merchants', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ merchant, new_category: newCategory, save_rule: saveRule }),
+                });
+                if (!resp.ok) { alert('Save failed'); return; }
+                btn.textContent = '✓ Saved';
+                btn.style.background = '#4caf50';
+                setTimeout(() => {
+                    btn.textContent = 'Save';
+                    btn.style.background = '';
+                    btn.classList.remove('visible');
+                    btn.disabled = false;
+                    row.querySelector('.merchant-save-rule').checked = false;
+                }, 1500);
+                // Update local cache
+                const m = allMerchants.find(x => x.merchant === merchant);
+                if (m) m.category = newCategory;
+                // Refresh dashboard if on dashboard tab
+                const dashVisible = !document.getElementById('dashboardContent').classList.contains('hidden');
+                if (dashVisible) {
+                    allExpenses.forEach(e => { if (e.merchant === merchant) e.category = newCategory; });
+                    filteredExpenses.forEach(e => { if (e.merchant === merchant) e.category = newCategory; });
+                    updateDashboard();
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+                btn.disabled = false;
+            }
+        }
+
+        function filterMerchantTable() {
+            const q = document.getElementById('merchantSearch').value.toLowerCase();
+            renderMerchantTable(allMerchants.filter(m => m.merchant.toLowerCase().includes(q)));
+        }
     </script>
 </body>
 
