@@ -1716,7 +1716,7 @@
             Object.entries(TAB_IDS).forEach(([key, id]) => {
                 document.getElementById(id).classList.toggle('hidden', key !== name);
             });
-            if (name === 'merchants') { loadMerchants(); loadCategoriesPanel(); }
+            if (name === 'merchants') { if (!merchantsLoaded) loadMerchants(); loadCategoriesPanel(); }
             if (name === 'dashboard') { loadExpenseData(); loadBackupInfo(); }
         }
 
@@ -1884,6 +1884,7 @@
                 displayExpenses = [...allExpenses];
                 filteredExpenses = allExpenses.filter(e => !e.excluded);
                 updateDashboard();
+                merchantsLoaded = false;
                 switchTab('dashboard');
             } catch (err) {
                 alert('Error: ' + err.message);
@@ -1909,6 +1910,7 @@
         // =====================================================================
         let allMerchants = [];
         let availableCategories = [];
+        let merchantsLoaded = false;
 
         async function loadMerchants() {
             const [merchantResp, catResp] = await Promise.all([
@@ -1926,6 +1928,7 @@
             catFilter.value = 'all';
 
             applyMerchantsFiltersAndSort();
+            merchantsLoaded = true;
         }
 
         function renderMerchantTable(merchants) {
