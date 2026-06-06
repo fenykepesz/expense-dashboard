@@ -66,6 +66,7 @@ def init_db(db_path=None):
         for col, definition in [
             ("imported_at", "TEXT NOT NULL DEFAULT ''"),
             ("excluded",    "INTEGER NOT NULL DEFAULT 0"),
+            ("notes",       "TEXT NOT NULL DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE transactions ADD COLUMN {col} {definition}")
@@ -211,7 +212,7 @@ def insert_transactions(expenses, db_path=None, imported_at=None):
 def get_all_transactions(db_path=None):
     with _connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT id, date, merchant, amount, category, month, year, card, excluded "
+            "SELECT id, date, merchant, amount, category, month, year, card, excluded, notes "
             "FROM transactions ORDER BY date DESC"
         ).fetchall()
     return [dict(row) for row in rows]
@@ -222,6 +223,14 @@ def set_transaction_excluded(transaction_id, excluded, db_path=None):
         conn.execute(
             "UPDATE transactions SET excluded = ? WHERE id = ?",
             (1 if excluded else 0, transaction_id),
+        )
+
+
+def set_transaction_note(transaction_id, note, db_path=None):
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE transactions SET notes = ? WHERE id = ?",
+            (note.strip(), transaction_id),
         )
 
 

@@ -308,33 +308,17 @@
             color: var(--text-primary);
             font-weight: 600;
             padding: 15px 10px;
-            text-align: center;
+            text-align: left;
             border-bottom: 2px solid var(--border-color);
             font-size: 0.9em;
-        }
-
-        .transactions-table th:first-child {
-            text-align: left;
-        }
-
-        .transactions-table th:nth-child(2) {
-            text-align: left;
         }
 
         .transactions-table td {
             padding: 12px 10px;
             border-bottom: 1px solid var(--border-color);
             vertical-align: middle;
-            text-align: center;
+            text-align: left;
             color: var(--text-primary);
-        }
-
-        .transactions-table td:first-child {
-            text-align: left;
-        }
-
-        .transactions-table td:nth-child(2) {
-            text-align: left;
         }
 
         .transactions-table tr:hover {
@@ -348,7 +332,7 @@
         .amount-cell {
             font-weight: bold;
             color: #007bff;
-            text-align: center;
+            text-align: right;
         }
 
         .category-cell {
@@ -591,6 +575,47 @@
         .tx-excluded td { color: var(--text-secondary); }
         .tx-excluded .amount-cell { text-decoration: line-through; }
 
+        .col-resize-handle {
+            position: absolute;
+            right: 0; top: 0;
+            width: 5px; height: 100%;
+            cursor: col-resize;
+            z-index: 1;
+        }
+        .col-resize-handle:hover, .col-resize-handle.resizing {
+            background: rgba(102, 126, 234, 0.5);
+        }
+
+        .tx-cat-select {
+            font-size: 0.8em;
+            padding: 3px 6px;
+            border-radius: 5px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            max-width: 140px;
+        }
+
+        .tx-note-input {
+            font-size: 0.82em;
+            padding: 3px 7px;
+            border-radius: 5px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--text-primary);
+            width: 100%;
+            max-width: 180px;
+            transition: border-color 0.15s;
+        }
+        .tx-note-input:hover, .tx-note-input:focus {
+            border-color: var(--input-border);
+            background: var(--input-bg);
+            outline: none;
+        }
+
+        .transactions-table th.note-col,
+        .transactions-table td.note-col { width: 190px; max-width: 190px; }
+
         .btn-excl {
             background: none;
             border: none;
@@ -747,7 +772,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.4.0</span>
+            <span class="version-badge">v1.5.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -789,8 +814,8 @@
 
             <div class="charts-grid">
                 <div class="chart-container">
-                    <h3>🥧 Spending by Category</h3>
-                    <div class="chart">
+                    <h3>📊 Spending by Category</h3>
+                    <div class="chart" style="height:400px;">
                         <canvas id="categoryChart"></canvas>
                     </div>
                 </div>
@@ -1474,39 +1499,53 @@
                 categoryData[exp.category] = (categoryData[exp.category] || 0) + exp.amount;
             });
 
-            const categories = Object.keys(categoryData);
-            const amounts = Object.values(categoryData);
+            const sorted = Object.entries(categoryData).sort(([, a], [, b]) => b - a);
+            const categories = sorted.map(([c]) => c);
+            const amounts = sorted.map(([, v]) => v);
+
+            const colors = [
+                '#667eea', '#764ba2', '#f093fb', '#f5576c',
+                '#4facfe', '#00f2fe', '#43e97b', '#38f9d7',
+                '#ffecd2', '#fcb69f', '#a8edea', '#fed6e3',
+                '#ff9a9e', '#a18cd1', '#ffeaa7', '#dfe6e9'
+            ];
 
             const ctx = document.getElementById('categoryChart');
             if (categoryChart) categoryChart.destroy();
 
             categoryChart = new Chart(ctx, {
-                type: 'doughnut',
+                type: 'bar',
                 data: {
                     labels: categories,
                     datasets: [{
                         data: amounts,
-                        backgroundColor: [
-                            '#667eea', '#764ba2', '#f093fb', '#f5576c',
-                            '#4facfe', '#00f2fe', '#43e97b', '#38f9d7',
-                            '#ffecd2', '#fcb69f', '#a8edea', '#fed6e3'
-                        ]
+                        backgroundColor: categories.map((_, i) => colors[i % colors.length]),
+                        borderRadius: 4,
                     }]
                 },
                 options: {
+                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            position: 'right',
-                            labels: { color: getThemeColors().textColor }
-                        },
+                        legend: { display: false },
                         tooltip: {
                             callbacks: {
-                                label: function (context) {
-                                    return context.label + ': ' + formatCurrency(context.raw);
-                                }
+                                label: ctx => formatCurrency(ctx.raw)
                             }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: getThemeColors().textColor,
+                                callback: v => formatCurrency(v)
+                            },
+                            grid: { color: getThemeColors().gridColor }
+                        },
+                        y: {
+                            ticks: { color: getThemeColors().textColor },
+                            grid: { display: false }
                         }
                     }
                 }
@@ -1618,6 +1657,56 @@
             });
         }
 
+        // ── Transaction table: sort + resizable columns ───────────────────────
+        let txSortCol = 'date', txSortDir = -1;
+
+        const TX_COL_DEFAULTS = { date:110, vendor:220, note:170, category:150, card:95, amount:95, action:34 };
+
+        function getTxColWidths() {
+            try { return Object.assign({}, TX_COL_DEFAULTS, JSON.parse(localStorage.getItem('txColWidths'))); }
+            catch { return Object.assign({}, TX_COL_DEFAULTS); }
+        }
+
+        function saveTxColWidths(w) { localStorage.setItem('txColWidths', JSON.stringify(w)); }
+
+        function sortTxColumn(col) {
+            txSortDir = (txSortCol === col) ? -txSortDir : (col === 'amount' ? -1 : 1);
+            txSortCol = col;
+            updateTransactionsList();
+        }
+
+        function initTxResize(widths) {
+            const table = document.querySelector('#transactionsList table');
+            if (!table) return;
+            const handles = table.querySelectorAll('.col-resize-handle');
+            handles.forEach((handle, i) => {
+                handle.addEventListener('mousedown', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const col = table.querySelectorAll('col')[i];
+                    const startX = e.clientX;
+                    const startW = parseInt(col.style.width);
+                    handle.classList.add('resizing');
+                    const onMove = ev => {
+                        const newW = Math.max(50, startW + ev.clientX - startX);
+                        col.style.width = newW + 'px';
+                    };
+                    const onUp = ev => {
+                        handle.classList.remove('resizing');
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                        const keys = Object.keys(TX_COL_DEFAULTS);
+                        const cols = table.querySelectorAll('col');
+                        const saved = {};
+                        keys.forEach((k, j) => { saved[k] = parseInt(cols[j].style.width); });
+                        saveTxColWidths(saved);
+                    };
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
+            });
+        }
+
         // Update transactions list
         function updateTransactionsList() {
             const transactionsList = document.getElementById('transactionsList');
@@ -1634,27 +1723,24 @@
                 return;
             }
 
-            // Helper function to parse date properly
-            // Input: YYYY-MM-DD
-            function parseDate(dateStr) {
-                if (dateStr.includes('-')) {
-                    const [year, month, day] = dateStr.split('-').map(Number);
-                    return new Date(year, month - 1, day);
-                }
-                const [day, month, year] = dateStr.split('/');
-                const fullYear = year.length === 2 ? '20' + year : year;
-                return new Date(fullYear, month - 1, day);
-            }
-
             const pageSizeEl = document.getElementById('txPageSize');
             const pageSize = pageSizeEl ? parseInt(pageSizeEl.value) : 0;
-            const sorted = [...displayExpenses].sort((a, b) => parseDate(b.date) - parseDate(a.date));
+
+            const sorted = [...displayExpenses].sort((a, b) => {
+                let va, vb;
+                if (txSortCol === 'amount')    { va = a.amount;   vb = b.amount; }
+                else if (txSortCol === 'vendor'){ va = a.merchant; vb = b.merchant; }
+                else if (txSortCol === 'category'){ va = a.category; vb = b.category; }
+                else if (txSortCol === 'card') { va = a.card;    vb = b.card; }
+                else                           { va = a.date;    vb = b.date; }
+                if (typeof va === 'number') return txSortDir * (va - vb);
+                return txSortDir * String(va).localeCompare(String(vb), 'he');
+            });
             const sortedTransactions = pageSize === 0 ? sorted : sorted.slice(0, pageSize);
 
             const totalCountEl = document.getElementById('txTotalCount');
             if (totalCountEl) totalCountEl.textContent = filteredExpenses.length;
 
-            // Update excluded pill
             const excludedInView = displayExpenses.filter(e => e.excluded);
             const pill = document.getElementById('excludedPill');
             if (pill) {
@@ -1667,15 +1753,37 @@
                 }
             }
 
+            const catOpts = (current) => {
+                const cats = availableCategories.length ? availableCategories : [current];
+                const list = cats.includes(current) ? cats : [current, ...cats];
+                return list.map(c => `<option value="${escapeHtml(c)}"${c === current ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('');
+            };
+
+            const si = col => col === txSortCol ? (txSortDir === -1 ? ' ▼' : ' ▲') : ' ↕';
+            const th = (col, label, extra='') =>
+                `<th onclick="sortTxColumn('${col}')" style="cursor:pointer;position:relative;${extra}">${label}<span style="opacity:${col===txSortCol?1:0.35};font-size:0.75em;">${si(col)}</span><div class="col-resize-handle" onclick="event.stopPropagation()"></div></th>`;
+
+            const w = getTxColWidths();
+
             transactionsList.innerHTML = `
-                <table class="transactions-table">
+                <table class="transactions-table" style="table-layout:fixed;width:100%;">
+                    <colgroup>
+                        <col style="width:${w.date}px;">
+                        <col style="width:${w.vendor}px;">
+                        <col style="width:${w.note}px;">
+                        <col style="width:${w.category}px;">
+                        <col style="width:${w.card}px;">
+                        <col style="width:${w.amount}px;">
+                        <col style="width:${w.action}px;">
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th>Date</th>
-                            <th>Vendor Name</th>
-                            <th>Category</th>
-                            <th>Card Number</th>
-                            <th>Amount</th>
+                            ${th('date','Date')}
+                            ${th('vendor','Vendor Name')}
+                            <th style="position:relative;">Note<div class="col-resize-handle" onclick="event.stopPropagation()"></div></th>
+                            ${th('category','Category')}
+                            ${th('card','Card Number')}
+                            ${th('amount','Amount')}
                             <th></th>
                         </tr>
                     </thead>
@@ -1683,16 +1791,22 @@
                         ${sortedTransactions.map(t => `
                             <tr class="${t.excluded ? 'tx-excluded' : ''}">
                                 <td>${escapeHtml(t.date)}</td>
-                                <td>${escapeHtml(t.merchant)}</td>
-                                <td><span class="category-cell">${escapeHtml(t.category)}</span></td>
+                                <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.merchant)}</td>
+                                <td><input type="text" class="tx-note-input" value="${escapeHtml(t.notes || '')}"
+                                    placeholder="Add note…"
+                                    onblur="saveTxNote(${t.id}, this.value)"
+                                    onkeydown="if(event.key==='Enter')this.blur()"></td>
+                                <td><select class="tx-cat-select" onchange="changeTxCategory(this, '${escapeHtml(t.merchant).replace(/'/g, "\\'")}')">
+                                    ${catOpts(t.category)}</select></td>
                                 <td class="card-cell">*${escapeHtml(t.card)}</td>
                                 <td class="amount-cell">${formatCurrency(t.amount)}</td>
-                                <td><button class="btn-excl" onclick="toggleExclude(${t.id})" title="${t.excluded ? 'Restore to calculations' : 'Exclude from calculations'}">${t.excluded ? '↺' : '⊘'}</button></td>
+                                <td><button class="btn-excl" onclick="toggleExclude(${t.id})" title="${t.excluded ? 'Restore' : 'Exclude'}">${t.excluded ? '↺' : '⊘'}</button></td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
             `;
+            initTxResize(w);
         }
 
         // Load data when page loads
@@ -2155,6 +2269,31 @@
             } else {
                 alert('Failed to save backup path');
             }
+        }
+
+        async function changeTxCategory(select, merchant) {
+            const newCategory = select.value;
+            const resp = await fetch('/api/merchants', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ merchant, new_category: newCategory, save_rule: true }),
+            });
+            if (!resp.ok) { alert('Failed to update category'); select.value = select.dataset.prev || select.value; return; }
+            // Update all in-memory transactions for this merchant
+            allExpenses.forEach(e => { if (e.merchant === merchant) e.category = newCategory; });
+            filteredExpenses = displayExpenses.filter(e => !e.excluded);
+            updateDashboard();
+        }
+
+        async function saveTxNote(id, note) {
+            const expense = allExpenses.find(e => e.id === id);
+            if (!expense || expense.notes === note) return;
+            const resp = await fetch(`/api/transactions/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notes: note }),
+            });
+            if (resp.ok) expense.notes = note;
         }
 
         async function toggleExclude(id) {

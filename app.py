@@ -115,10 +115,13 @@ def delete_transaction(transaction_id):
 @app.route('/api/transactions/<int:transaction_id>', methods=['PATCH'])
 def patch_transaction(transaction_id):
     data = request.get_json()
-    if data is None or 'excluded' not in data:
-        return jsonify({'error': 'excluded field required'}), 400
-    db.set_transaction_excluded(transaction_id, data['excluded'])
-    return jsonify({'id': transaction_id, 'excluded': data['excluded']})
+    if data is None:
+        return jsonify({'error': 'request body required'}), 400
+    if 'excluded' in data:
+        db.set_transaction_excluded(transaction_id, data['excluded'])
+    if 'notes' in data:
+        db.set_transaction_note(transaction_id, data['notes'])
+    return jsonify({'id': transaction_id, **{k: data[k] for k in ('excluded', 'notes') if k in data}})
 
 
 # --- Import ---
@@ -175,7 +178,20 @@ def import_confirm():
     except Exception:
         pass
 
-    count = db.insert_transactions(data['transactions'])
+    transactions = data['transactions']
+    count = db.insert_transactions(transactions)
+
+    # Apply each merchant's category to all existing transactions and save as rule
+    merchant_categories = {}
+    for t in transactions:
+        merchant_categories[t['merchant']] = t['category']
+
+    rules = load_category_rules()
+    for merchant, category in merchant_categories.items():
+        db.update_merchant_category(merchant, category)
+        rules[merchant] = category
+    save_category_rules(rules)
+
     return jsonify({'inserted': count}), 201
 
 
