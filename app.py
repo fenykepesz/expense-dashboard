@@ -2,6 +2,8 @@ import json
 import os
 import sys
 import tempfile
+import threading
+import webbrowser
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -144,20 +146,21 @@ def import_file():
         f.save(tmp.name)
         tmp_path = tmp.name
 
+    skipped = []
     try:
         if filename.endswith('.pdf'):
             from pdf_to_json import convert_pdf_to_json
             expenses = convert_pdf_to_json(tmp_path)
         elif filename.endswith('.xls') or filename.endswith('.xlsx'):
             from excel_to_json import convert_excel_to_json
-            expenses = convert_excel_to_json(tmp_path, exchange_rates=exchange_rates)
+            expenses, skipped = convert_excel_to_json(tmp_path, exchange_rates=exchange_rates)
         else:
             return jsonify({'error': 'Unsupported file type. Use .xls or .pdf'}), 400
     finally:
         os.unlink(tmp_path)
 
     duplicate_count = db.check_duplicates(expenses)
-    return jsonify({'transactions': expenses, 'duplicate_count': duplicate_count})
+    return jsonify({'transactions': expenses, 'duplicate_count': duplicate_count, 'skipped': skipped})
 
 
 @app.route('/api/import/confirm', methods=['POST'])
@@ -276,4 +279,7 @@ def update_config():
 if __name__ == '__main__':
     db.init_db()
     print("Expense Dashboard running at http://localhost:5000")
-    app.run(debug=True, exclude_patterns=['*.zip', '*.db'])
+    # Only open browser on the main process, not the reloader child
+    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        threading.Timer(1.0, lambda: webbrowser.open("http://localhost:5000")).start()
+    app.run(debug=True, reloader_type='stat')

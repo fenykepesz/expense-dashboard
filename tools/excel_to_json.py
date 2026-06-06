@@ -235,6 +235,7 @@ def convert_excel_to_json(excel_path, output_path=None, rules_path=None,
 
     # Convert to dashboard format
     expenses = []
+    skipped_zero_neg = []
     skipped_count = 0
     skipped_foreign = 0
 
@@ -252,8 +253,15 @@ def convert_excel_to_json(excel_path, output_path=None, rules_path=None,
             skipped_count += 1
             continue
 
-        # Skip zero or negative amounts (waived fees, refunds)
+        # Collect zero or negative amounts separately (waived fees, refunds)
         if amount <= 0:
+            skipped_zero_neg.append({
+                "date": iso_date,
+                "merchant": tx['merchant'],
+                "amount": amount,
+                "card": extract_card_digits(tx['card']),
+                "skip_reason": "zero" if amount == 0 else "negative",
+            })
             continue
 
         # Handle foreign currency conversion
@@ -299,8 +307,10 @@ def convert_excel_to_json(excel_path, output_path=None, rules_path=None,
     if skipped_foreign > 0:
         print(f"Note: Skipped {skipped_foreign} foreign currency transaction(s) (no exchange rate provided)")
         print("  Use --usd-rate, --eur-rate, --gbp-rate to include them")
+    if skipped_zero_neg:
+        print(f"Note: {len(skipped_zero_neg)} zero/negative amount transaction(s) excluded from import")
 
-    return expenses
+    return expenses, skipped_zero_neg
 
 
 def main():
@@ -342,7 +352,7 @@ def main():
     # When --db is given without -o, skip JSON output
     output_path = args.output if not args.db else None
 
-    expenses = convert_excel_to_json(
+    expenses, skipped = convert_excel_to_json(
         args.excel, output_path, args.rules, args.interactive, exchange_rates
     )
 
