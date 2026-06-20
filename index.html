@@ -634,11 +634,12 @@
             cursor: pointer;
             color: var(--text-secondary);
             font-size: 1em;
-            padding: 2px 6px;
+            padding: 2px 4px;
             border-radius: 4px;
             opacity: 0.55;
             transition: opacity 0.15s;
         }
+        .tx-actions { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
         .btn-excl:hover { opacity: 1; }
         .tx-excluded .btn-excl { color: var(--success-color); opacity: 0.8; }
         .btn-delete:hover { color: var(--error-color); opacity: 1; }
@@ -912,9 +913,9 @@
                         <select id="txPageSize" onchange="updateTransactionsList()" style="padding:4px 8px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text-primary);font-size:1em;">
                             <option value="10">10</option>
                             <option value="25">25</option>
-                            <option value="50">50</option>
+                            <option value="50" selected>50</option>
                             <option value="100">100</option>
-                            <option value="0" selected>All</option>
+                            <option value="0">All</option>
                         </select>
                         of <span id="txTotalCount">0</span>
                     </label>
@@ -1329,6 +1330,14 @@
             });
         }
 
+        function debounce(fn, delayMs) {
+            let timer = null;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn(...args), delayMs);
+            };
+        }
+
         // Setup event listeners
         function setupEventListeners() {
             // Year filter uses button click listeners (set up in populateYearPicker)
@@ -1336,7 +1345,7 @@
             document.getElementById('categoryFilter').addEventListener('change', applyFilters);
             document.getElementById('cardFilter').addEventListener('change', applyFilters);
             document.getElementById('statusFilter').addEventListener('change', applyFilters);
-            document.getElementById('searchMerchant').addEventListener('input', applyFilters);
+            document.getElementById('searchMerchant').addEventListener('input', debounce(applyFilters, 200));
             document.getElementById('dateFromFilter').addEventListener('change', applyFilters);
             document.getElementById('dateToFilter').addEventListener('change', applyFilters);
         }
@@ -1696,7 +1705,7 @@
         // ── Transaction table: sort + resizable columns ───────────────────────
         let txSortCol = 'date', txSortDir = -1;
 
-        const TX_COL_DEFAULTS = { date:110, vendor:220, note:170, category:150, card:95, amount:95, action:62 };
+        const TX_COL_DEFAULTS = { date:110, vendor:220, note:170, category:150, card:95, amount:95, action:64 };
 
         function getTxColWidths() {
             try { return Object.assign({}, TX_COL_DEFAULTS, JSON.parse(localStorage.getItem('txColWidths'))); }
@@ -1830,8 +1839,10 @@
                                 <td class="card-cell">*${escapeHtml(t.card)}</td>
                                 <td class="amount-cell">${formatCurrency(t.amount)}</td>
                                 <td>
-                                    <button class="btn-excl" onclick="toggleExclude(${t.id})" title="${t.excluded ? 'Restore' : 'Exclude'}">${t.excluded ? '↺' : '⊘'}</button>
-                                    <button class="btn-excl btn-delete" onclick="deleteTransaction(${t.id})" title="Delete permanently">🗑</button>
+                                    <div class="tx-actions">
+                                        <button class="btn-excl" onclick="toggleExclude(${t.id})" title="${t.excluded ? 'Restore' : 'Exclude'}">${t.excluded ? '↺' : '⊘'}</button>
+                                        <button class="btn-excl btn-delete" onclick="deleteTransaction(${t.id})" title="Delete permanently">🗑</button>
+                                    </div>
                                 </td>
                             </tr>
                         `).join('')}
