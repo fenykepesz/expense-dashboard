@@ -344,6 +344,18 @@
             display: inline-block;
         }
 
+        .tx-cat-text {
+            background-color: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            display: inline-block;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .tx-cat-text:hover { opacity: 0.8; }
+
         .card-cell {
             font-family: 'Courier New', monospace;
             font-weight: bold;
@@ -629,6 +641,7 @@
         }
         .btn-excl:hover { opacity: 1; }
         .tx-excluded .btn-excl { color: var(--success-color); opacity: 0.8; }
+        .btn-delete:hover { color: var(--error-color); opacity: 1; }
 
         .excluded-pill {
             display: inline-flex;
@@ -772,7 +785,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.5.0</span>
+            <span class="version-badge">v1.6.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -869,6 +882,18 @@
                         <option value="active">Active only</option>
                         <option value="excluded">Excluded only</option>
                     </select>
+                </div>
+                <div class="control-group">
+                    <label for="dateFromFilter">From Date:</label>
+                    <input type="date" id="dateFromFilter">
+                </div>
+                <div class="control-group">
+                    <label for="dateToFilter">To Date:</label>
+                    <input type="date" id="dateToFilter">
+                </div>
+                <div class="control-group">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-ghost" onclick="clearDateRange()" style="padding:8px 14px;">Clear range</button>
                 </div>
                 <div class="control-group">
                     <label for="searchMerchant">Search Merchant:</label>
@@ -1312,6 +1337,14 @@
             document.getElementById('cardFilter').addEventListener('change', applyFilters);
             document.getElementById('statusFilter').addEventListener('change', applyFilters);
             document.getElementById('searchMerchant').addEventListener('input', applyFilters);
+            document.getElementById('dateFromFilter').addEventListener('change', applyFilters);
+            document.getElementById('dateToFilter').addEventListener('change', applyFilters);
+        }
+
+        function clearDateRange() {
+            document.getElementById('dateFromFilter').value = '';
+            document.getElementById('dateToFilter').value = '';
+            applyFilters();
         }
 
         // Apply filters
@@ -1323,6 +1356,8 @@
             const searchTerm = document.getElementById('searchMerchant').value.toLowerCase();
 
             const statusFilter = document.getElementById('statusFilter').value;
+            const dateFrom = document.getElementById('dateFromFilter').value;
+            const dateTo = document.getElementById('dateToFilter').value;
 
             displayExpenses = allExpenses.filter(expense => {
                 const yearMatch = selectedYears === 'all' || selectedYears.includes(expense.year);
@@ -1333,8 +1368,9 @@
                 const statusMatch = statusFilter === 'all'
                     || (statusFilter === 'active' && !expense.excluded)
                     || (statusFilter === 'excluded' && expense.excluded);
+                const dateMatch = (!dateFrom || expense.date >= dateFrom) && (!dateTo || expense.date <= dateTo);
 
-                return yearMatch && monthMatch && categoryMatch && cardMatch && merchantMatch && statusMatch;
+                return yearMatch && monthMatch && categoryMatch && cardMatch && merchantMatch && statusMatch && dateMatch;
             });
             filteredExpenses = displayExpenses.filter(e => !e.excluded);
 
@@ -1660,7 +1696,7 @@
         // ── Transaction table: sort + resizable columns ───────────────────────
         let txSortCol = 'date', txSortDir = -1;
 
-        const TX_COL_DEFAULTS = { date:110, vendor:220, note:170, category:150, card:95, amount:95, action:34 };
+        const TX_COL_DEFAULTS = { date:110, vendor:220, note:170, category:150, card:95, amount:95, action:62 };
 
         function getTxColWidths() {
             try { return Object.assign({}, TX_COL_DEFAULTS, JSON.parse(localStorage.getItem('txColWidths'))); }
@@ -1753,12 +1789,6 @@
                 }
             }
 
-            const catOpts = (current) => {
-                const cats = availableCategories.length ? availableCategories : [current];
-                const list = cats.includes(current) ? cats : [current, ...cats];
-                return list.map(c => `<option value="${escapeHtml(c)}"${c === current ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('');
-            };
-
             const si = col => col === txSortCol ? (txSortDir === -1 ? ' ▼' : ' ▲') : ' ↕';
             const th = (col, label, extra='') =>
                 `<th onclick="sortTxColumn('${col}')" style="cursor:pointer;position:relative;${extra}">${label}<span style="opacity:${col===txSortCol?1:0.35};font-size:0.75em;">${si(col)}</span><div class="col-resize-handle" onclick="event.stopPropagation()"></div></th>`;
@@ -1796,11 +1826,13 @@
                                     placeholder="Add note…"
                                     onblur="saveTxNote(${t.id}, this.value)"
                                     onkeydown="if(event.key==='Enter')this.blur()"></td>
-                                <td><select class="tx-cat-select" onchange="changeTxCategory(this, '${escapeHtml(t.merchant).replace(/'/g, "\\'")}')">
-                                    ${catOpts(t.category)}</select></td>
+                                <td><span class="tx-cat-text" onclick="startEditCategory(this, '${escapeHtml(t.merchant).replace(/'/g, "\\'")}')">${escapeHtml(t.category)}</span></td>
                                 <td class="card-cell">*${escapeHtml(t.card)}</td>
                                 <td class="amount-cell">${formatCurrency(t.amount)}</td>
-                                <td><button class="btn-excl" onclick="toggleExclude(${t.id})" title="${t.excluded ? 'Restore' : 'Exclude'}">${t.excluded ? '↺' : '⊘'}</button></td>
+                                <td>
+                                    <button class="btn-excl" onclick="toggleExclude(${t.id})" title="${t.excluded ? 'Restore' : 'Exclude'}">${t.excluded ? '↺' : '⊘'}</button>
+                                    <button class="btn-excl btn-delete" onclick="deleteTransaction(${t.id})" title="Delete permanently">🗑</button>
+                                </td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -2271,6 +2303,21 @@
             }
         }
 
+        function startEditCategory(span, merchant) {
+            const current = span.textContent;
+            const cats = availableCategories.length ? availableCategories : [current];
+            const list = cats.includes(current) ? cats : [current, ...cats];
+            const opts = list.map(c => `<option value="${escapeHtml(c)}"${c === current ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('');
+            const td = span.parentElement;
+            td.innerHTML = `<select class="tx-cat-select" onchange="changeTxCategory(this, '${merchant.replace(/'/g, "\\'")}')">${opts}</select>`;
+            const select = td.querySelector('select');
+            select.focus();
+            select.addEventListener('blur', () => {
+                // If no change was saved, just revert this cell back to a static label.
+                if (document.body.contains(select)) updateTransactionsList();
+            });
+        }
+
         async function changeTxCategory(select, merchant) {
             const newCategory = select.value;
             const resp = await fetch('/api/merchants', {
@@ -2308,6 +2355,18 @@
             if (!resp.ok) { alert('Failed to update transaction'); return; }
             expense.excluded = newExcluded;
             filteredExpenses = displayExpenses.filter(e => !e.excluded);
+            updateDashboard();
+        }
+
+        async function deleteTransaction(id) {
+            const expense = allExpenses.find(e => e.id === id);
+            if (!expense) return;
+            if (!confirm(`Permanently delete this transaction?\n\n${expense.merchant} — ${formatCurrency(expense.amount)} on ${expense.date}\n\nThis cannot be undone.`)) return;
+            const resp = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
+            if (!resp.ok) { alert('Failed to delete transaction'); return; }
+            allExpenses = allExpenses.filter(e => e.id !== id);
+            displayExpenses = displayExpenses.filter(e => e.id !== id);
+            filteredExpenses = filteredExpenses.filter(e => e.id !== id);
             updateDashboard();
         }
 
