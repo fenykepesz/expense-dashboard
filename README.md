@@ -1,33 +1,31 @@
 # Personal Expense Dashboard
 
-A beautiful, interactive expense tracking dashboard built with HTML, CSS, and Chart.js.
+A local-first expense tracking dashboard for Bank Leumi credit card statements, built with Flask, SQLite, and Chart.js.
 
 ![Dashboard Preview](Screenshot.jpg)
 
 ## 🎯 Features
 
-- **Visual Analytics**: Interactive charts showing spending patterns
-  - Monthly spending trends (line chart)
-  - Category breakdown (doughnut chart)
-  - Top merchants analysis (bar chart)
-  - Card usage distribution (pie chart)
-
-- **Multi-Year Analysis**:
-  - **Multi-Select Year Picker**: Toggle pill buttons to select one or more years simultaneously (e.g. 2024 + 2025 combined)
-  - **Year-over-Year Comparison**: Overlay chart comparing monthly spending trends across different years
-  - **Accurate Monthly Average**: Counts unique year-month pairs with actual spending; months with no data are excluded from the average calculation
-
-- **Smart Filtering**: Filter expenses by year (multi-select), month, category, and card
-
-- **Summary Cards**: Quick overview of total spending, transactions, average per transaction, active months, and monthly average
-
-- **Transaction List**: Detailed view of recent transactions
-
-- **Hebrew Support**: Full RTL (Right-to-Left) language support
-
-## 🚀 Live Demo
-
-View the live dashboard once downloaded.
+- **In-Browser Import**: Drag-and-drop a Bank Leumi `.xls` or `.pdf` statement directly into the dashboard — no command line needed. Preview transactions, see duplicate warnings, and review skipped zero/negative-amount rows before confirming.
+- **Automatic Categorization**: Merchants are categorized automatically using saved rules. Any category you assign during import is saved as a rule and applied to that merchant's existing transactions too.
+- **Merchant Manager**: View every merchant with its transaction count, change its category, and optionally save the change as a rule for future imports.
+- **Category Management**: Add custom categories or delete any category (including built-ins, except "Uncategorized"). Categories live in the database — no separate file to maintain.
+- **Visual Analytics**:
+  - Monthly spending trend (line chart, year-over-year overlay)
+  - Spending by category (horizontal bar chart)
+  - Top merchants (bar chart)
+  - Spending by card (pie chart)
+- **Smart Filtering**: Filter by year (multi-select), month, category, card, status (active/excluded), custom date range, or merchant name search.
+- **Transaction Management**:
+  - **Inline category editing**: click a transaction's category pill to change it on the spot — updates every transaction for that merchant and saves the rule.
+  - **Notes**: add a free-text note to any transaction.
+  - **Exclude / restore**: soft-hide a transaction from totals and charts without deleting it.
+  - **Permanent delete**: remove a transaction from the database entirely, with a confirmation prompt.
+  - **Sortable & resizable columns**: click a column header to sort; drag a column edge to resize — widths are remembered.
+- **Summary Cards**: Total spent, transaction count, average per transaction, active months, and monthly average.
+- **Backup Facility**: One-click backup download (zipped SQLite snapshot), automatic backup before every import and at least every 30 days, configurable backup folder, and a "last backed up" indicator.
+- **Dark/Light Theme**: Toggle in the header; preference is remembered (falls back to your OS preference if you've never chosen one).
+- **Hebrew Support**: Full RTL handling for Hebrew merchant names, including reversed text from Bank Leumi PDF exports.
 
 ## ⚠️ DISCLAIMER
 
@@ -35,7 +33,7 @@ View the live dashboard once downloaded.
 
 - This dashboard is a visualization tool and does NOT provide financial advice
 - I am not a financial advisor, accountant, or tax professional
-- All financial data processing happens locally in your browser
+- All financial data stays on your machine — nothing is transmitted anywhere
 - **You are solely responsible for:**
   - The accuracy of your financial data
   - Securing your personal financial information
@@ -44,8 +42,8 @@ View the live dashboard once downloaded.
 
 **Security & Privacy:**
 - Never commit real financial data to public repositories
-- This tool does not transmit data to any server
-- Keep your actual expense data files private and secure
+- This tool does not transmit data to any server — it runs a local Flask server on `localhost` only
+- Keep your actual statement files (`.xls`/`.pdf`) and database (`expenses.db`) private and secure
 - Use at your own risk
 
 **No Warranty:**
@@ -61,129 +59,67 @@ pip install -r requirements.txt
 ### Running the dashboard
 
 1. Clone this repository
-2. Migrate the sample data into SQLite:
-   ```bash
-   python tools/migrate_to_db.py expense_data.json
-   ```
-3. Start the local server:
+2. Start the local server:
    ```bash
    python app.py
    ```
-4. Open `http://localhost:5000` in your browser
+3. Your browser opens automatically to `http://localhost:5000` (or open it manually if it doesn't)
+4. Go to the **Import** tab and drag in a Bank Leumi `.xls` or `.pdf` statement to get started
 
-> **Note**: The dashboard is now served by a local Flask server backed by SQLite (`expenses.db`). The database file is git-ignored — your financial data never leaves your machine.
+> **Note**: On first run, the app creates a fresh `expenses.db` SQLite database (git-ignored) seeded with built-in categories. There is no sample data and no manual migration step required — everything starts empty and is populated by importing your own statements.
 
-## 📊 Data Format
+## 📥 Importing Statements
 
-The dashboard expects data in the following JSON format:
+The recommended way to import is through the **Import** tab in the dashboard — drag and drop your file, review the preview (including any duplicate or skipped-row warnings), and confirm.
 
-```json
-[
-    {
-        "date": "2024-01-01",
-        "year": 2024,
-        "month": "January",
-        "merchant": "Merchant Name",
-        "category": "Category Name",
-        "card": "1234",
-        "amount": 100.00
-    }
-]
-```
+If you prefer the command line, the same converters are available directly:
 
-> **Note**: Dates are now in ISO 8601 format (`YYYY-MM-DD`). Explicit `year` and `month` fields are required for filtering.
-
-##   Migration Tool
-If you have data in the old format (DD/MM/YY), use the included Python script to convert it:
-
-```bash
-python tools/convert_data.py input_data.json -o new_data.json
-```
-
-## 📄 PDF Converter Tool [NEW]
-If you have a Bank Leumi credit card statement in PDF format, you can convert it directly to the dashboard's JSON format.
-
-### Installation
+### PDF Converter
 ```bash
 pip install pdfplumber
+python tools/pdf_to_json.py "path/to/statement.pdf" -o expenses.json
+python tools/pdf_to_json.py "path/to/statement.pdf" --db expenses.db   # write straight to the DB
 ```
 
-### Usage
-
-**Basic usage:**
+### Excel Converter
+Bank Leumi's `.xls` export is actually an HTML file, so no extra dependencies are needed. It also contains all your cards in one file.
 ```bash
-python tools/pdf_to_json.py "path/to/your/statement.pdf" -o expenses.json
+python tools/excel_to_json.py "path/to/export.xls" -o expenses.json
+python tools/excel_to_json.py "path/to/export.xls" --usd-rate 3.65 --eur-rate 3.92   # include foreign currency
 ```
 
-**Interactive mode** (categorize unknown merchants):
-```bash
-python tools/pdf_to_json.py "path/to/your/statement.pdf" -o expenses.json -i
-```
+Both converters support:
+- **Automatic categorization** using `tools/category_rules.json` (git-ignored, built up from your own usage)
+- **Interactive mode** (`-i` flag) to categorize unknown merchants from the terminal
+- Skipping zero/negative-amount rows (refunds, waived fees) — shown separately rather than silently dropped
 
-The interactive mode (`-i` flag) will:
-1. Identify all uncategorized merchants
-2. Prompt you to select a category for each
-3. Ask for a keyword to match (defaults to full merchant name)
-4. Save the new rules to `category_rules.json` for future use
+## 🛡️ Security
 
-### Features
-- **Automatic Categorization**: Matches merchants to categories using patterns in `tools/category_rules.json`.
-- **Interactive Categorization**: Quickly categorize unknown merchants and save rules for future PDFs.
-- **RTL Hebrew Support**: Correctly handles reversed Hebrew text from Bank Leumi statements.
-- **Auto-Month/Year**: Calculates month names and years from transaction dates.
-- **Installment Support**: Properly extracts installment transactions, recording the monthly payment amount.
-
-## 📊 Excel Converter Tool [NEW]
-If you have a Bank Leumi Excel export (.xls) containing all your cards' transactions, you can convert it directly to the dashboard's JSON format. This is often more convenient than the PDF converter since **one file contains all cards**.
-
-> **Note**: Bank Leumi's .xls export is actually an HTML file — no additional Python packages are required.
-
-### Usage
-
-**Basic usage (ILS transactions only):**
-```bash
-python tools/excel_to_json.py "path/to/your/export.xls" -o expenses.json
-```
-
-**Include foreign currency transactions (converted to ILS):**
-```bash
-python tools/excel_to_json.py "path/to/your/export.xls" -o expenses.json --usd-rate 3.65 --eur-rate 3.92
-```
-
-**Interactive mode** (categorize unknown merchants):
-```bash
-python tools/excel_to_json.py "path/to/your/export.xls" -o expenses.json -i
-```
-
-### Features
-- **All Cards in One File**: Processes all credit cards from a single Bank Leumi export — no need to run the converter per card.
-- **Automatic Categorization**: Same keyword-based categorization as the PDF converter using `tools/category_rules.json`.
-- **Interactive Categorization**: Same interactive mode as the PDF converter for unknown merchants.
-- **Foreign Currency Support**: Convert USD/EUR/GBP transactions to ILS using exchange rates you provide.
-- **Zero Dependencies**: Uses only Python standard library (no pip install needed).
-
-##  🛡️ Security
-- **XSS Protection**: Data rendering is sanitized to prevent Cross-Site Scripting attacks.
+- **XSS Protection**: All rendered data is sanitized before insertion into the page.
 - **SRI Check**: External libraries (Chart.js) are loaded with Subresource Integrity hashes.
+- **Local only**: The Flask server only binds to `localhost` — no data leaves your machine.
 
 ## 🔒 Privacy & Data Security
 
-**IMPORTANT:** This repository includes sample data only for demonstration purposes.
+The dashboard reads from a local `expenses.db` file, created empty on first run. Everything you see comes from statements you import yourself — there's no setup step that loads sample data into the running app. (`expense_data.json` and `tools/convert_data.py`/`tools/migrate_to_db.py` are kept in the repo for historical reference from earlier versions but aren't part of the current import flow.)
 
-**To use with your real data:**
-1. Clone/download this repository to your local computer
-2. Replace `expense_data.json` with your own data (keep it LOCAL only)
-3. Open `index.html` locally in your browser
-4. **NEVER commit or upload your real financial data to GitHub or any public repository**
+**Files that are git-ignored by default** (never get committed): `expenses.db`, `config.json`, `backups/`, `tools/category_rules.json`, and any raw `.xls`/`.xlsx`/`.pdf` statement files placed in `tools/`.
 
-The `.gitignore` file is configured to help prevent accidentally committing private data files.
+**NEVER commit or upload your real financial data to GitHub or any public repository.**
 
 ## 🛠️ Built With
 
-- HTML5
-- CSS3 (with modern gradients and animations)
-- JavaScript (Vanilla)
-- [Chart.js](https://www.chartjs.org/) - For data visualization
+- [Flask](https://flask.palletsprojects.com/) — local web server
+- SQLite (Python standard library `sqlite3`) — data storage
+- HTML5 / CSS3 / JavaScript (vanilla, no frontend framework)
+- [Chart.js](https://www.chartjs.org/) — data visualization
+- [pdfplumber](https://github.com/jsvine/pdfplumber) — PDF statement parsing
+
+## 🧪 Tests
+
+```bash
+python -m pytest tests/
+```
 
 ## 📝 License
 
@@ -197,4 +133,4 @@ Feel free to fork this project and submit pull requests with improvements!
 
 ---
 
- | Not affiliated with any financial institution
+Not affiliated with any financial institution
