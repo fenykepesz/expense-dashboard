@@ -43,7 +43,7 @@ Check off items as they ship; add new ideas freely.
 - [x] **Category chart as bars** — replace doughnut chart with a horizontal bar chart for easier reading (v1.5.0)
 - [x] Custom date range filter (from/to date picker, alongside year/month pills) (v1.6.0)
 - [ ] Budget tracking — set monthly per-category budgets, show progress bars
-- [x] Month-over-month % change indicators on the summary cards (v1.6.0)
+- [ ] Year-over-year % change indicator (tried month-over-month in v1.6.0, removed — not as useful for this data; revisit as a yearly comparison instead)
 - [ ] Export filtered transactions to CSV
 
 ---
@@ -57,14 +57,41 @@ Check off items as they ship; add new ideas freely.
 
 ---
 
-## Bank Integration
+## Household Finance Expansion (Net Worth / Multi-Fund)
 
-- [ ] **Full bank expenses integration** — TBD (details to follow)
+Big-picture goal: evolve this from a credit-card tracker into a household-wide financial
+dashboard covering cash flow (bank accounts) and long-term funds (pension/study/investment),
+with a top-level net worth view. Decided so far:
+
+- **Four dashboards**: Credit Card (existing, unchanged) · Bank Accounts (new) · Long-Term
+  Funds (new) · Net Worth (new, top-level summary)
+- **Cash flow model**: Bank Accounts dashboard is the real income-vs-expense picture; the
+  monthly credit card bill appears there as a single lump expense line (mirrors how the bank
+  actually debits it), not broken out by merchant — that detail stays in the Credit Card tab
+- **Net worth model**: sum of bank account balances + long-term fund balances, trended over
+  time; credit card does NOT count separately (it's already reflected via the bank debit)
+- **Income**: just rows in the bank account transaction table, signed/typed as income vs
+  expense — no separate income structure
+- **Long-term funds** (pension, study/`קרן השתלמות`, investments): monthly **manual balance
+  entry** (fund, date, balance, contribution) — no statement parser planned initially
+- **Bank account import**: via `.xls` file, same pattern as the credit card converter; will
+  need a real sample export to reverse-engineer the format (expect bank-specific quirks like
+  the credit card one had)
+- **Household / multi-user**: simple owner label per account/fund (e.g. "household member"
+  dropdown) — no login/auth, stays a single local tool operated by one person
+- **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
+  the new dashboards, rather than growing one monolithic file further
+- [ ] Bank account `.xls` import + converter (needs sample export file first)
+- [ ] Bank account transactions table (income + expense, signed/typed) + dashboard
+- [ ] Long-term funds table (fund, date, balance, contribution) + manual entry UI + dashboard
+- [ ] Net worth dashboard (combined trend chart: totals / by fund type / custom combination,
+  same multi-select filter UX as the existing year picker)
+- [ ] Household member labels (simple dropdown, no auth) across all fund/account types
+- [ ] Split frontend JS into per-dashboard files
 
 ---
 
 ## Nice to Have
 
 - [x] Dark/light theme preference persisted in localStorage (already implemented; falls back to system preference)
-- [ ] Income tracking alongside expenses (net balance view)
 - [ ] Recurring expense detection (flag subscriptions automatically)
