@@ -786,13 +786,14 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.7.0</span>
+            <span class="version-badge">v1.8.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
                 <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
                 <button class="tab-btn" data-tab="import">📥 Import</button>
                 <button class="tab-btn" data-tab="merchants">🏪 Merchants</button>
+                <button class="tab-btn" data-tab="funds">💰 Long-Term Funds</button>
             </nav>
         </div>
 
@@ -1045,6 +1046,68 @@
             </div>
         </div>
 
+        <!-- ===== Long-Term Funds Tab ===== -->
+        <div id="tab-funds" class="hidden">
+
+            <!-- Manage Funds panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <h3 style="margin:0;">💰 Manage Funds</h3>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input type="text" id="newFundNameInput" placeholder="Fund name…"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                        <select id="newFundTypeInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                            <option value="pension">Pension</option>
+                            <option value="study_fund">Study Fund</option>
+                            <option value="investment">Investment</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <select id="newFundOwnerInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                            <option value="">No owner</option>
+                        </select>
+                        <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addNewFund()">+ Add</button>
+                    </div>
+                </div>
+                <div id="fundsList" style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <span style="color:var(--text-secondary);font-size:0.9em;">Loading…</span>
+                </div>
+            </div>
+
+            <!-- Fund Balances panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <div style="margin-bottom:16px;">
+                    <h3 style="margin-bottom:4px;">📈 Fund Balances</h3>
+                    <p style="color:var(--text-secondary);font-size:0.9em;margin:0;">
+                        Record a balance for any month. Adding the same fund + month again updates that entry.
+                    </p>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+                    <select id="fundBalanceFundSelect" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onFundBalanceFundChange()">
+                        <option value="">Select a fund…</option>
+                    </select>
+                    <input type="date" id="newFundBalanceDate" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                    <input type="number" id="newFundBalanceAmount" placeholder="Balance" step="0.01"
+                        style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:130px;">
+                    <input type="number" id="newFundContribution" placeholder="Contribution (optional)" step="0.01"
+                        style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:170px;">
+                    <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addFundBalanceEntry()">+ Add Balance</button>
+                </div>
+                <div class="chart" style="height:280px;margin-bottom:20px;">
+                    <canvas id="fundBalanceChart"></canvas>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="transactions-table">
+                        <thead><tr>
+                            <th>Date</th><th>Balance</th><th>Contribution</th><th></th>
+                        </tr></thead>
+                        <tbody id="fundBalancesBody">
+                            <tr><td colspan="4" class="no-data">Select a fund above to see its balance history.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div> <!-- Close dashboard -->
 
     <script src="js/shared.js"></script>
@@ -1052,6 +1115,7 @@
     <script src="js/import.js"></script>
     <script src="js/merchants.js"></script>
     <script src="js/household.js"></script>
+    <script src="js/dashboard-funds.js"></script>
     <script src="js/backup.js"></script>
     <script src="js/tabs.js"></script>
 </body>

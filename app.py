@@ -280,6 +280,66 @@ def remove_household_member(member_id):
     return jsonify({'members': updated})
 
 
+# --- Long-Term Funds ---
+
+@app.route('/api/funds')
+def get_funds():
+    return jsonify(db.get_funds())
+
+
+@app.route('/api/funds', methods=['POST'])
+def create_fund():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    fund_type = data.get('fund_type')
+    owner_id = data.get('owner_id')
+    if not name or not fund_type:
+        return jsonify({'error': 'name and fund_type are required'}), 400
+    try:
+        updated = db.add_fund(name, fund_type, owner_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'funds': updated}), 201
+
+
+@app.route('/api/funds/<int:fund_id>', methods=['DELETE'])
+def remove_fund(fund_id):
+    try:
+        updated = db.delete_fund(fund_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'funds': updated})
+
+
+@app.route('/api/funds/<int:fund_id>/balances')
+def get_fund_balances(fund_id):
+    return jsonify(db.get_fund_balances(fund_id))
+
+
+@app.route('/api/funds/<int:fund_id>/balances', methods=['POST'])
+def create_fund_balance(fund_id):
+    data = request.get_json() or {}
+    date = data.get('date')
+    balance = data.get('balance')
+    contribution = data.get('contribution', 0)
+    if not date or balance is None:
+        return jsonify({'error': 'date and balance are required'}), 400
+    try:
+        updated = db.add_fund_balance(fund_id, date, balance, contribution)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'balances': updated}), 201
+
+
+@app.route('/api/fund-balances/<int:balance_id>', methods=['DELETE'])
+def remove_fund_balance(balance_id):
+    try:
+        updated = db.delete_fund_balance(balance_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'balances': updated})
+
+
 # --- Backup ---
 
 @app.route('/api/backup')

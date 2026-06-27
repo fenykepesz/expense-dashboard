@@ -84,7 +84,9 @@ with a top-level net worth view. Decided so far:
 - [ ] Bank account `.xls` import + converter (real sample export checked — format confirmed,
   see `bank_transactions` schema notes in the implementation plan; not yet built)
 - [ ] Bank account transactions table (income + expense, signed/typed) + dashboard
-- [ ] Long-term funds table (fund, date, balance, contribution) + manual entry UI + dashboard
+- [x] **Long-term funds table + dashboard (Phase 3)** — `funds`/`fund_balances` tables, owner
+  dropdown, monthly manual balance entry (upserts per fund+month), balance-over-time chart
+  per fund, new "Long-Term Funds" tab (v1.8.0)
 - [ ] Net worth dashboard (combined trend chart: totals / by fund type / custom combination,
   same multi-select filter UX as the existing year picker)
 - [x] **Household members (Phase 1)** — managed list, CRUD API, minimal panel in Merchants
