@@ -786,7 +786,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.8.0</span>
+            <span class="version-badge">v1.9.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -794,6 +794,7 @@
                 <button class="tab-btn" data-tab="import">📥 Import</button>
                 <button class="tab-btn" data-tab="merchants">🏪 Merchants</button>
                 <button class="tab-btn" data-tab="funds">💰 Long-Term Funds</button>
+                <button class="tab-btn" data-tab="bank">🏦 Bank Accounts</button>
             </nav>
         </div>
 
@@ -1108,6 +1109,68 @@
             </div>
         </div>
 
+        <!-- ===== Bank Accounts Tab ===== -->
+        <div id="tab-bank" class="hidden">
+
+            <!-- Manage Bank Accounts panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <h3 style="margin:0;">🏦 Manage Bank Accounts</h3>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input type="text" id="newBankAccountNameInput" placeholder="Account name (e.g. Dad's Checking)…"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:220px;">
+                        <input type="text" id="newBankAccountNumberInput" placeholder="Account number (optional)"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:160px;">
+                        <select id="newBankAccountOwnerInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                            <option value="">No owner</option>
+                        </select>
+                        <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addNewBankAccount()">+ Add</button>
+                    </div>
+                </div>
+                <div id="bankAccountsList" style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <span style="color:var(--text-secondary);font-size:0.9em;">Loading…</span>
+                </div>
+            </div>
+
+            <!-- Bank Transactions panel -->
+            <div class="chart-container">
+                <div style="margin-bottom:16px;">
+                    <h3 style="margin-bottom:4px;">💵 Bank Transactions</h3>
+                    <p style="color:var(--text-secondary);font-size:0.9em;margin:0;">
+                        Record income and expenses by hand. A credit card bill should be entered here as one lump expense.
+                    </p>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+                    <select id="bankAccountSelect" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onBankAccountChange()">
+                        <option value="">Select an account…</option>
+                    </select>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+                    <input type="date" id="newBankTxDate" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                    <input type="text" id="newBankTxDescription" placeholder="Description"
+                        style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:200px;">
+                    <select id="newBankTxType" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                    </select>
+                    <input type="number" id="newBankTxAmount" placeholder="Amount" step="0.01"
+                        style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:120px;">
+                    <select id="newBankTxCategory" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;"></select>
+                    <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addBankTransaction()">+ Add Transaction</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="transactions-table">
+                        <thead><tr>
+                            <th>Date</th><th>Description</th><th>Note</th><th>Category</th><th>Amount</th><th></th>
+                        </tr></thead>
+                        <tbody id="bankTransactionsBody">
+                            <tr><td colspan="6" class="no-data">Select an account above to see its transactions.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div> <!-- Close dashboard -->
 
     <script src="js/shared.js"></script>
@@ -1116,6 +1179,7 @@
     <script src="js/merchants.js"></script>
     <script src="js/household.js"></script>
     <script src="js/dashboard-funds.js"></script>
+    <script src="js/dashboard-bank.js"></script>
     <script src="js/backup.js"></script>
     <script src="js/tabs.js"></script>
 </body>

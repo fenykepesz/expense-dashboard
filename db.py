@@ -72,6 +72,31 @@ CREATE TABLE IF NOT EXISTS fund_balances (
     contribution REAL    NOT NULL DEFAULT 0,
     UNIQUE(fund_id, date)
 );
+
+CREATE TABLE IF NOT EXISTS bank_accounts (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    name           TEXT    NOT NULL,
+    account_number TEXT    NOT NULL DEFAULT '',
+    owner_id       INTEGER REFERENCES household_members(id),
+    is_deleted     INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS bank_transactions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id    INTEGER NOT NULL REFERENCES bank_accounts(id),
+    date          TEXT    NOT NULL,
+    description   TEXT    NOT NULL,
+    reference     TEXT    NOT NULL DEFAULT '',
+    amount        REAL    NOT NULL,
+    balance_after REAL,
+    type          TEXT    NOT NULL,
+    category      TEXT    NOT NULL DEFAULT 'Uncategorized',
+    month         TEXT    NOT NULL,
+    year          INTEGER NOT NULL,
+    imported_at   TEXT    NOT NULL DEFAULT '',
+    excluded      INTEGER NOT NULL DEFAULT 0,
+    notes         TEXT    NOT NULL DEFAULT ''
+);
 """
 
 FUND_TYPES = ["pension", "study_fund", "investment", "other"]
@@ -228,8 +253,8 @@ def add_household_member(name, db_path=None):
 def delete_household_member(member_id, db_path=None):
     """Soft-delete a household member. Returns updated list.
 
-    Blocked if the member still owns any active fund (or, in a later phase,
-    bank account) — avoids orphaning that history.
+    Blocked if the member still owns any active fund or bank account —
+    avoids orphaning that history.
     """
     with _connect(db_path) as conn:
         row = conn.execute(
@@ -237,11 +262,16 @@ def delete_household_member(member_id, db_path=None):
         ).fetchone()
         if row is None:
             raise ValueError(f"Household member {member_id} not found.")
-        in_use = conn.execute(
+        owns_fund = conn.execute(
             "SELECT COUNT(*) FROM funds WHERE owner_id = ? AND is_deleted = 0", (member_id,)
         ).fetchone()[0]
-        if in_use:
+        if owns_fund:
             raise ValueError("Cannot remove a household member who still owns a fund.")
+        owns_account = conn.execute(
+            "SELECT COUNT(*) FROM bank_accounts WHERE owner_id = ? AND is_deleted = 0", (member_id,)
+        ).fetchone()[0]
+        if owns_account:
+            raise ValueError("Cannot remove a household member who still owns a bank account.")
         conn.execute("UPDATE household_members SET is_deleted = 1 WHERE id = ?", (member_id,))
     return get_household_members(db_path)
 
@@ -435,3 +465,108 @@ def check_duplicates(transactions, db_path=None):
             if row:
                 count += 1
     return count
+
+
+# ── Bank accounts ─────────────────────────────────────────────────────────────
+
+def get_bank_accounts(db_path=None):
+    """Return active (non-deleted) bank accounts, with owner name joined."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT a.id, a.name, a.account_number, a.owner_id, m.name AS owner_name
+            FROM bank_accounts a
+            LEFT JOIN household_members m ON m.id = a.owner_id
+            WHERE a.is_deleted = 0
+            ORDER BY a.name
+            """
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def add_bank_account(name, owner_id=None, account_number="", db_path=None):
+    """Add a new bank account. Returns updated list."""
+    with _connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO bank_accounts (name, account_number, owner_id) VALUES (?, ?, ?)",
+            (name, account_number, owner_id),
+        )
+    return get_bank_accounts(db_path)
+
+
+def delete_bank_account(account_id, db_path=None):
+    """Soft-delete a bank account. Returns updated list."""
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT id FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"Bank account {account_id} not found.")
+        conn.execute("UPDATE bank_accounts SET is_deleted = 1 WHERE id = ?", (account_id,))
+    return get_bank_accounts(db_path)
+
+
+# ── Bank transactions ─────────────────────────────────────────────────────────
+
+def insert_bank_transactions(rows, account_id, db_path=None, imported_at=None):
+    """Insert one or more bank transactions for an account.
+
+    Each row needs: date (YYYY-MM-DD), description, amount (signed), type
+    ('income' | 'expense'). category/reference/balance_after/notes are optional.
+    month/year are derived from date.
+    """
+    ts = imported_at or datetime.now().isoformat(timespec="seconds")
+    prepared = []
+    for r in rows:
+        dt = datetime.strptime(r["date"], "%Y-%m-%d")
+        prepared.append((
+            account_id, r["date"], r["description"], r.get("reference", ""),
+            r["amount"], r.get("balance_after"), r["type"],
+            r.get("category", "Uncategorized"), dt.strftime("%B"), dt.year, ts,
+        ))
+    with _connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO bank_transactions "
+            "(account_id, date, description, reference, amount, balance_after, type, "
+            " category, month, year, imported_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            prepared,
+        )
+    return len(prepared)
+
+
+def get_bank_transactions(account_id=None, db_path=None):
+    with _connect(db_path) as conn:
+        if account_id is None:
+            rows = conn.execute(
+                "SELECT id, account_id, date, description, reference, amount, balance_after, "
+                "type, category, month, year, excluded, notes "
+                "FROM bank_transactions ORDER BY date DESC"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, account_id, date, description, reference, amount, balance_after, "
+                "type, category, month, year, excluded, notes "
+                "FROM bank_transactions WHERE account_id = ? ORDER BY date DESC",
+                (account_id,),
+            ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def set_bank_transaction_excluded(transaction_id, excluded, db_path=None):
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE bank_transactions SET excluded = ? WHERE id = ?",
+            (1 if excluded else 0, transaction_id),
+        )
+
+
+def set_bank_transaction_note(transaction_id, note, db_path=None):
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE bank_transactions SET notes = ? WHERE id = ?",
+            (note.strip(), transaction_id),
+        )
+
+
+def delete_bank_transaction(transaction_id, db_path=None):
+    with _connect(db_path) as conn:
+        conn.execute("DELETE FROM bank_transactions WHERE id = ?", (transaction_id,))

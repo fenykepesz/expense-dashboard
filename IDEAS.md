@@ -83,7 +83,10 @@ with a top-level net worth view. Decided so far:
   the new dashboards, rather than growing one monolithic file further
 - [ ] Bank account `.xls` import + converter (real sample export checked — format confirmed,
   see `bank_transactions` schema notes in the implementation plan; not yet built)
-- [ ] Bank account transactions table (income + expense, signed/typed) + dashboard
+- [x] **Bank account transactions table + dashboard (Phase 4)** — `bank_accounts`/
+  `bank_transactions` tables, owner dropdown, manual entry (income/expense with auto-sign),
+  exclude/notes/delete per transaction, new "Bank Accounts" tab. File import still pending
+  (Phase 6) (v1.9.0)
 - [x] **Long-term funds table + dashboard (Phase 3)** — `funds`/`fund_balances` tables, owner
   dropdown, monthly manual balance entry (upserts per fund+month), balance-over-time chart
   per fund, new "Long-Term Funds" tab (v1.8.0)

@@ -340,6 +340,75 @@ def remove_fund_balance(balance_id):
     return jsonify({'balances': updated})
 
 
+# --- Bank Accounts ---
+
+@app.route('/api/bank-accounts')
+def get_bank_accounts():
+    return jsonify(db.get_bank_accounts())
+
+
+@app.route('/api/bank-accounts', methods=['POST'])
+def create_bank_account():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    owner_id = data.get('owner_id')
+    account_number = (data.get('account_number') or '').strip()
+    if not name:
+        return jsonify({'error': 'name is required'}), 400
+    updated = db.add_bank_account(name, owner_id, account_number)
+    return jsonify({'accounts': updated}), 201
+
+
+@app.route('/api/bank-accounts/<int:account_id>', methods=['DELETE'])
+def remove_bank_account(account_id):
+    try:
+        updated = db.delete_bank_account(account_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'accounts': updated})
+
+
+@app.route('/api/bank-accounts/<int:account_id>/transactions')
+def get_bank_account_transactions(account_id):
+    return jsonify(db.get_bank_transactions(account_id))
+
+
+@app.route('/api/bank-accounts/<int:account_id>/transactions', methods=['POST'])
+def create_bank_transaction(account_id):
+    data = request.get_json() or {}
+    date = data.get('date')
+    description = (data.get('description') or '').strip()
+    amount = data.get('amount')
+    txn_type = data.get('type')
+    if not date or not description or amount is None or txn_type not in ('income', 'expense'):
+        return jsonify({'error': 'date, description, amount, and a valid type are required'}), 400
+    signed_amount = abs(float(amount)) if txn_type == 'income' else -abs(float(amount))
+    row = {
+        'date': date, 'description': description, 'amount': signed_amount, 'type': txn_type,
+        'category': data.get('category', 'Uncategorized'),
+    }
+    db.insert_bank_transactions([row], account_id)
+    return jsonify({'transactions': db.get_bank_transactions(account_id)}), 201
+
+
+@app.route('/api/bank-transactions/<int:transaction_id>', methods=['PATCH'])
+def patch_bank_transaction(transaction_id):
+    data = request.get_json()
+    if data is None:
+        return jsonify({'error': 'request body required'}), 400
+    if 'excluded' in data:
+        db.set_bank_transaction_excluded(transaction_id, data['excluded'])
+    if 'notes' in data:
+        db.set_bank_transaction_note(transaction_id, data['notes'])
+    return jsonify({'id': transaction_id, **{k: data[k] for k in ('excluded', 'notes') if k in data}})
+
+
+@app.route('/api/bank-transactions/<int:transaction_id>', methods=['DELETE'])
+def remove_bank_transaction(transaction_id):
+    db.delete_bank_transaction(transaction_id)
+    return jsonify({'deleted': transaction_id})
+
+
 # --- Backup ---
 
 @app.route('/api/backup')

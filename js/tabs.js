@@ -1,7 +1,7 @@
 // =====================================================================
 // Tab Navigation
 // =====================================================================
-const TAB_IDS = { dashboard: 'dashboardContent', import: 'tab-import', merchants: 'tab-merchants', funds: 'tab-funds' };
+const TAB_IDS = { dashboard: 'dashboardContent', import: 'tab-import', merchants: 'tab-merchants', funds: 'tab-funds', bank: 'tab-bank' };
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -15,6 +15,7 @@ function switchTab(name) {
     if (name === 'merchants') { if (!merchantsLoaded) loadMerchants(); loadCategoriesPanel(); loadHouseholdMembersPanel(); }
     if (name === 'dashboard') { loadExpenseData(); loadBackupInfo(); }
     if (name === 'funds') { loadFundsPanel(); }
+    if (name === 'bank') { loadBankAccountsPanel(); }
 }
 
 // Load data when page loads
