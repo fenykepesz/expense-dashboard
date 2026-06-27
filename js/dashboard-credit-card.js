@@ -37,6 +37,10 @@ async function loadExpenseData() {
 
         setTimeout(() => {
             dataStatus.style.display = 'none';
+            // If the user already switched to a different tab, don't force the
+            // dashboard back into view.
+            const activeTab = document.querySelector('.tab-btn.active');
+            if (activeTab && activeTab.dataset.tab !== 'dashboard') return;
             dashboardContent.classList.remove('hidden');
             initializeDashboard();
         }, 1500);
