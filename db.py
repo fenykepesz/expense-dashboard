@@ -49,6 +49,12 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS household_members (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT    NOT NULL UNIQUE,
+    is_deleted INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
@@ -171,6 +177,49 @@ def delete_category(name, db_path=None):
         else:
             conn.execute("DELETE FROM categories WHERE name = ?", (name,))
     return [c["name"] for c in get_categories(db_path)]
+
+
+# ── Household members ─────────────────────────────────────────────────────────
+
+def get_household_members(db_path=None):
+    """Return active (non-deleted) household members sorted alphabetically."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, name FROM household_members WHERE is_deleted = 0 ORDER BY name"
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def add_household_member(name, db_path=None):
+    """Add a new household member or restore a soft-deleted one. Returns updated list."""
+    with _connect(db_path) as conn:
+        existing = conn.execute(
+            "SELECT id, is_deleted FROM household_members WHERE name = ?", (name,)
+        ).fetchone()
+        if existing:
+            if existing["is_deleted"]:
+                conn.execute(
+                    "UPDATE household_members SET is_deleted = 0 WHERE id = ?", (existing["id"],)
+                )
+        else:
+            conn.execute("INSERT INTO household_members (name) VALUES (?)", (name,))
+    return get_household_members(db_path)
+
+
+def delete_household_member(member_id, db_path=None):
+    """Soft-delete a household member. Returns updated list.
+
+    No reference guard yet — bank_accounts/funds tables (Phase 3/4) will need one
+    once they gain an owner_id FK, to avoid orphaning history.
+    """
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT id FROM household_members WHERE id = ?", (member_id,)
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"Household member {member_id} not found.")
+        conn.execute("UPDATE household_members SET is_deleted = 1 WHERE id = ?", (member_id,))
+    return get_household_members(db_path)
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────

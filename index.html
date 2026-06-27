@@ -1000,6 +1000,22 @@
                 </div>
             </div>
 
+            <!-- Manage Household Members panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <h3 style="margin:0;">👪 Household Members</h3>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="newHouseholdMemberInput" placeholder="New member name…"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;"
+                            onkeydown="if(event.key==='Enter') addNewHouseholdMember()">
+                        <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addNewHouseholdMember()">+ Add</button>
+                    </div>
+                </div>
+                <div id="householdMembersList" style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <span style="color:var(--text-secondary);font-size:0.9em;">Loading…</span>
+                </div>
+            </div>
+
             <div class="chart-container">
                 <div style="margin-bottom:16px;">
                     <h3 style="margin-bottom:4px;">🏪 Merchant Manager</h3>
@@ -1873,7 +1889,7 @@
             Object.entries(TAB_IDS).forEach(([key, id]) => {
                 document.getElementById(id).classList.toggle('hidden', key !== name);
             });
-            if (name === 'merchants') { if (!merchantsLoaded) loadMerchants(); loadCategoriesPanel(); }
+            if (name === 'merchants') { if (!merchantsLoaded) loadMerchants(); loadCategoriesPanel(); loadHouseholdMembersPanel(); }
             if (name === 'dashboard') { loadExpenseData(); loadBackupInfo(); }
         }
 
@@ -2245,6 +2261,45 @@
             await loadMerchants();
             loadCategoriesPanel();
             alert(`✅ Category "${name}" added.`);
+        }
+
+        async function loadHouseholdMembersPanel() {
+            const resp = await fetch('/api/household-members');
+            const members = await resp.json();
+            const list = document.getElementById('householdMembersList');
+            if (!members.length) {
+                list.innerHTML = '<span style="color:var(--text-secondary);font-size:0.9em;">No household members yet — add one above.</span>';
+                return;
+            }
+            list.innerHTML = members.map(m => `
+                <span class="cat-pill">
+                    ${escapeHtml(m.name)}
+                    <button class="cat-pill-del" title="Remove member" onclick="deleteHouseholdMember(${m.id}, '${escapeHtml(m.name).replace(/'/g, "\\'")}')">✕</button>
+                </span>
+            `).join('');
+        }
+
+        async function addNewHouseholdMember() {
+            const input = document.getElementById('newHouseholdMemberInput');
+            const name = input.value.trim();
+            if (!name) return;
+            const resp = await fetch('/api/household-members', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name }),
+            });
+            const result = await resp.json();
+            if (!resp.ok) { alert(result.error || 'Failed to add household member'); return; }
+            input.value = '';
+            loadHouseholdMembersPanel();
+        }
+
+        async function deleteHouseholdMember(id, name) {
+            if (!confirm(`Remove household member "${name}"?`)) return;
+            const resp = await fetch(`/api/household-members/${id}`, { method: 'DELETE' });
+            const result = await resp.json();
+            if (!resp.ok) { alert(result.error || 'Failed to remove household member'); return; }
+            loadHouseholdMembersPanel();
         }
 
         // =====================================================================

@@ -254,6 +254,32 @@ def remove_category(name):
     return jsonify({'categories': updated})
 
 
+# --- Household Members ---
+
+@app.route('/api/household-members')
+def get_household_members():
+    return jsonify(db.get_household_members())
+
+
+@app.route('/api/household-members', methods=['POST'])
+def create_household_member():
+    data = request.get_json()
+    name = (data or {}).get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'name is required'}), 400
+    updated = db.add_household_member(name)
+    return jsonify({'members': updated}), 201
+
+
+@app.route('/api/household-members/<int:member_id>', methods=['DELETE'])
+def remove_household_member(member_id):
+    try:
+        updated = db.delete_household_member(member_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'members': updated})
+
+
 # --- Backup ---
 
 @app.route('/api/backup')
