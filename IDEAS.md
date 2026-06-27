@@ -81,13 +81,16 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
-- [ ] Bank account `.xls` import + converter (needs sample export file first)
+- [ ] Bank account `.xls` import + converter (real sample export checked — format confirmed,
+  see `bank_transactions` schema notes in the implementation plan; not yet built)
 - [ ] Bank account transactions table (income + expense, signed/typed) + dashboard
 - [ ] Long-term funds table (fund, date, balance, contribution) + manual entry UI + dashboard
 - [ ] Net worth dashboard (combined trend chart: totals / by fund type / custom combination,
   same multi-select filter UX as the existing year picker)
-- [ ] Household member labels (simple dropdown, no auth) across all fund/account types
-- [ ] Split frontend JS into per-dashboard files
+- [x] **Household members (Phase 1)** — managed list, CRUD API, minimal panel in Merchants
+  tab (will move into its own `household.js` UI as the new dashboards take shape) (v1.7.0)
+- [x] **Split frontend JS into per-feature files (Phase 2)** — `index.html`'s inline script
+  is now 7 files under `js/`; verified zero behavior change (v1.7.0)
 
 ---
 
