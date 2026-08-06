@@ -3,8 +3,8 @@ let netWorthChart;
 let netWorthData = null;
 let netWorthMode = 'total'; // 'total' | 'type' | 'item'
 
-// CVD-validated categorical palette (fixed order, color follows the entity)
-const NET_WORTH_PALETTE = ['#667eea', '#0d9488', '#c2410c', '#a21caf', '#4d7c0f'];
+// Palette lives in shared.js (CHART_PALETTE) — alias kept for readability
+const NET_WORTH_PALETTE = CHART_PALETTE;
 
 const NET_WORTH_TYPE_LABELS = {
     bank: 'Bank Accounts',

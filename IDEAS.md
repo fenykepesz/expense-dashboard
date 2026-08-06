@@ -81,6 +81,12 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Bank cash-flow dashboard** — full credit-card-style dashboard in the Bank Accounts
+  tab across all accounts: 6 summary cards (income/expenses/net/…), Monthly Cash Flow chart
+  (income vs expenses), expenses by category / top descriptions / by account charts, filters
+  (year pills, month, **type income/expense**, category, account, status, date range,
+  search), sortable paged table with a Type column (3rd), inline per-transaction category
+  edit (v1.12.0)
 - [x] **Bank account `.xls` import + converter (Phase 6)** — `tools/bank_excel_to_json.py`
   parses the HTML-in-.xls account export (xlTable; debit/credit columns → signed amounts;
   `**` footnote rows take their value date; running balance → `balance_after`); in-browser

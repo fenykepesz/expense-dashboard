@@ -172,6 +172,37 @@ def test_import_confirm_and_reimport_skips_duplicates(client):
     assert len(client.get(f"/api/bank-accounts/{account_id}/transactions").get_json()) == 3
 
 
+def test_all_transactions_listing_includes_account_name(client):
+    account_id = _make_account(client, name="Main")
+    preview = _upload(client, account_id).get_json()
+    client.post(f"/api/bank-accounts/{account_id}/import/confirm",
+                json={"transactions": preview["transactions"]})
+    rows = client.get("/api/bank-transactions").get_json()
+    assert len(rows) == 3
+    assert all(r["account_name"] == "Main" for r in rows)
+
+
+def test_all_transactions_listing_omits_deleted_accounts(client):
+    account_id = _make_account(client, name="Doomed")
+    preview = _upload(client, account_id).get_json()
+    client.post(f"/api/bank-accounts/{account_id}/import/confirm",
+                json={"transactions": preview["transactions"]})
+    client.delete(f"/api/bank-accounts/{account_id}")
+    assert client.get("/api/bank-transactions").get_json() == []
+
+
+def test_patch_bank_transaction_category(client):
+    account_id = _make_account(client)
+    preview = _upload(client, account_id).get_json()
+    client.post(f"/api/bank-accounts/{account_id}/import/confirm",
+                json={"transactions": preview["transactions"]})
+    txn = client.get("/api/bank-transactions").get_json()[0]
+    resp = client.patch(f"/api/bank-transactions/{txn['id']}", json={"category": "Groceries"})
+    assert resp.status_code == 200
+    updated = client.get("/api/bank-transactions").get_json()
+    assert next(t for t in updated if t["id"] == txn["id"])["category"] == "Groceries"
+
+
 def test_import_rejects_non_excel(client):
     account_id = _make_account(client)
     resp = client.post(

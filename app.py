@@ -400,6 +400,11 @@ def create_bank_transaction(account_id):
     return jsonify({'transactions': db.get_bank_transactions(account_id)}), 201
 
 
+@app.route('/api/bank-transactions')
+def get_all_bank_transactions():
+    return jsonify(db.get_bank_transactions())
+
+
 @app.route('/api/bank-transactions/<int:transaction_id>', methods=['PATCH'])
 def patch_bank_transaction(transaction_id):
     data = request.get_json()
@@ -409,7 +414,9 @@ def patch_bank_transaction(transaction_id):
         db.set_bank_transaction_excluded(transaction_id, data['excluded'])
     if 'notes' in data:
         db.set_bank_transaction_note(transaction_id, data['notes'])
-    return jsonify({'id': transaction_id, **{k: data[k] for k in ('excluded', 'notes') if k in data}})
+    if 'category' in data:
+        db.set_bank_transaction_category(transaction_id, data['category'])
+    return jsonify({'id': transaction_id, **{k: data[k] for k in ('excluded', 'notes', 'category') if k in data}})
 
 
 @app.route('/api/bank-transactions/<int:transaction_id>', methods=['DELETE'])

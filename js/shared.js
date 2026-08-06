@@ -1,4 +1,9 @@
 // Shared state and helpers used across multiple tabs
+// CVD-validated categorical palette (fixed order, color follows the entity)
+const CHART_PALETTE = ['#667eea', '#0d9488', '#c2410c', '#a21caf', '#4d7c0f'];
+const INCOME_COLOR = '#0d9488';
+const EXPENSE_COLOR = '#c2410c';
+
 let allExpenses = [];
 let filteredExpenses = [];
 let displayExpenses = [];
@@ -33,6 +38,7 @@ document.getElementById('themeToggle').addEventListener('click', () => {
     }
     updateDashboard(); // Re-render charts to update colors
     if (typeof renderNetWorth === 'function') renderNetWorth();
+    if (typeof renderBankDashboard === 'function') renderBankDashboard();
 });
 
 // Initialize Theme on Load

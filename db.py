@@ -554,19 +554,20 @@ def filter_new_bank_transactions(rows, account_id, db_path=None):
 
 
 def get_bank_transactions(account_id=None, db_path=None):
+    """Transactions with account name joined; the all-accounts listing
+    omits transactions of soft-deleted accounts."""
+    base = (
+        "SELECT t.id, t.account_id, a.name AS account_name, t.date, t.description, "
+        "t.reference, t.amount, t.balance_after, t.type, t.category, t.month, t.year, "
+        "t.excluded, t.notes "
+        "FROM bank_transactions t JOIN bank_accounts a ON a.id = t.account_id "
+    )
     with _connect(db_path) as conn:
         if account_id is None:
-            rows = conn.execute(
-                "SELECT id, account_id, date, description, reference, amount, balance_after, "
-                "type, category, month, year, excluded, notes "
-                "FROM bank_transactions ORDER BY date DESC"
-            ).fetchall()
+            rows = conn.execute(base + "WHERE a.is_deleted = 0 ORDER BY t.date DESC").fetchall()
         else:
             rows = conn.execute(
-                "SELECT id, account_id, date, description, reference, amount, balance_after, "
-                "type, category, month, year, excluded, notes "
-                "FROM bank_transactions WHERE account_id = ? ORDER BY date DESC",
-                (account_id,),
+                base + "WHERE t.account_id = ? ORDER BY t.date DESC", (account_id,)
             ).fetchall()
     return [dict(row) for row in rows]
 
@@ -576,6 +577,14 @@ def set_bank_transaction_excluded(transaction_id, excluded, db_path=None):
         conn.execute(
             "UPDATE bank_transactions SET excluded = ? WHERE id = ?",
             (1 if excluded else 0, transaction_id),
+        )
+
+
+def set_bank_transaction_category(transaction_id, category, db_path=None):
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE bank_transactions SET category = ? WHERE id = ?",
+            (category, transaction_id),
         )
 
 

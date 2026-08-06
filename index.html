@@ -786,7 +786,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.11.0</span>
+            <span class="version-badge">v1.12.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1133,12 +1133,12 @@
                 </div>
             </div>
 
-            <!-- Bank Transactions panel -->
-            <div class="chart-container">
+            <!-- Add & Import panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
                 <div style="margin-bottom:16px;">
-                    <h3 style="margin-bottom:4px;">💵 Bank Transactions</h3>
+                    <h3 style="margin-bottom:4px;">💵 Add &amp; Import Transactions</h3>
                     <p style="color:var(--text-secondary);font-size:0.9em;margin:0;">
-                        Record income and expenses by hand. A credit card bill should be entered here as one lump expense.
+                        Pick the target account, then import a bank export or record entries by hand. A credit card bill should be entered as one lump expense.
                     </p>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
@@ -1177,16 +1177,117 @@
                     <select id="newBankTxCategory" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;"></select>
                     <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addBankTransaction()">+ Add Transaction</button>
                 </div>
-                <div style="overflow-x:auto;">
-                    <table class="transactions-table">
-                        <thead><tr>
-                            <th>Date</th><th>Description</th><th>Note</th><th>Category</th><th>Amount</th><th></th>
-                        </tr></thead>
-                        <tbody id="bankTransactionsBody">
-                            <tr><td colspan="6" class="no-data">Select an account above to see its transactions.</td></tr>
-                        </tbody>
-                    </table>
+            </div>
+
+            <!-- Cash-flow dashboard (all accounts) -->
+            <div class="summary-cards" id="bankCards" style="margin-bottom:30px;"></div>
+
+            <div class="monthly-chart-container">
+                <div class="chart-container">
+                    <h3>📊 Monthly Cash Flow</h3>
+                    <div class="chart" style="height:340px;">
+                        <canvas id="bankMonthlyChart"></canvas>
+                    </div>
                 </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="chart-container">
+                    <h3>📊 Expenses by Category</h3>
+                    <div class="chart" style="height:360px;">
+                        <canvas id="bankCategoryChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <h3>🧾 Top Expense Descriptions</h3>
+                    <div class="chart">
+                        <canvas id="bankDescChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <h3>🏦 Expenses by Account</h3>
+                    <div class="chart">
+                        <canvas id="bankAccountChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label>Filter by Year:</label>
+                    <div id="bankYearFilter" class="year-picker"></div>
+                </div>
+                <div class="control-group">
+                    <label for="bankMonthFilter">Filter by Month:</label>
+                    <select id="bankMonthFilter" onchange="applyBankFilters()">
+                        <option value="all">All Months</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="bankTypeFilter">Type:</label>
+                    <select id="bankTypeFilter" onchange="applyBankFilters()">
+                        <option value="all">All</option>
+                        <option value="income">Income</option>
+                        <option value="expense">Expense</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="bankCategoryFilter">Filter by Category:</label>
+                    <select id="bankCategoryFilter" onchange="applyBankFilters()">
+                        <option value="all">All Categories</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="bankAccountFilter">Filter by Account:</label>
+                    <select id="bankAccountFilter" onchange="applyBankFilters()">
+                        <option value="all">All Accounts</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="bankStatusFilter">Status:</label>
+                    <select id="bankStatusFilter" onchange="applyBankFilters()">
+                        <option value="all">All</option>
+                        <option value="active">Active only</option>
+                        <option value="excluded">Excluded only</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="bankDateFromFilter">From Date:</label>
+                    <input type="date" id="bankDateFromFilter" onchange="applyBankFilters()">
+                </div>
+                <div class="control-group">
+                    <label for="bankDateToFilter">To Date:</label>
+                    <input type="date" id="bankDateToFilter" onchange="applyBankFilters()">
+                </div>
+                <div class="control-group">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-ghost" onclick="clearBankDateRange()" style="padding:8px 14px;">Clear range</button>
+                </div>
+                <div class="control-group">
+                    <label for="bankSearchDesc">Search Description:</label>
+                    <input type="text" id="bankSearchDesc" placeholder="Enter description...">
+                </div>
+            </div>
+
+            <div class="transactions-section">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <h3 style="margin-bottom:0;">📋 Bank Transactions</h3>
+                        <span id="bankExcludedPill" class="excluded-pill" style="display:none;"></span>
+                    </div>
+                    <label style="font-size:0.85em;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">
+                        Show
+                        <select id="bankTxPageSize" onchange="updateBankTransactionsList()" style="padding:4px 8px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text-primary);font-size:1em;">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="0">All</option>
+                        </select>
+                        of <span id="bankTxTotalCount">0</span>
+                    </label>
+                </div>
+                <div id="bankTransactionsList"></div>
             </div>
         </div>
 

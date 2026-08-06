@@ -1,14 +1,22 @@
+// Bank Accounts tab: account management, import, manual entry, and the
+// cash-flow dashboard (all accounts, credit-card-dashboard style)
 let currentBankAccounts = [];
 let selectedBankAccountId = null;
-let currentBankTransactions = [];
+let bankAllTransactions = [];
+let bankDisplayTx = [];   // after filters (incl. excluded when status allows)
+let bankFilteredTx = [];  // bankDisplayTx minus excluded — feeds charts/cards
+let bankMonthlyChart, bankCategoryChart, bankDescChart, bankAccountChart;
+let bankFiltersInitialized = false;
 
 async function loadBankAccountsPanel() {
-    const [accountsResp, membersResp] = await Promise.all([
+    const [accountsResp, membersResp, txResp] = await Promise.all([
         fetch('/api/bank-accounts'),
         fetch('/api/household-members'),
+        fetch('/api/bank-transactions'),
     ]);
     currentBankAccounts = await accountsResp.json();
     const members = await membersResp.json();
+    bankAllTransactions = await txResp.json();
 
     const ownerOpts = '<option value="">No owner</option>' +
         members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
@@ -20,7 +28,18 @@ async function loadBankAccountsPanel() {
 
     renderBankAccountsList();
     renderBankAccountSelect();
+    populateBankFilters();
+    applyBankFilters();
 }
+
+async function reloadBankTransactions() {
+    const resp = await fetch('/api/bank-transactions');
+    bankAllTransactions = await resp.json();
+    populateBankFilters();
+    applyBankFilters();
+}
+
+// ── Account management ────────────────────────────────────────────────
 
 function renderBankAccountsList() {
     const list = document.getElementById('bankAccountsList');
@@ -46,7 +65,6 @@ function renderBankAccountSelect() {
         select.value = current;
     } else {
         selectedBankAccountId = null;
-        renderBankTransactionsTable([]);
     }
 }
 
@@ -67,6 +85,7 @@ async function addNewBankAccount() {
     currentBankAccounts = result.accounts;
     renderBankAccountsList();
     renderBankAccountSelect();
+    populateBankFilters();
 }
 
 async function deleteBankAccount(id, name) {
@@ -77,45 +96,14 @@ async function deleteBankAccount(id, name) {
     currentBankAccounts = result.accounts;
     renderBankAccountsList();
     renderBankAccountSelect();
+    reloadBankTransactions();
 }
 
-async function onBankAccountChange() {
-    const select = document.getElementById('bankAccountSelect');
-    selectedBankAccountId = select.value || null;
-    if (!selectedBankAccountId) {
-        renderBankTransactionsTable([]);
-        return;
-    }
-    const resp = await fetch(`/api/bank-accounts/${selectedBankAccountId}/transactions`);
-    currentBankTransactions = await resp.json();
-    renderBankTransactionsTable(currentBankTransactions);
+function onBankAccountChange() {
+    selectedBankAccountId = document.getElementById('bankAccountSelect').value || null;
 }
 
-function renderBankTransactionsTable(transactions) {
-    const body = document.getElementById('bankTransactionsBody');
-    if (!transactions.length) {
-        body.innerHTML = '<tr><td colspan="6" class="no-data">Select an account above to see its transactions.</td></tr>';
-        return;
-    }
-    body.innerHTML = transactions.map(t => `
-        <tr class="${t.excluded ? 'tx-excluded' : ''}">
-            <td>${escapeHtml(t.date)}</td>
-            <td>${escapeHtml(t.description)}</td>
-            <td><input type="text" class="tx-note-input" value="${escapeHtml(t.notes || '')}"
-                placeholder="Add note…"
-                onblur="saveBankTxNote(${t.id}, this.value)"
-                onkeydown="if(event.key==='Enter')this.blur()"></td>
-            <td><span class="category-cell">${escapeHtml(t.category)}</span></td>
-            <td class="amount-cell" style="color:${t.amount >= 0 ? 'var(--success-color)' : 'inherit'};">${formatCurrency(t.amount)}</td>
-            <td>
-                <div class="tx-actions">
-                    <button class="btn-excl" onclick="toggleBankExclude(${t.id})" title="${t.excluded ? 'Restore' : 'Exclude'}">${t.excluded ? '↺' : '⊘'}</button>
-                    <button class="btn-excl btn-delete" onclick="deleteBankTransaction(${t.id})" title="Delete permanently">🗑</button>
-                </div>
-            </td>
-        </tr>
-    `).join('');
-}
+// ── Manual entry ──────────────────────────────────────────────────────
 
 async function addBankTransaction() {
     if (!selectedBankAccountId) { alert('Select an account first'); return; }
@@ -136,34 +124,7 @@ async function addBankTransaction() {
     document.getElementById('newBankTxDate').value = '';
     document.getElementById('newBankTxDescription').value = '';
     document.getElementById('newBankTxAmount').value = '';
-    renderBankTransactionsTable(result.transactions);
-}
-
-async function toggleBankExclude(id) {
-    const txn = currentBankTransactions.find(t => t.id === id);
-    if (!txn) return;
-    const resp = await fetch(`/api/bank-transactions/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ excluded: !txn.excluded }),
-    });
-    if (!resp.ok) { alert('Failed to update transaction'); return; }
-    onBankAccountChange();
-}
-
-async function saveBankTxNote(id, note) {
-    await fetch(`/api/bank-transactions/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: note }),
-    });
-}
-
-async function deleteBankTransaction(id) {
-    if (!confirm('Permanently delete this transaction? This cannot be undone.')) return;
-    const resp = await fetch(`/api/bank-transactions/${id}`, { method: 'DELETE' });
-    if (!resp.ok) { alert('Failed to delete transaction'); return; }
-    onBankAccountChange();
+    reloadBankTransactions();
 }
 
 // ── File import ───────────────────────────────────────────────────────
@@ -227,12 +188,503 @@ async function confirmBankImport() {
     resetBankImport();
     document.getElementById('bankImportStatus').textContent =
         `✅ Imported ${result.inserted} transaction(s)` + (result.skipped_duplicates ? `, skipped ${result.skipped_duplicates} duplicate(s)` : '');
-    currentBankTransactions = result.transactions;
-    renderBankTransactionsTable(currentBankTransactions);
+    reloadBankTransactions();
 }
 
 function resetBankImport() {
     bankImportTransactions = [];
     document.getElementById('bankImportPreview').classList.add('hidden');
     document.getElementById('bankImportPreviewBody').innerHTML = '';
+}
+
+// ── Filters ───────────────────────────────────────────────────────────
+
+function populateBankFilters() {
+    const years = [...new Set(bankAllTransactions.map(t => t.year))].sort((a, b) => a - b);
+    populateBankYearPicker(years);
+
+    const months = sortMonthsChronologically([...new Set(bankAllTransactions.map(t => t.month))]);
+    const categories = [...new Set(bankAllTransactions.map(t => t.category))].sort();
+    const accounts = currentBankAccounts.map(a => a.name);
+    fillBankSelect('bankMonthFilter', months);
+    fillBankSelect('bankCategoryFilter', categories);
+    fillBankSelect('bankAccountFilter', accounts);
+
+    if (!bankFiltersInitialized) {
+        document.getElementById('bankSearchDesc').addEventListener('input', debounce(applyBankFilters, 200));
+        bankFiltersInitialized = true;
+    }
+}
+
+function fillBankSelect(elementId, options) {
+    const select = document.getElementById(elementId);
+    const existing = Array.from(select.options).slice(1).map(o => o.value);
+    options.forEach(option => {
+        if (!existing.includes(option)) {
+            const el = document.createElement('option');
+            el.value = option;
+            el.textContent = option;
+            select.appendChild(el);
+        }
+    });
+}
+
+function populateBankYearPicker(years) {
+    const container = document.getElementById('bankYearFilter');
+    const previouslyActive = new Set(
+        [...container.querySelectorAll('.year-btn:not(.year-btn-all).active')].map(b => b.dataset.year)
+    );
+    container.innerHTML = '';
+
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = 'year-btn year-btn-all';
+    allBtn.textContent = 'All';
+    allBtn.addEventListener('click', () => {
+        container.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+        allBtn.classList.add('active');
+        applyBankFilters();
+    });
+    container.appendChild(allBtn);
+
+    let anyActive = false;
+    years.forEach(year => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'year-btn';
+        btn.textContent = year;
+        btn.dataset.year = String(year);
+        if (previouslyActive.has(String(year))) { btn.classList.add('active'); anyActive = true; }
+        btn.addEventListener('click', () => {
+            allBtn.classList.remove('active');
+            btn.classList.toggle('active');
+            const selected = container.querySelectorAll('.year-btn:not(.year-btn-all).active').length > 0;
+            if (!selected) allBtn.classList.add('active');
+            applyBankFilters();
+        });
+        container.appendChild(btn);
+    });
+    if (!anyActive) allBtn.classList.add('active');
+}
+
+function getSelectedBankYears() {
+    const container = document.getElementById('bankYearFilter');
+    const allBtn = container.querySelector('.year-btn-all');
+    if (!allBtn || allBtn.classList.contains('active')) return 'all';
+    return [...container.querySelectorAll('.year-btn:not(.year-btn-all).active')]
+        .map(b => parseInt(b.dataset.year));
+}
+
+function clearBankDateRange() {
+    document.getElementById('bankDateFromFilter').value = '';
+    document.getElementById('bankDateToFilter').value = '';
+    applyBankFilters();
+}
+
+function applyBankFilters() {
+    const years = getSelectedBankYears();
+    const month = document.getElementById('bankMonthFilter').value;
+    const type = document.getElementById('bankTypeFilter').value;
+    const category = document.getElementById('bankCategoryFilter').value;
+    const account = document.getElementById('bankAccountFilter').value;
+    const status = document.getElementById('bankStatusFilter').value;
+    const dateFrom = document.getElementById('bankDateFromFilter').value;
+    const dateTo = document.getElementById('bankDateToFilter').value;
+    const search = document.getElementById('bankSearchDesc').value.toLowerCase();
+
+    bankDisplayTx = bankAllTransactions.filter(t => {
+        const yearMatch = years === 'all' || years.includes(t.year);
+        const monthMatch = month === 'all' || t.month === month;
+        const typeMatch = type === 'all' || t.type === type;
+        const categoryMatch = category === 'all' || t.category === category;
+        const accountMatch = account === 'all' || t.account_name === account;
+        const statusMatch = status === 'all'
+            || (status === 'active' && !t.excluded)
+            || (status === 'excluded' && t.excluded);
+        const dateMatch = (!dateFrom || t.date >= dateFrom) && (!dateTo || t.date <= dateTo);
+        const searchMatch = t.description.toLowerCase().includes(search);
+        return yearMatch && monthMatch && typeMatch && categoryMatch && accountMatch && statusMatch && dateMatch && searchMatch;
+    });
+    bankFilteredTx = bankDisplayTx.filter(t => !t.excluded);
+
+    renderBankDashboard();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────
+
+function renderBankDashboard() {
+    updateBankSummaryCards();
+    updateBankMonthlyChart();
+    updateBankCategoryChart();
+    updateBankDescChart();
+    updateBankAccountChart();
+    updateBankTransactionsList();
+}
+
+function updateBankSummaryCards() {
+    const income = bankFilteredTx.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const expenses = -bankFilteredTx.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0);
+    const net = income - expenses;
+
+    const monthKeys = new Set(bankFilteredTx.map(t => t.date.slice(0, 7)));
+    const activeMonths = monthKeys.size;
+    const avgMonthlyNet = activeMonths ? net / activeMonths : 0;
+
+    document.getElementById('bankCards').innerHTML = `
+        <div class="card">
+            <h3>Total Income</h3>
+            <div class="amount">${formatCurrency(income)}</div>
+        </div>
+        <div class="card">
+            <h3>Total Expenses</h3>
+            <div class="amount">${formatCurrency(expenses)}</div>
+        </div>
+        <div class="card">
+            <h3>Net Cash Flow</h3>
+            <div class="amount">${net >= 0 ? '▲' : '▼'} ${formatCurrency(Math.abs(net))}</div>
+        </div>
+        <div class="card">
+            <h3>Transactions</h3>
+            <div class="amount">${bankFilteredTx.length}</div>
+        </div>
+        <div class="card">
+            <h3>Active Months</h3>
+            <div class="amount">${activeMonths}</div>
+        </div>
+        <div class="card">
+            <h3>Avg Monthly Net</h3>
+            <div class="amount">${formatCurrency(avgMonthlyNet)}</div>
+        </div>
+    `;
+}
+
+function bankAxisOptions() {
+    return {
+        x: {
+            ticks: { color: getThemeColors().textColor },
+            grid: { color: getThemeColors().gridColor }
+        },
+        y: {
+            beginAtZero: true,
+            ticks: { color: getThemeColors().textColor, callback: v => formatCurrency(v) },
+            grid: { color: getThemeColors().gridColor }
+        }
+    };
+}
+
+function updateBankMonthlyChart() {
+    const byMonth = {};
+    bankFilteredTx.forEach(t => {
+        const key = t.date.slice(0, 7);
+        byMonth[key] = byMonth[key] || { income: 0, expense: 0 };
+        if (t.amount >= 0) byMonth[key].income += t.amount;
+        else byMonth[key].expense += -t.amount;
+    });
+    const months = Object.keys(byMonth).sort();
+
+    const ctx = document.getElementById('bankMonthlyChart');
+    if (bankMonthlyChart) bankMonthlyChart.destroy();
+    bankMonthlyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [
+                {
+                    label: 'Income',
+                    data: months.map(m => byMonth[m].income),
+                    borderColor: INCOME_COLOR,
+                    backgroundColor: INCOME_COLOR + '20',
+                    borderWidth: 3, fill: false, tension: 0.3,
+                },
+                {
+                    label: 'Expenses',
+                    data: months.map(m => byMonth[m].expense),
+                    borderColor: EXPENSE_COLOR,
+                    backgroundColor: EXPENSE_COLOR + '20',
+                    borderWidth: 3, fill: false, tension: 0.3,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: true, position: 'top', labels: { color: getThemeColors().textColor } },
+                tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.raw)}` } },
+            },
+            scales: bankAxisOptions(),
+        },
+    });
+}
+
+function updateBankCategoryChart() {
+    const byCategory = {};
+    bankFilteredTx.forEach(t => {
+        if (t.amount < 0) byCategory[t.category] = (byCategory[t.category] || 0) - t.amount;
+    });
+    const sorted = Object.entries(byCategory).sort(([, a], [, b]) => b - a);
+
+    const ctx = document.getElementById('bankCategoryChart');
+    if (bankCategoryChart) bankCategoryChart.destroy();
+    bankCategoryChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(([c]) => c),
+            datasets: [{
+                data: sorted.map(([, v]) => v),
+                backgroundColor: sorted.map((_, i) => CHART_PALETTE[i % CHART_PALETTE.length]),
+                borderRadius: 4,
+            }],
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => formatCurrency(ctx.raw) } },
+            },
+            scales: {
+                x: {
+                    ticks: { color: getThemeColors().textColor, callback: v => formatCurrency(v) },
+                    grid: { color: getThemeColors().gridColor }
+                },
+                y: { ticks: { color: getThemeColors().textColor }, grid: { display: false } }
+            },
+        },
+    });
+}
+
+function updateBankDescChart() {
+    const byDesc = {};
+    bankFilteredTx.forEach(t => {
+        if (t.amount < 0) byDesc[t.description] = (byDesc[t.description] || 0) - t.amount;
+    });
+    const top = Object.entries(byDesc).sort(([, a], [, b]) => b - a).slice(0, 10);
+
+    const ctx = document.getElementById('bankDescChart');
+    if (bankDescChart) bankDescChart.destroy();
+    bankDescChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: top.map(([d]) => d),
+            datasets: [{
+                label: 'Total',
+                data: top.map(([, v]) => v),
+                backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                borderColor: '#667eea',
+                borderWidth: 1,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => formatCurrency(ctx.raw) } },
+            },
+            scales: {
+                x: {
+                    ticks: { color: getThemeColors().textColor, maxRotation: 45, minRotation: 45 },
+                    grid: { color: getThemeColors().gridColor }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: getThemeColors().textColor, callback: v => formatCurrency(v) },
+                    grid: { color: getThemeColors().gridColor }
+                }
+            },
+        },
+    });
+}
+
+function updateBankAccountChart() {
+    const byAccount = {};
+    bankFilteredTx.forEach(t => {
+        if (t.amount < 0) byAccount[t.account_name] = (byAccount[t.account_name] || 0) - t.amount;
+    });
+    const names = Object.keys(byAccount);
+
+    const ctx = document.getElementById('bankAccountChart');
+    if (bankAccountChart) bankAccountChart.destroy();
+    bankAccountChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: names,
+            datasets: [{
+                data: names.map(n => byAccount[n]),
+                backgroundColor: names.map((_, i) => CHART_PALETTE[i % CHART_PALETTE.length]),
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: getThemeColors().textColor } },
+                tooltip: { callbacks: { label: ctx => `${ctx.label}: ${formatCurrency(ctx.raw)}` } },
+            },
+        },
+    });
+}
+
+// ── Transactions table ────────────────────────────────────────────────
+
+let bankSortCol = 'date', bankSortDir = -1;
+
+function sortBankColumn(col) {
+    bankSortDir = (bankSortCol === col) ? -bankSortDir : (col === 'amount' ? -1 : 1);
+    bankSortCol = col;
+    updateBankTransactionsList();
+}
+
+function updateBankTransactionsList() {
+    const listEl = document.getElementById('bankTransactionsList');
+
+    if (bankDisplayTx.length === 0) {
+        listEl.innerHTML = `
+            <div class="empty-state">
+                <h3>No transactions found</h3>
+                <p>Try adjusting your filters, or import a bank export above</p>
+            </div>
+        `;
+        const pill = document.getElementById('bankExcludedPill');
+        if (pill) pill.style.display = 'none';
+        return;
+    }
+
+    const pageSizeEl = document.getElementById('bankTxPageSize');
+    const pageSize = pageSizeEl ? parseInt(pageSizeEl.value) : 50;
+
+    const sorted = [...bankDisplayTx].sort((a, b) => {
+        let va, vb;
+        if (bankSortCol === 'amount')        { va = a.amount;       vb = b.amount; }
+        else if (bankSortCol === 'description') { va = a.description; vb = b.description; }
+        else if (bankSortCol === 'type')     { va = a.type;         vb = b.type; }
+        else if (bankSortCol === 'category') { va = a.category;     vb = b.category; }
+        else if (bankSortCol === 'account')  { va = a.account_name; vb = b.account_name; }
+        else                                 { va = a.date;         vb = b.date; }
+        if (typeof va === 'number') return bankSortDir * (va - vb);
+        return bankSortDir * String(va).localeCompare(String(vb), 'he');
+    });
+    const rows = pageSize === 0 ? sorted : sorted.slice(0, pageSize);
+
+    const totalCountEl = document.getElementById('bankTxTotalCount');
+    if (totalCountEl) totalCountEl.textContent = bankFilteredTx.length;
+
+    const excludedInView = bankDisplayTx.filter(t => t.excluded);
+    const pill = document.getElementById('bankExcludedPill');
+    if (pill) {
+        if (excludedInView.length > 0) {
+            const excTotal = excludedInView.reduce((s, t) => s + t.amount, 0);
+            pill.textContent = `⊘ ${excludedInView.length} excluded · ${formatCurrency(excTotal)}`;
+            pill.style.display = 'inline-flex';
+        } else {
+            pill.style.display = 'none';
+        }
+    }
+
+    const si = col => col === bankSortCol ? (bankSortDir === -1 ? ' ▼' : ' ▲') : ' ↕';
+    const th = (col, label) =>
+        `<th onclick="sortBankColumn('${col}')" style="cursor:pointer;white-space:nowrap;">${label}<span style="opacity:${col === bankSortCol ? 1 : 0.35};font-size:0.75em;">${si(col)}</span></th>`;
+
+    listEl.innerHTML = `
+        <table class="transactions-table">
+            <thead>
+                <tr>
+                    ${th('date', 'Date')}
+                    ${th('description', 'Description')}
+                    ${th('type', 'Type')}
+                    <th>Note</th>
+                    ${th('category', 'Category')}
+                    ${th('account', 'Account')}
+                    ${th('amount', 'Amount')}
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rows.map(t => `
+                    <tr class="${t.excluded ? 'tx-excluded' : ''}">
+                        <td>${escapeHtml(t.date)}</td>
+                        <td>${escapeHtml(t.description)}</td>
+                        <td><span class="category-cell" style="background-color:${t.type === 'income' ? INCOME_COLOR : EXPENSE_COLOR};">${t.type === 'income' ? 'Income' : 'Expense'}</span></td>
+                        <td class="note-col"><input type="text" class="tx-note-input" value="${escapeHtml(t.notes || '')}"
+                            placeholder="Add note…"
+                            onblur="saveBankTxNote(${t.id}, this.value)"
+                            onkeydown="if(event.key==='Enter')this.blur()"></td>
+                        <td><span class="tx-cat-text" onclick="startEditBankCategory(this, ${t.id})">${escapeHtml(t.category)}</span></td>
+                        <td>${escapeHtml(t.account_name || '')}</td>
+                        <td class="amount-cell" style="color:${t.amount >= 0 ? 'var(--success-color)' : 'inherit'};">${formatCurrency(t.amount)}</td>
+                        <td>
+                            <div class="tx-actions">
+                                <button class="btn-excl" onclick="toggleBankExclude(${t.id})" title="${t.excluded ? 'Restore' : 'Exclude'}">${t.excluded ? '↺' : '⊘'}</button>
+                                <button class="btn-excl btn-delete" onclick="deleteBankTransaction(${t.id})" title="Delete permanently">🗑</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function startEditBankCategory(span, id) {
+    const current = span.textContent;
+    const cats = availableCategories.length ? availableCategories : [current];
+    const list = cats.includes(current) ? cats : [current, ...cats];
+    const opts = list.map(c => `<option value="${escapeHtml(c)}"${c === current ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('');
+    const td = span.parentElement;
+    td.innerHTML = `<select class="tx-cat-select" onchange="changeBankTxCategory(this, ${id})">${opts}</select>`;
+    const select = td.querySelector('select');
+    select.focus();
+    select.addEventListener('blur', () => {
+        if (document.body.contains(select)) updateBankTransactionsList();
+    });
+}
+
+async function changeBankTxCategory(select, id) {
+    const newCategory = select.value;
+    const resp = await fetch(`/api/bank-transactions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: newCategory }),
+    });
+    if (!resp.ok) { alert('Failed to update category'); return; }
+    const txn = bankAllTransactions.find(t => t.id === id);
+    if (txn) txn.category = newCategory;
+    applyBankFilters();
+}
+
+async function toggleBankExclude(id) {
+    const txn = bankAllTransactions.find(t => t.id === id);
+    if (!txn) return;
+    const resp = await fetch(`/api/bank-transactions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ excluded: !txn.excluded }),
+    });
+    if (!resp.ok) { alert('Failed to update transaction'); return; }
+    txn.excluded = !txn.excluded ? 1 : 0;
+    applyBankFilters();
+}
+
+async function saveBankTxNote(id, note) {
+    const txn = bankAllTransactions.find(t => t.id === id);
+    if (!txn || txn.notes === note) return;
+    const resp = await fetch(`/api/bank-transactions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: note }),
+    });
+    if (resp.ok) txn.notes = note;
+}
+
+async function deleteBankTransaction(id) {
+    const txn = bankAllTransactions.find(t => t.id === id);
+    if (!txn) return;
+    if (!confirm(`Permanently delete this transaction?\n\n${txn.description} — ${formatCurrency(txn.amount)} on ${txn.date}\n\nThis cannot be undone.`)) return;
+    const resp = await fetch(`/api/bank-transactions/${id}`, { method: 'DELETE' });
+    if (!resp.ok) { alert('Failed to delete transaction'); return; }
+    bankAllTransactions = bankAllTransactions.filter(t => t.id !== id);
+    applyBankFilters();
 }
