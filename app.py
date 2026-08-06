@@ -38,6 +38,11 @@ def _save_config(config):
 
 
 def _backup_dir():
+    # Route ALL backup writes away from the real folder under TESTING —
+    # import-confirm and manual download also create backups, not just the
+    # periodic auto-backup
+    if app.config.get('TESTING'):
+        return Path(tempfile.gettempdir()) / "expense-dashboard-test-backups"
     return Path(_load_config().get("backup_path", str(DEFAULT_BACKUP_PATH)))
 
 
