@@ -81,8 +81,12 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
-- [ ] Bank account `.xls` import + converter (real sample export checked — format confirmed,
-  see `bank_transactions` schema notes in the implementation plan; not yet built)
+- [x] **Bank account `.xls` import + converter (Phase 6)** — `tools/bank_excel_to_json.py`
+  parses the HTML-in-.xls account export (xlTable; debit/credit columns → signed amounts;
+  `**` footnote rows take their value date; running balance → `balance_after`); in-browser
+  upload in the Bank Accounts tab with preview, account-number cross-check, and
+  date+reference+amount duplicate skipping (safe overlapping monthly re-imports). Net worth
+  now anchors bank balances to imported `balance_after` (v1.11.0)
 - [x] **Bank account transactions table + dashboard (Phase 4)** — `bank_accounts`/
   `bank_transactions` tables, owner dropdown, manual entry (income/expense with auto-sign),
   exclude/notes/delete per transaction, new "Bank Accounts" tab. File import still pending

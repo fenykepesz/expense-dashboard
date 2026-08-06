@@ -101,6 +101,20 @@ def test_bank_cumulative_sum(tmp_db):
     assert bank["balances"] == [3000, 3000, 8000]
 
 
+def test_bank_balance_after_anchors_running_balance(tmp_db):
+    account_id = _add_account(tmp_db)
+    db.insert_bank_transactions([
+        # Imported row: bank says balance is 10000 after this (captures the
+        # opening balance from before the export window)
+        {"date": "2026-01-10", "description": "Salary", "amount": 5000,
+         "type": "income", "balance_after": 10000.0},
+        # Manual row afterwards: adds onto the anchored balance
+        {"date": "2026-02-05", "description": "Rent", "amount": -2000, "type": "expense"},
+    ], account_id, tmp_db)
+    result = db.get_net_worth_series(tmp_db)
+    assert result["series"][0]["balances"] == [10000.0, 8000.0]
+
+
 def test_bank_excluded_transactions_ignored(tmp_db):
     account_id = _add_account(tmp_db)
     db.insert_bank_transactions([

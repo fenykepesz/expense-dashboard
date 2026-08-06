@@ -12,7 +12,7 @@ A local-first household finance dashboard built with Flask, SQLite, and Chart.js
 | 📥 **Import** | Drag-and-drop Bank Leumi `.xls`/`.pdf` statements with preview & duplicate warnings |
 | 🏪 **Merchants** | Merchant→category manager, category management, household members |
 | 💰 **Long-Term Funds** | Pension / study fund / investment balances, entered monthly, charted over time |
-| 🏦 **Bank Accounts** | Per-account income & expense ledger, entered manually (file import planned) |
+| 🏦 **Bank Accounts** | Per-account income & expense ledger — import the bank's `.xls` export or enter by hand |
 | 📈 **Net Worth** | Combined monthly trend of fund balances + bank balances: total, by type, or by item |
 
 ## 🎯 Features
@@ -37,6 +37,7 @@ A local-first household finance dashboard built with Flask, SQLite, and Chart.js
 - **Household Members**: A simple owner label (e.g. Dad, Mom) you can attach to bank accounts and funds — no logins, it stays a single local tool.
 - **Long-Term Funds**: Track pension, study fund (קרן השתלמות), and investment balances with one manual entry per month (re-entering the same fund + month updates it). Each fund gets a balance-over-time chart.
 - **Bank Accounts**: A per-account ledger of income and expenses with the same notes / exclude / delete tools as credit card transactions. Amounts are auto-signed (income positive, expenses negative). The monthly credit card bill is meant to be entered here as one lump expense — the per-merchant detail stays in the credit card tab.
+- **Bank Account Import**: Upload the bank's account-transactions `.xls` export straight into the selected account — preview first, with an account-number cross-check against the file. Duplicates (same date + reference + amount) are detected and skipped, so overlapping monthly exports are safe to re-import. The bank's running balance is captured per transaction and anchors the Net Worth chart to real balances.
 - **Net Worth**: The top-level picture — fund balances (carried forward between entries) plus bank account running totals, month by month. Three views (Total / By Type / By Item), a multi-select filter for which accounts and funds to include, summary cards, and a latest-balances table. The chart uses a colorblind-safe palette in both themes.
 - **Backup Facility**: One-click backup download (zipped SQLite snapshot), automatic backup before every import and at least every 30 days, configurable backup folder, and a "last backed up" indicator.
 - **Dark/Light Theme**: Toggle in the header; preference is remembered (falls back to your OS preference if you've never chosen one).

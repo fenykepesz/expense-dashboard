@@ -418,6 +418,65 @@ def remove_bank_transaction(transaction_id):
     return jsonify({'deleted': transaction_id})
 
 
+# --- Bank Import ---
+
+@app.route('/api/bank-accounts/<int:account_id>/import', methods=['POST'])
+def bank_import_preview(account_id):
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    f = request.files['file']
+    filename = (f.filename or '').lower()
+    if not (filename.endswith('.xls') or filename.endswith('.xlsx')):
+        return jsonify({'error': 'Unsupported file type. Use the bank\'s .xls export'}), 400
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.xls') as tmp:
+        f.save(tmp.name)
+        tmp_path = tmp.name
+    try:
+        from bank_excel_to_json import parse_bank_export
+        transactions, file_account_number, skipped = parse_bank_export(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    if not transactions:
+        return jsonify({'error': 'No transactions found in the file — is this a Bank Leumi account export?'}), 400
+
+    new, duplicates = db.filter_new_bank_transactions(transactions, account_id)
+    duplicate_keys = {(d['date'], d.get('reference', ''), d['amount']) for d in duplicates}
+    for t in transactions:
+        t['duplicate'] = (t['date'], t.get('reference', ''), t['amount']) in duplicate_keys
+
+    return jsonify({
+        'transactions': transactions,
+        'new_count': len(new),
+        'duplicate_count': len(duplicates),
+        'skipped': skipped,
+        'file_account_number': file_account_number,
+    })
+
+
+@app.route('/api/bank-accounts/<int:account_id>/import/confirm', methods=['POST'])
+def bank_import_confirm(account_id):
+    data = request.get_json()
+    if not data or 'transactions' not in data:
+        return jsonify({'error': 'No transactions provided'}), 400
+
+    # Auto-backup before inserting, same as the credit card import
+    try:
+        _create_backup()
+    except Exception:
+        pass
+
+    # Re-filter server-side so a stale preview can never double-insert
+    new, duplicates = db.filter_new_bank_transactions(data['transactions'], account_id)
+    inserted = db.insert_bank_transactions(new, account_id) if new else 0
+    return jsonify({
+        'inserted': inserted,
+        'skipped_duplicates': len(duplicates),
+        'transactions': db.get_bank_transactions(account_id),
+    }), 201
+
+
 # --- Net Worth ---
 
 @app.route('/api/net-worth')

@@ -165,3 +165,74 @@ async function deleteBankTransaction(id) {
     if (!resp.ok) { alert('Failed to delete transaction'); return; }
     onBankAccountChange();
 }
+
+// ── File import ───────────────────────────────────────────────────────
+
+let bankImportTransactions = [];
+
+function startBankImport() {
+    if (!selectedBankAccountId) { alert('Select an account first — the import goes into the selected account.'); return; }
+    document.getElementById('bankImportFile').click();
+}
+
+async function onBankImportFileChosen() {
+    const input = document.getElementById('bankImportFile');
+    const file = input.files[0];
+    if (!file || !selectedBankAccountId) return;
+    const status = document.getElementById('bankImportStatus');
+    status.textContent = `Parsing ${file.name}…`;
+
+    const form = new FormData();
+    form.append('file', file);
+    const resp = await fetch(`/api/bank-accounts/${selectedBankAccountId}/import`, { method: 'POST', body: form });
+    const result = await resp.json();
+    input.value = '';
+    if (!resp.ok) { status.textContent = ''; alert(result.error || 'Failed to parse the file'); return; }
+
+    bankImportTransactions = result.transactions;
+    status.textContent = '';
+
+    const account = currentBankAccounts.find(a => String(a.id) === String(selectedBankAccountId));
+    const accountMismatch = result.file_account_number && account && account.account_number
+        && !result.file_account_number.includes(account.account_number)
+        && !account.account_number.includes(result.file_account_number);
+
+    document.getElementById('bankImportSummary').innerHTML =
+        `File account <strong>${escapeHtml(result.file_account_number || 'unknown')}</strong> → importing into <strong>${escapeHtml(account ? account.name : '?')}</strong>.` +
+        ` ${result.new_count} new transaction(s), ${result.duplicate_count} duplicate(s) will be skipped.` +
+        (result.skipped ? ` ${result.skipped} unparseable row(s) ignored.` : '') +
+        (accountMismatch ? `<br><strong style="color:var(--error-color);">⚠ The file's account number doesn't match this account — double-check before confirming!</strong>` : '');
+
+    document.getElementById('bankImportPreviewBody').innerHTML = bankImportTransactions.map(t => `
+        <tr class="${t.duplicate ? 'tx-excluded' : ''}">
+            <td>${escapeHtml(t.date)}</td>
+            <td>${escapeHtml(t.description)}</td>
+            <td>${escapeHtml(t.reference || '')}</td>
+            <td class="amount-cell" style="color:${t.amount >= 0 ? 'var(--success-color)' : 'inherit'};">${formatCurrency(t.amount)}</td>
+            <td class="amount-cell">${t.balance_after === null ? '—' : formatCurrency(t.balance_after)}</td>
+            <td>${t.duplicate ? '<span style="color:var(--text-secondary);">duplicate</span>' : '<strong style="color:var(--success-color);">new</strong>'}</td>
+        </tr>
+    `).join('');
+    document.getElementById('bankImportPreview').classList.remove('hidden');
+}
+
+async function confirmBankImport() {
+    const resp = await fetch(`/api/bank-accounts/${selectedBankAccountId}/import/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactions: bankImportTransactions }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Import failed'); return; }
+    resetBankImport();
+    document.getElementById('bankImportStatus').textContent =
+        `✅ Imported ${result.inserted} transaction(s)` + (result.skipped_duplicates ? `, skipped ${result.skipped_duplicates} duplicate(s)` : '');
+    currentBankTransactions = result.transactions;
+    renderBankTransactionsTable(currentBankTransactions);
+}
+
+function resetBankImport() {
+    bankImportTransactions = [];
+    document.getElementById('bankImportPreview').classList.add('hidden');
+    document.getElementById('bankImportPreviewBody').innerHTML = '';
+}

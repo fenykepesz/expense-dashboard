@@ -521,16 +521,36 @@ def insert_bank_transactions(rows, account_id, db_path=None, imported_at=None):
             account_id, r["date"], r["description"], r.get("reference", ""),
             r["amount"], r.get("balance_after"), r["type"],
             r.get("category", "Uncategorized"), dt.strftime("%B"), dt.year, ts,
+            r.get("notes", ""),
         ))
     with _connect(db_path) as conn:
         conn.executemany(
             "INSERT INTO bank_transactions "
             "(account_id, date, description, reference, amount, balance_after, type, "
-            " category, month, year, imported_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " category, month, year, imported_at, notes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             prepared,
         )
     return len(prepared)
+
+
+def filter_new_bank_transactions(rows, account_id, db_path=None):
+    """Split rows into (new, duplicates) for an account.
+
+    A row is a duplicate if a transaction with the same date, reference,
+    and amount already exists — this is what makes overlapping monthly
+    exports safe to re-import.
+    """
+    new, duplicates = [], []
+    with _connect(db_path) as conn:
+        for r in rows:
+            hit = conn.execute(
+                "SELECT 1 FROM bank_transactions "
+                "WHERE account_id = ? AND date = ? AND reference = ? AND amount = ? LIMIT 1",
+                (account_id, r["date"], r.get("reference", ""), r["amount"]),
+            ).fetchone()
+            (duplicates if hit else new).append(r)
+    return new, duplicates
 
 
 def get_bank_transactions(account_id=None, db_path=None):
@@ -589,10 +609,11 @@ def get_net_worth_series(db_path=None):
     """Monthly net-worth series across all active funds and bank accounts.
 
     Funds: the last recorded balance within each month, carried forward
-    through months without an entry. Bank accounts: cumulative sum of
-    non-excluded transaction amounts (manual entry never sets balance_after,
-    so the running total is the best available signal until the importer
-    lands). Months before an item's first data point are None.
+    through months without an entry. Bank accounts: walk transactions
+    chronologically — a row with balance_after (imported) anchors the
+    running balance to the bank's real figure, rows without it (manual
+    entry) add their amount. Months before an item's first data point
+    are None.
     """
     with _connect(db_path) as conn:
         funds = conn.execute(
@@ -613,8 +634,8 @@ def get_net_worth_series(db_path=None):
             "SELECT fund_id, date, balance FROM fund_balances ORDER BY date"
         ).fetchall()
         bank_rows = conn.execute(
-            "SELECT account_id, date, amount FROM bank_transactions "
-            "WHERE excluded = 0 ORDER BY date"
+            "SELECT account_id, date, amount, balance_after FROM bank_transactions "
+            "WHERE excluded = 0 ORDER BY date, id"
         ).fetchall()
 
     active_funds = {f["id"] for f in funds}
@@ -645,17 +666,19 @@ def get_net_worth_series(db_path=None):
         })
 
     for a in accounts:
-        monthly_sum = {}
+        month_end = {}
+        running = 0.0
         for r in bank_rows:
             if r["account_id"] == a["id"]:
-                month = r["date"][:7]
-                monthly_sum[month] = monthly_sum.get(month, 0) + r["amount"]
-        balances, running, started = [], 0, False
+                if r["balance_after"] is not None:
+                    running = r["balance_after"]
+                else:
+                    running += r["amount"]
+                month_end[r["date"][:7]] = round(running, 2)
+        balances, last = [], None
         for month in months:
-            if month in monthly_sum:
-                running += monthly_sum[month]
-                started = True
-            balances.append(round(running, 2) if started else None)
+            last = month_end.get(month, last)
+            balances.append(last)
         series.append({
             "key": f"bank-{a['id']}", "kind": "bank", "name": a["name"],
             "fund_type": None, "owner_name": a["owner_name"],

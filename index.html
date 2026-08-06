@@ -786,7 +786,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.10.0</span>
+            <span class="version-badge">v1.11.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1145,6 +1145,24 @@
                     <select id="bankAccountSelect" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onBankAccountChange()">
                         <option value="">Select an account…</option>
                     </select>
+                    <input type="file" id="bankImportFile" accept=".xls,.xlsx" style="display:none;" onchange="onBankImportFileChosen()">
+                    <button class="btn btn-ghost" style="height:34px;font-size:0.875em;" onclick="startBankImport()">📥 Import bank export…</button>
+                    <span id="bankImportStatus" style="font-size:0.85em;color:var(--text-secondary);"></span>
+                </div>
+
+                <!-- Import preview (hidden until a file is parsed) -->
+                <div id="bankImportPreview" class="hidden" style="margin-bottom:20px;">
+                    <div id="bankImportSummary" class="duplicate-warning" style="background:rgba(102,126,234,0.08);border-color:#667eea;"></div>
+                    <div style="height:260px;min-height:120px;overflow-y:auto;margin-bottom:12px;resize:vertical;border:1px solid var(--border-color);border-radius:8px;">
+                        <table class="transactions-table">
+                            <thead><tr>
+                                <th>Date</th><th>Description</th><th>Reference</th><th>Amount</th><th>Balance</th><th>Status</th>
+                            </tr></thead>
+                            <tbody id="bankImportPreviewBody"></tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-success" onclick="confirmBankImport()">✅ Confirm Import</button>
+                    <button class="btn btn-ghost" style="margin-left:8px;" onclick="resetBankImport()">Cancel</button>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
                     <input type="date" id="newBankTxDate" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
