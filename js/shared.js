@@ -32,6 +32,7 @@ document.getElementById('themeToggle').addEventListener('click', () => {
         localStorage.setItem('theme', 'light');
     }
     updateDashboard(); // Re-render charts to update colors
+    if (typeof renderNetWorth === 'function') renderNetWorth();
 });
 
 // Initialize Theme on Load

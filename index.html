@@ -786,7 +786,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.9.0</span>
+            <span class="version-badge">v1.10.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -795,6 +795,7 @@
                 <button class="tab-btn" data-tab="merchants">🏪 Merchants</button>
                 <button class="tab-btn" data-tab="funds">💰 Long-Term Funds</button>
                 <button class="tab-btn" data-tab="bank">🏦 Bank Accounts</button>
+                <button class="tab-btn" data-tab="networth">📈 Net Worth</button>
             </nav>
         </div>
 
@@ -1171,6 +1172,52 @@
             </div>
         </div>
 
+        <!-- ===== Net Worth Tab ===== -->
+        <div id="tab-networth" class="hidden">
+
+            <div class="summary-cards" id="netWorthCards" style="margin-bottom:20px;"></div>
+
+            <div class="chart-container" style="margin-bottom:20px;">
+                <div style="margin-bottom:16px;">
+                    <h3 style="margin-bottom:4px;">📈 Net Worth Over Time</h3>
+                    <p style="color:var(--text-secondary);font-size:0.9em;margin:0;">
+                        Fund balances plus bank account running totals, month by month.
+                    </p>
+                </div>
+                <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px;">
+                    <div class="control-group">
+                        <label>View:</label>
+                        <div id="netWorthModePicker" class="year-picker">
+                            <button type="button" class="year-btn active" data-mode="total" onclick="setNetWorthMode('total')">Total</button>
+                            <button type="button" class="year-btn" data-mode="type" onclick="setNetWorthMode('type')">By Type</button>
+                            <button type="button" class="year-btn" data-mode="item" onclick="setNetWorthMode('item')">By Item</button>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Include:</label>
+                        <div id="netWorthItemPicker" class="year-picker"></div>
+                    </div>
+                </div>
+                <div class="chart" style="height:380px;">
+                    <canvas id="netWorthChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3 style="margin-bottom:16px;">📋 Latest Balances</h3>
+                <div style="overflow-x:auto;">
+                    <table class="transactions-table">
+                        <thead><tr>
+                            <th>Item</th><th>Type</th><th>Owner</th><th>As of</th><th>Balance</th>
+                        </tr></thead>
+                        <tbody id="netWorthTableBody">
+                            <tr><td colspan="5" class="no-data">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div> <!-- Close dashboard -->
 
     <script src="js/shared.js"></script>
@@ -1180,6 +1227,7 @@
     <script src="js/household.js"></script>
     <script src="js/dashboard-funds.js"></script>
     <script src="js/dashboard-bank.js"></script>
+    <script src="js/dashboard-networth.js"></script>
     <script src="js/backup.js"></script>
     <script src="js/tabs.js"></script>
 </body>

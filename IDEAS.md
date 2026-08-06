@@ -90,8 +90,11 @@ with a top-level net worth view. Decided so far:
 - [x] **Long-term funds table + dashboard (Phase 3)** — `funds`/`fund_balances` tables, owner
   dropdown, monthly manual balance entry (upserts per fund+month), balance-over-time chart
   per fund, new "Long-Term Funds" tab (v1.8.0)
-- [ ] Net worth dashboard (combined trend chart: totals / by fund type / custom combination,
-  same multi-select filter UX as the existing year picker)
+- [x] **Net worth dashboard (Phase 5)** — new "Net Worth" tab: monthly trend chart
+  (Total / By Type / By Item views), multi-select item filter (same pill UX as the year
+  picker), summary cards, latest-balances table. Funds use last-entry-per-month carried
+  forward; bank accounts use cumulative sum of non-excluded transactions until the
+  importer populates `balance_after` (v1.10.0)
 - [x] **Household members (Phase 1)** — managed list, CRUD API, minimal panel in Merchants
   tab (will move into its own `household.js` UI as the new dashboards take shape) (v1.7.0)
 - [x] **Split frontend JS into per-feature files (Phase 2)** — `index.html`'s inline script

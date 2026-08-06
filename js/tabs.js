@@ -1,7 +1,7 @@
 // =====================================================================
 // Tab Navigation
 // =====================================================================
-const TAB_IDS = { dashboard: 'dashboardContent', import: 'tab-import', merchants: 'tab-merchants', funds: 'tab-funds', bank: 'tab-bank' };
+const TAB_IDS = { dashboard: 'dashboardContent', import: 'tab-import', merchants: 'tab-merchants', funds: 'tab-funds', bank: 'tab-bank', networth: 'tab-networth' };
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -16,6 +16,7 @@ function switchTab(name) {
     if (name === 'dashboard') { loadExpenseData(); loadBackupInfo(); }
     if (name === 'funds') { loadFundsPanel(); }
     if (name === 'bank') { loadBankAccountsPanel(); }
+    if (name === 'networth') { loadNetWorthPanel(); }
 }
 
 // Load data when page loads

@@ -570,3 +570,96 @@ def set_bank_transaction_note(transaction_id, note, db_path=None):
 def delete_bank_transaction(transaction_id, db_path=None):
     with _connect(db_path) as conn:
         conn.execute("DELETE FROM bank_transactions WHERE id = ?", (transaction_id,))
+
+
+# ── Net worth ─────────────────────────────────────────────────────────────────
+
+def _month_range(first, last):
+    """Inclusive list of YYYY-MM strings from first to last."""
+    y, m = int(first[:4]), int(first[5:7])
+    ly, lm = int(last[:4]), int(last[5:7])
+    months = []
+    while (y, m) <= (ly, lm):
+        months.append(f"{y:04d}-{m:02d}")
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return months
+
+
+def get_net_worth_series(db_path=None):
+    """Monthly net-worth series across all active funds and bank accounts.
+
+    Funds: the last recorded balance within each month, carried forward
+    through months without an entry. Bank accounts: cumulative sum of
+    non-excluded transaction amounts (manual entry never sets balance_after,
+    so the running total is the best available signal until the importer
+    lands). Months before an item's first data point are None.
+    """
+    with _connect(db_path) as conn:
+        funds = conn.execute(
+            """
+            SELECT f.id, f.name, f.fund_type, m.name AS owner_name
+            FROM funds f LEFT JOIN household_members m ON m.id = f.owner_id
+            WHERE f.is_deleted = 0 ORDER BY f.name
+            """
+        ).fetchall()
+        accounts = conn.execute(
+            """
+            SELECT a.id, a.name, m.name AS owner_name
+            FROM bank_accounts a LEFT JOIN household_members m ON m.id = a.owner_id
+            WHERE a.is_deleted = 0 ORDER BY a.name
+            """
+        ).fetchall()
+        fund_rows = conn.execute(
+            "SELECT fund_id, date, balance FROM fund_balances ORDER BY date"
+        ).fetchall()
+        bank_rows = conn.execute(
+            "SELECT account_id, date, amount FROM bank_transactions "
+            "WHERE excluded = 0 ORDER BY date"
+        ).fetchall()
+
+    active_funds = {f["id"] for f in funds}
+    active_accounts = {a["id"] for a in accounts}
+    fund_rows = [r for r in fund_rows if r["fund_id"] in active_funds]
+    bank_rows = [r for r in bank_rows if r["account_id"] in active_accounts]
+
+    data_months = {r["date"][:7] for r in fund_rows} | {r["date"][:7] for r in bank_rows}
+    if not data_months:
+        return {"months": [], "series": []}
+    months = _month_range(min(data_months), max(data_months))
+
+    series = []
+    for f in funds:
+        # Rows are date-ordered, so the last entry in a month wins
+        by_month = {}
+        for r in fund_rows:
+            if r["fund_id"] == f["id"]:
+                by_month[r["date"][:7]] = r["balance"]
+        balances, last = [], None
+        for month in months:
+            last = by_month.get(month, last)
+            balances.append(last)
+        series.append({
+            "key": f"fund-{f['id']}", "kind": "fund", "name": f["name"],
+            "fund_type": f["fund_type"], "owner_name": f["owner_name"],
+            "balances": balances,
+        })
+
+    for a in accounts:
+        monthly_sum = {}
+        for r in bank_rows:
+            if r["account_id"] == a["id"]:
+                month = r["date"][:7]
+                monthly_sum[month] = monthly_sum.get(month, 0) + r["amount"]
+        balances, running, started = [], 0, False
+        for month in months:
+            if month in monthly_sum:
+                running += monthly_sum[month]
+                started = True
+            balances.append(round(running, 2) if started else None)
+        series.append({
+            "key": f"bank-{a['id']}", "kind": "bank", "name": a["name"],
+            "fund_type": None, "owner_name": a["owner_name"],
+            "balances": balances,
+        })
+
+    return {"months": months, "series": series}

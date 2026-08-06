@@ -132,7 +132,7 @@ def import_file():
         return jsonify({'error': 'No file provided'}), 400
 
     f = request.files['file']
-    filename = f.filename.lower()
+    filename = (f.filename or '').lower()
 
     exchange_rates = {}
     for key in ('usd_rate', 'eur_rate', 'gbp_rate'):
@@ -407,6 +407,13 @@ def patch_bank_transaction(transaction_id):
 def remove_bank_transaction(transaction_id):
     db.delete_bank_transaction(transaction_id)
     return jsonify({'deleted': transaction_id})
+
+
+# --- Net Worth ---
+
+@app.route('/api/net-worth')
+def get_net_worth():
+    return jsonify(db.get_net_worth_series())
 
 
 # --- Backup ---

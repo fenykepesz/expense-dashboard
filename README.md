@@ -1,8 +1,19 @@
 # Personal Expense Dashboard
 
-A local-first expense tracking dashboard for Bank Leumi credit card statements, built with Flask, SQLite, and Chart.js.
+A local-first household finance dashboard built with Flask, SQLite, and Chart.js. It started as a Bank Leumi credit card statement tracker and has grown into a full household view: credit card spending, bank account cash flow, long-term funds (pension / study fund / investments), and a combined net worth trend.
 
 ![Dashboard Preview](Screenshot.jpg)
+
+## 🗂 The Six Tabs
+
+| Tab | What it does |
+|---|---|
+| 📊 **Dashboard** | Credit card spending: charts, filters, and the transaction table |
+| 📥 **Import** | Drag-and-drop Bank Leumi `.xls`/`.pdf` statements with preview & duplicate warnings |
+| 🏪 **Merchants** | Merchant→category manager, category management, household members |
+| 💰 **Long-Term Funds** | Pension / study fund / investment balances, entered monthly, charted over time |
+| 🏦 **Bank Accounts** | Per-account income & expense ledger, entered manually (file import planned) |
+| 📈 **Net Worth** | Combined monthly trend of fund balances + bank balances: total, by type, or by item |
 
 ## 🎯 Features
 
@@ -23,6 +34,10 @@ A local-first expense tracking dashboard for Bank Leumi credit card statements, 
   - **Permanent delete**: remove a transaction from the database entirely, with a confirmation prompt.
   - **Sortable & resizable columns**: click a column header to sort; drag a column edge to resize — widths are remembered.
 - **Summary Cards**: Total spent, transaction count, average per transaction, active months, and monthly average.
+- **Household Members**: A simple owner label (e.g. Dad, Mom) you can attach to bank accounts and funds — no logins, it stays a single local tool.
+- **Long-Term Funds**: Track pension, study fund (קרן השתלמות), and investment balances with one manual entry per month (re-entering the same fund + month updates it). Each fund gets a balance-over-time chart.
+- **Bank Accounts**: A per-account ledger of income and expenses with the same notes / exclude / delete tools as credit card transactions. Amounts are auto-signed (income positive, expenses negative). The monthly credit card bill is meant to be entered here as one lump expense — the per-merchant detail stays in the credit card tab.
+- **Net Worth**: The top-level picture — fund balances (carried forward between entries) plus bank account running totals, month by month. Three views (Total / By Type / By Item), a multi-select filter for which accounts and funds to include, summary cards, and a latest-balances table. The chart uses a colorblind-safe palette in both themes.
 - **Backup Facility**: One-click backup download (zipped SQLite snapshot), automatic backup before every import and at least every 30 days, configurable backup folder, and a "last backed up" indicator.
 - **Dark/Light Theme**: Toggle in the header; preference is remembered (falls back to your OS preference if you've never chosen one).
 - **Hebrew Support**: Full RTL handling for Hebrew merchant names, including reversed text from Bank Leumi PDF exports.
