@@ -78,6 +78,10 @@ def _create_backup():
 
 def _maybe_auto_backup():
     """Auto-backup if last backup is older than AUTO_BACKUP_DAYS days (or never)."""
+    # Test clients run against throwaway DBs — backing those up would write
+    # junk zips into the real backup folder and prune out genuine backups
+    if app.config.get('TESTING'):
+        return
     last = db.get_setting("last_backup_at")
     if last:
         try:
