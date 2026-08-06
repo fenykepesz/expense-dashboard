@@ -205,10 +205,9 @@ function populateBankFilters() {
 
     const months = sortMonthsChronologically([...new Set(bankAllTransactions.map(t => t.month))]);
     const categories = [...new Set(bankAllTransactions.map(t => t.category))].sort();
-    const accounts = currentBankAccounts.map(a => a.name);
     fillBankSelect('bankMonthFilter', months);
     fillBankSelect('bankCategoryFilter', categories);
-    fillBankSelect('bankAccountFilter', accounts);
+    populateBankAccountPicker(currentBankAccounts.map(a => a.name));
 
     if (!bankFiltersInitialized) {
         document.getElementById('bankSearchDesc').addEventListener('input', debounce(applyBankFilters, 200));
@@ -267,6 +266,53 @@ function populateBankYearPicker(years) {
     if (!anyActive) allBtn.classList.add('active');
 }
 
+// Multi-select account pills — combine any subset of accounts
+function populateBankAccountPicker(names) {
+    const container = document.getElementById('bankAccountFilter');
+    const previouslyActive = new Set(
+        [...container.querySelectorAll('.year-btn:not(.year-btn-all).active')].map(b => b.dataset.account)
+    );
+    container.innerHTML = '';
+
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = 'year-btn year-btn-all';
+    allBtn.textContent = 'All';
+    allBtn.addEventListener('click', () => {
+        container.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+        allBtn.classList.add('active');
+        applyBankFilters();
+    });
+    container.appendChild(allBtn);
+
+    let anyActive = false;
+    names.forEach(name => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'year-btn';
+        btn.textContent = name;
+        btn.dataset.account = name;
+        if (previouslyActive.has(name)) { btn.classList.add('active'); anyActive = true; }
+        btn.addEventListener('click', () => {
+            allBtn.classList.remove('active');
+            btn.classList.toggle('active');
+            const selected = container.querySelectorAll('.year-btn:not(.year-btn-all).active').length > 0;
+            if (!selected) allBtn.classList.add('active');
+            applyBankFilters();
+        });
+        container.appendChild(btn);
+    });
+    if (!anyActive) allBtn.classList.add('active');
+}
+
+function getSelectedBankAccounts() {
+    const container = document.getElementById('bankAccountFilter');
+    const allBtn = container.querySelector('.year-btn-all');
+    if (!allBtn || allBtn.classList.contains('active')) return 'all';
+    return [...container.querySelectorAll('.year-btn:not(.year-btn-all).active')]
+        .map(b => b.dataset.account);
+}
+
 function getSelectedBankYears() {
     const container = document.getElementById('bankYearFilter');
     const allBtn = container.querySelector('.year-btn-all');
@@ -286,7 +332,7 @@ function applyBankFilters() {
     const month = document.getElementById('bankMonthFilter').value;
     const type = document.getElementById('bankTypeFilter').value;
     const category = document.getElementById('bankCategoryFilter').value;
-    const account = document.getElementById('bankAccountFilter').value;
+    const accounts = getSelectedBankAccounts();
     const status = document.getElementById('bankStatusFilter').value;
     const dateFrom = document.getElementById('bankDateFromFilter').value;
     const dateTo = document.getElementById('bankDateToFilter').value;
@@ -297,7 +343,7 @@ function applyBankFilters() {
         const monthMatch = month === 'all' || t.month === month;
         const typeMatch = type === 'all' || t.type === type;
         const categoryMatch = category === 'all' || t.category === category;
-        const accountMatch = account === 'all' || t.account_name === account;
+        const accountMatch = accounts === 'all' || accounts.includes(t.account_name);
         const statusMatch = status === 'all'
             || (status === 'active' && !t.excluded)
             || (status === 'excluded' && t.excluded);

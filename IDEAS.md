@@ -81,6 +81,8 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Multi-select account filter** — account filter is now toggle pills (same UX as the
+  year picker) so any combination of accounts can be viewed together (v1.13.0)
 - [x] **Bank cash-flow dashboard** — full credit-card-style dashboard in the Bank Accounts
   tab across all accounts: 6 summary cards (income/expenses/net/…), Monthly Cash Flow chart
   (income vs expenses), expenses by category / top descriptions / by account charts, filters

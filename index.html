@@ -786,7 +786,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.12.0</span>
+            <span class="version-badge">v1.13.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1238,10 +1238,8 @@
                     </select>
                 </div>
                 <div class="control-group">
-                    <label for="bankAccountFilter">Filter by Account:</label>
-                    <select id="bankAccountFilter" onchange="applyBankFilters()">
-                        <option value="all">All Accounts</option>
-                    </select>
+                    <label>Filter by Account:</label>
+                    <div id="bankAccountFilter" class="year-picker"></div>
                 </div>
                 <div class="control-group">
                     <label for="bankStatusFilter">Status:</label>
