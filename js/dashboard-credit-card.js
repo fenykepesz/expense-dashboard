@@ -32,18 +32,14 @@ async function loadExpenseData() {
             return;
         }
 
-        dataStatus.className = 'data-status data-success';
-        dataStatus.innerHTML = `✅ Successfully loaded ${allExpenses.length} transactions`;
-
-        setTimeout(() => {
-            dataStatus.style.display = 'none';
-            // If the user already switched to a different tab, don't force the
-            // dashboard back into view.
-            const activeTab = document.querySelector('.tab-btn.active');
-            if (activeTab && activeTab.dataset.tab !== 'dashboard') return;
-            dashboardContent.classList.remove('hidden');
-            initializeDashboard();
-        }, 1500);
+        // Render immediately — the banner only appears on failure
+        dataStatus.className = 'data-status hidden';
+        // If the user already switched to a different tab, don't force the
+        // dashboard back into view.
+        const activeTab = document.querySelector('.tab-btn.active');
+        if (activeTab && activeTab.dataset.tab !== 'dashboard') return;
+        dashboardContent.classList.remove('hidden');
+        initializeDashboard();
 
     } catch (error) {
         console.error('Error loading expense data:', error);
