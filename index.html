@@ -786,20 +786,20 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.13.0</span>
+            <span class="version-badge">v1.13.1</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
-                <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
+                <button class="tab-btn active" data-tab="bank">🏦 Bank Accounts</button>
+                <button class="tab-btn" data-tab="dashboard">💳 Credit Cards</button>
                 <button class="tab-btn" data-tab="import">📥 Import</button>
                 <button class="tab-btn" data-tab="merchants">🏪 Merchants</button>
                 <button class="tab-btn" data-tab="funds">💰 Long-Term Funds</button>
-                <button class="tab-btn" data-tab="bank">🏦 Bank Accounts</button>
                 <button class="tab-btn" data-tab="networth">📈 Net Worth</button>
             </nav>
         </div>
 
-        <div id="dataStatus" class="data-status data-loading">
+        <div id="dataStatus" class="data-status data-loading hidden">
             📥 Loading expense data...
         </div>
 
@@ -1113,72 +1113,6 @@
         <!-- ===== Bank Accounts Tab ===== -->
         <div id="tab-bank" class="hidden">
 
-            <!-- Manage Bank Accounts panel -->
-            <div class="chart-container" style="margin-bottom:20px;">
-                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
-                    <h3 style="margin:0;">🏦 Manage Bank Accounts</h3>
-                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                        <input type="text" id="newBankAccountNameInput" placeholder="Account name (e.g. Dad's Checking)…"
-                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:220px;">
-                        <input type="text" id="newBankAccountNumberInput" placeholder="Account number (optional)"
-                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:160px;">
-                        <select id="newBankAccountOwnerInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
-                            <option value="">No owner</option>
-                        </select>
-                        <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addNewBankAccount()">+ Add</button>
-                    </div>
-                </div>
-                <div id="bankAccountsList" style="display:flex;flex-wrap:wrap;gap:8px;">
-                    <span style="color:var(--text-secondary);font-size:0.9em;">Loading…</span>
-                </div>
-            </div>
-
-            <!-- Add & Import panel -->
-            <div class="chart-container" style="margin-bottom:20px;">
-                <div style="margin-bottom:16px;">
-                    <h3 style="margin-bottom:4px;">💵 Add &amp; Import Transactions</h3>
-                    <p style="color:var(--text-secondary);font-size:0.9em;margin:0;">
-                        Pick the target account, then import a bank export or record entries by hand. A credit card bill should be entered as one lump expense.
-                    </p>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
-                    <select id="bankAccountSelect" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onBankAccountChange()">
-                        <option value="">Select an account…</option>
-                    </select>
-                    <input type="file" id="bankImportFile" accept=".xls,.xlsx" style="display:none;" onchange="onBankImportFileChosen()">
-                    <button class="btn btn-ghost" style="height:34px;font-size:0.875em;" onclick="startBankImport()">📥 Import bank export…</button>
-                    <span id="bankImportStatus" style="font-size:0.85em;color:var(--text-secondary);"></span>
-                </div>
-
-                <!-- Import preview (hidden until a file is parsed) -->
-                <div id="bankImportPreview" class="hidden" style="margin-bottom:20px;">
-                    <div id="bankImportSummary" class="duplicate-warning" style="background:rgba(102,126,234,0.08);border-color:#667eea;"></div>
-                    <div style="height:260px;min-height:120px;overflow-y:auto;margin-bottom:12px;resize:vertical;border:1px solid var(--border-color);border-radius:8px;">
-                        <table class="transactions-table">
-                            <thead><tr>
-                                <th>Date</th><th>Description</th><th>Reference</th><th>Amount</th><th>Balance</th><th>Status</th>
-                            </tr></thead>
-                            <tbody id="bankImportPreviewBody"></tbody>
-                        </table>
-                    </div>
-                    <button class="btn btn-success" onclick="confirmBankImport()">✅ Confirm Import</button>
-                    <button class="btn btn-ghost" style="margin-left:8px;" onclick="resetBankImport()">Cancel</button>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
-                    <input type="date" id="newBankTxDate" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
-                    <input type="text" id="newBankTxDescription" placeholder="Description"
-                        style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:200px;">
-                    <select id="newBankTxType" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
-                        <option value="expense">Expense</option>
-                        <option value="income">Income</option>
-                    </select>
-                    <input type="number" id="newBankTxAmount" placeholder="Amount" step="0.01"
-                        style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:120px;">
-                    <select id="newBankTxCategory" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;"></select>
-                    <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addBankTransaction()">+ Add Transaction</button>
-                </div>
-            </div>
-
             <!-- Cash-flow dashboard (all accounts) -->
             <div class="summary-cards" id="bankCards" style="margin-bottom:30px;"></div>
 
@@ -1287,6 +1221,73 @@
                 </div>
                 <div id="bankTransactionsList"></div>
             </div>
+
+            <!-- Add & Import panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <div style="margin-bottom:16px;">
+                    <h3 style="margin-bottom:4px;">💵 Add &amp; Import Transactions</h3>
+                    <p style="color:var(--text-secondary);font-size:0.9em;margin:0;">
+                        Pick the target account, then import a bank export or record entries by hand. A credit card bill should be entered as one lump expense.
+                    </p>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+                    <select id="bankAccountSelect" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onBankAccountChange()">
+                        <option value="">Select an account…</option>
+                    </select>
+                    <input type="file" id="bankImportFile" accept=".xls,.xlsx" style="display:none;" onchange="onBankImportFileChosen()">
+                    <button class="btn btn-ghost" style="height:34px;font-size:0.875em;" onclick="startBankImport()">📥 Import bank export…</button>
+                    <span id="bankImportStatus" style="font-size:0.85em;color:var(--text-secondary);"></span>
+                </div>
+
+                <!-- Import preview (hidden until a file is parsed) -->
+                <div id="bankImportPreview" class="hidden" style="margin-bottom:20px;">
+                    <div id="bankImportSummary" class="duplicate-warning" style="background:rgba(102,126,234,0.08);border-color:#667eea;"></div>
+                    <div style="height:260px;min-height:120px;overflow-y:auto;margin-bottom:12px;resize:vertical;border:1px solid var(--border-color);border-radius:8px;">
+                        <table class="transactions-table">
+                            <thead><tr>
+                                <th>Date</th><th>Description</th><th>Reference</th><th>Amount</th><th>Balance</th><th>Status</th>
+                            </tr></thead>
+                            <tbody id="bankImportPreviewBody"></tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-success" onclick="confirmBankImport()">✅ Confirm Import</button>
+                    <button class="btn btn-ghost" style="margin-left:8px;" onclick="resetBankImport()">Cancel</button>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+                    <input type="date" id="newBankTxDate" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                    <input type="text" id="newBankTxDescription" placeholder="Description"
+                        style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:200px;">
+                    <select id="newBankTxType" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                    </select>
+                    <input type="number" id="newBankTxAmount" placeholder="Amount" step="0.01"
+                        style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:120px;">
+                    <select id="newBankTxCategory" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;"></select>
+                    <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addBankTransaction()">+ Add Transaction</button>
+                </div>
+            </div>
+
+            <!-- Manage Bank Accounts panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <h3 style="margin:0;">🏦 Manage Bank Accounts</h3>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input type="text" id="newBankAccountNameInput" placeholder="Account name (e.g. Dad's Checking)…"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:220px;">
+                        <input type="text" id="newBankAccountNumberInput" placeholder="Account number (optional)"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:160px;">
+                        <select id="newBankAccountOwnerInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                            <option value="">No owner</option>
+                        </select>
+                        <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addNewBankAccount()">+ Add</button>
+                    </div>
+                </div>
+                <div id="bankAccountsList" style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <span style="color:var(--text-secondary);font-size:0.9em;">Loading…</span>
+                </div>
+            </div>
+
         </div>
 
         <!-- ===== Net Worth Tab ===== -->

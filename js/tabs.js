@@ -19,9 +19,12 @@ function switchTab(name) {
     if (name === 'networth') { loadNetWorthPanel(); }
 }
 
-// Load data when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    loadExpenseData();
+// On load: land on the Bank Accounts tab. Categories are awaited first
+// because the bank panels build their dropdowns from them.
+document.addEventListener('DOMContentLoaded', async () => {
     loadBackupInfo();
-    fetch('/api/categories').then(r => r.json()).then(cats => { availableCategories = cats; });
+    try {
+        availableCategories = await fetch('/api/categories').then(r => r.json());
+    } catch (e) { /* dropdowns fall back to Uncategorized */ }
+    switchTab('bank');
 });

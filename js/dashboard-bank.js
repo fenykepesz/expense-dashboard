@@ -390,10 +390,6 @@ function updateBankSummaryCards() {
             <div class="amount">${net >= 0 ? '▲' : '▼'} ${formatCurrency(Math.abs(net))}</div>
         </div>
         <div class="card">
-            <h3>Transactions</h3>
-            <div class="amount">${bankFilteredTx.length}</div>
-        </div>
-        <div class="card">
             <h3>Active Months</h3>
             <div class="amount">${activeMonths}</div>
         </div>

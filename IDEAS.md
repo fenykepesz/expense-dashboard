@@ -83,6 +83,9 @@ with a top-level net worth view. Decided so far:
   the new dashboards, rather than growing one monolithic file further
 - [x] **Multi-select account filter** — account filter is now toggle pills (same UX as the
   year picker) so any combination of accounts can be viewed together (v1.13.0)
+- [x] **Layout polish (v1.13.1)** — app opens on Bank Accounts (now the first tab); "Dashboard"
+  renamed "Credit Cards"; bank Transactions tile removed; Manage/Add&Import panels moved below
+  the bank dashboard
 - [x] **Bank cash-flow dashboard** — full credit-card-style dashboard in the Bank Accounts
   tab across all accounts: 6 summary cards (income/expenses/net/…), Monthly Cash Flow chart
   (income vs expenses), expenses by category / top descriptions / by account charts, filters
