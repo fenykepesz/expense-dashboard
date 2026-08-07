@@ -9,6 +9,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    const manageBtn = document.getElementById('manageBtn');
+    if (manageBtn) manageBtn.classList.toggle('manage-active', name === 'merchants');
     Object.entries(TAB_IDS).forEach(([key, id]) => {
         document.getElementById(id).classList.toggle('hidden', key !== name);
     });

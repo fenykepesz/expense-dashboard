@@ -91,6 +91,11 @@
             background: var(--border-color);
         }
 
+        .theme-toggle.manage-active {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.15);
+        }
+
         .header h1 {
             color: var(--text-primary);
             font-size: 2.5em;
@@ -782,17 +787,17 @@
             <div style="position:absolute;top:0;right:0;display:flex;align-items:center;gap:8px;">
                 <input id="backupPathInput" type="text" style="font-size:0.78em;padding:4px 8px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text-secondary);width:180px;" placeholder="./backups" title="Backup folder">
                 <button class="btn btn-ghost" style="font-size:0.78em;padding:4px 10px;" onclick="saveBackupPath()">Save</button>
+                <button id="manageBtn" class="theme-toggle" title="Manage categories, merchants &amp; household members" onclick="switchTab('merchants')">⚙️</button>
                 <button id="themeToggle" class="theme-toggle" title="Toggle Dark Mode">🌙</button>
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.13.3</span>
+            <span class="version-badge">v1.13.4</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
                 <button class="tab-btn active" data-tab="bank">🏦 Bank Accounts</button>
                 <button class="tab-btn" data-tab="dashboard">💳 Credit Cards</button>
-                <button class="tab-btn" data-tab="merchants">🏪 Merchants</button>
                 <button class="tab-btn" data-tab="funds">💰 Long-Term Funds</button>
                 <button class="tab-btn" data-tab="networth">📈 Net Worth</button>
             </nav>

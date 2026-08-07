@@ -4,17 +4,17 @@ A local-first household finance dashboard built with Flask, SQLite, and Chart.js
 
 ![Dashboard Preview](Screenshot.jpg)
 
-## 🗂 The Five Tabs
+## 🗂 The Layout
 
-| Tab | What it does |
+| View | What it does |
 |---|---|
 | 🏦 **Bank Accounts** | Cash-flow dashboard across all accounts (the app opens here) — import the bank's `.xls` export or enter by hand |
 | 💳 **Credit Cards** | Credit card spending: charts, filters, transaction table, and statement import (`.xls`/`.pdf`, with preview & duplicate warnings) |
-| 🏪 **Merchants** | Merchant→category manager, category management, household members |
 | 💰 **Long-Term Funds** | Pension / study fund / investment balances, entered monthly, charted over time |
 | 📈 **Net Worth** | Combined monthly trend of fund balances + bank balances: total, by type, or by item |
+| ⚙️ **Manage** (header button) | Categories, credit card merchant→category rules, household members |
 
-Each data type is imported from its own tab — imports live at the bottom of the Credit Cards and Bank Accounts tabs.
+Each data type is imported from its own tab — imports live at the bottom of the Credit Cards and Bank Accounts tabs. Management lives behind the ⚙️ button in the header, next to the theme toggle.
 
 ## 🎯 Features
 
