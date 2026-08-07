@@ -5,7 +5,7 @@ let selectedBankAccountId = null;
 let bankAllTransactions = [];
 let bankDisplayTx = [];   // after filters (incl. excluded when status allows)
 let bankFilteredTx = [];  // bankDisplayTx minus excluded — feeds charts/cards
-let bankMonthlyChart, bankCategoryChart, bankDescChart, bankAccountChart;
+let bankMonthlyChart, bankNetChart, bankCategoryChart, bankDescChart, bankAccountChart;
 let bankFiltersInitialized = false;
 
 async function loadBankAccountsPanel() {
@@ -211,6 +211,10 @@ function populateBankFilters() {
 
     if (!bankFiltersInitialized) {
         document.getElementById('bankSearchDesc').addEventListener('input', debounce(applyBankFilters, 200));
+        // The collapsed net chart renders on first expand (a closed <details> has no canvas size)
+        document.getElementById('bankNetDetails').addEventListener('toggle', e => {
+            if (e.target.open) updateBankNetChart();
+        });
         bankFiltersInitialized = true;
     }
 }
@@ -361,6 +365,7 @@ function applyBankFilters() {
 function renderBankDashboard() {
     updateBankSummaryCards();
     updateBankMonthlyChart();
+    updateBankNetChart();
     updateBankCategoryChart();
     updateBankDescChart();
     updateBankAccountChart();
@@ -456,6 +461,66 @@ function updateBankMonthlyChart() {
                 tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.raw)}` } },
             },
             scales: bankAxisOptions(),
+        },
+    });
+}
+
+// Diverging bars around zero — collapsed by default, rendered on expand
+function updateBankNetChart() {
+    const details = document.getElementById('bankNetDetails');
+    if (!details || !details.open) return;
+
+    const byMonth = {};
+    bankFilteredTx.forEach(t => {
+        const key = t.date.slice(0, 7);
+        byMonth[key] = (byMonth[key] || 0) + t.amount;
+    });
+    const months = Object.keys(byMonth).sort();
+    const values = months.map(m => byMonth[m]);
+    // Symmetric scale so zero sits in the vertical middle, rounded to a clean step
+    const rawPeak = Math.max(...values.map(Math.abs), 1) * 1.1;
+    const step = Math.pow(10, Math.floor(Math.log10(rawPeak)));
+    const peak = Math.ceil(rawPeak / step) * step;
+
+    const ctx = document.getElementById('bankNetChart');
+    if (bankNetChart) bankNetChart.destroy();
+    bankNetChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: months,
+            datasets: [{
+                data: values,
+                backgroundColor: values.map(v => v >= 0 ? INCOME_COLOR : EXPENSE_COLOR),
+                borderRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `${ctx.raw >= 0 ? 'Surplus' : 'Deficit'}: ${formatCurrency(ctx.raw)}`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    ticks: { color: getThemeColors().textColor },
+                    grid: { display: false },
+                },
+                y: {
+                    min: -peak,
+                    max: peak,
+                    ticks: { color: getThemeColors().textColor, callback: v => formatCurrency(v) },
+                    grid: {
+                        // Emphasize the zero baseline
+                        color: c => c.tick.value === 0 ? getThemeColors().textColor : getThemeColors().gridColor,
+                        lineWidth: c => c.tick.value === 0 ? 2 : 1,
+                    },
+                },
+            },
         },
     });
 }

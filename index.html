@@ -792,7 +792,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.13.4</span>
+            <span class="version-badge">v1.14.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1125,6 +1125,19 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Collapsed by default: net cash flow distance from zero -->
+            <details id="bankNetDetails" class="chart-container" style="margin-bottom:40px;">
+                <summary style="cursor:pointer;user-select:none;font-size:1.3em;font-weight:bold;color:var(--text-primary);text-align:center;list-style-position:inside;">
+                    ⚖️ Monthly Net Cash Flow — distance from zero
+                </summary>
+                <p style="color:var(--text-secondary);font-size:0.75em;margin:6px 0 0;text-align:center;">
+                    Bars above zero are surplus months, below zero are deficit months.
+                </p>
+                <div class="chart" style="height:300px;margin-top:14px;">
+                    <canvas id="bankNetChart"></canvas>
+                </div>
+            </details>
 
             <div class="charts-grid">
                 <div class="chart-container">
