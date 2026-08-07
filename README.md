@@ -4,16 +4,17 @@ A local-first household finance dashboard built with Flask, SQLite, and Chart.js
 
 ![Dashboard Preview](Screenshot.jpg)
 
-## 🗂 The Six Tabs
+## 🗂 The Five Tabs
 
 | Tab | What it does |
 |---|---|
-| 📊 **Dashboard** | Credit card spending: charts, filters, and the transaction table |
-| 📥 **Import** | Drag-and-drop Bank Leumi `.xls`/`.pdf` statements with preview & duplicate warnings |
+| 🏦 **Bank Accounts** | Cash-flow dashboard across all accounts (the app opens here) — import the bank's `.xls` export or enter by hand |
+| 💳 **Credit Cards** | Credit card spending: charts, filters, transaction table, and statement import (`.xls`/`.pdf`, with preview & duplicate warnings) |
 | 🏪 **Merchants** | Merchant→category manager, category management, household members |
 | 💰 **Long-Term Funds** | Pension / study fund / investment balances, entered monthly, charted over time |
-| 🏦 **Bank Accounts** | Cash-flow dashboard across all accounts — import the bank's `.xls` export or enter by hand |
 | 📈 **Net Worth** | Combined monthly trend of fund balances + bank balances: total, by type, or by item |
+
+Each data type is imported from its own tab — imports live at the bottom of the Credit Cards and Bank Accounts tabs.
 
 ## 🎯 Features
 
@@ -86,7 +87,7 @@ pip install -r requirements.txt
 
 ## 📥 Importing Statements
 
-The recommended way to import is through the **Import** tab in the dashboard — drag and drop your file, review the preview (including any duplicate or skipped-row warnings), and confirm.
+The recommended way to import is in the dashboard itself — the import section at the bottom of the **Credit Cards** tab (or **Bank Accounts** for account exports): drag and drop your file, review the preview (including any duplicate or skipped-row warnings), and confirm.
 
 If you prefer the command line, the same converters are available directly:
 

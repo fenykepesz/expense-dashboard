@@ -25,10 +25,9 @@ async function loadExpenseData() {
 
         if (allExpenses.length === 0) {
             dataStatus.className = 'data-status data-error';
-            dataStatus.innerHTML = `📭 No transactions yet — use the <strong>Import</strong> tab to load your bank export.`;
+            dataStatus.innerHTML = `📭 No transactions yet — use the <strong>Import Credit Card Statement</strong> section at the bottom of this tab.`;
             dashboardContent.classList.remove('hidden');
             initializeDashboard();
-            switchTab('import');
             return;
         }
 

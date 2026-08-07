@@ -786,13 +786,12 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.13.2</span>
+            <span class="version-badge">v1.13.3</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
                 <button class="tab-btn active" data-tab="bank">🏦 Bank Accounts</button>
                 <button class="tab-btn" data-tab="dashboard">💳 Credit Cards</button>
-                <button class="tab-btn" data-tab="import">📥 Import</button>
                 <button class="tab-btn" data-tab="merchants">🏪 Merchants</button>
                 <button class="tab-btn" data-tab="funds">💰 Long-Term Funds</button>
                 <button class="tab-btn" data-tab="networth">📈 Net Worth</button>
@@ -927,12 +926,10 @@
                     <!-- Transactions will be populated by JavaScript -->
                 </div>
             </div>
-        </div> <!-- Close dashboardContent -->
-
-        <!-- ===== Import Tab ===== -->
-        <div id="tab-import" class="hidden">
+            <!-- Import section (was its own tab) -->
+            <div id="tab-import">
             <div class="chart-container">
-                <h3>📥 Import Bank Export</h3>
+                <h3>📥 Import Credit Card Statement</h3>
                 <p style="color:var(--text-secondary);margin-bottom:18px;font-size:0.9em;">
                     Upload a Bank Leumi <strong>.xls</strong> (Excel) or <strong>.pdf</strong> statement.
                     The file is processed locally and never leaves your machine.
@@ -983,6 +980,7 @@
                 </div>
             </div>
         </div>
+        </div> <!-- Close dashboardContent -->
 
         <!-- ===== Merchants Tab ===== -->
         <div id="tab-merchants" class="hidden">

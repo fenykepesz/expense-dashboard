@@ -1,7 +1,7 @@
 // =====================================================================
 // Tab Navigation
 // =====================================================================
-const TAB_IDS = { dashboard: 'dashboardContent', import: 'tab-import', merchants: 'tab-merchants', funds: 'tab-funds', bank: 'tab-bank', networth: 'tab-networth' };
+const TAB_IDS = { dashboard: 'dashboardContent', merchants: 'tab-merchants', funds: 'tab-funds', bank: 'tab-bank', networth: 'tab-networth' };
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
