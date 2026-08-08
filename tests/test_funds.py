@@ -1,10 +1,32 @@
 import pytest
+import sqlite3
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import db
 import app as flask_app
+
+
+def test_init_db_migrates_old_funds_table(tmp_path):
+    """A fund created under the pre-company_name/fund_number schema must
+    survive init_db() being re-run and gain the new columns with defaults."""
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(str(path))
+    conn.execute(
+        "CREATE TABLE funds (id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+        "fund_type TEXT NOT NULL, owner_id INTEGER, is_deleted INTEGER NOT NULL DEFAULT 0)"
+    )
+    conn.execute("INSERT INTO funds (name, fund_type) VALUES ('Legacy Fund', 'pension')")
+    conn.commit()
+    conn.close()
+
+    db.init_db(path)  # should not raise, should add the missing columns
+    funds = db.get_funds(path)
+    assert len(funds) == 1
+    assert funds[0]["name"] == "Legacy Fund"
+    assert funds[0]["company_name"] == ""
+    assert funds[0]["fund_number"] == ""
 
 
 @pytest.fixture
@@ -53,6 +75,55 @@ def test_add_fund_no_owner(tmp_db):
     funds = db.add_fund("Investment", "investment", db_path=tmp_db)
     assert funds[0]["owner_id"] is None
     assert funds[0]["owner_name"] is None
+
+
+def test_add_fund_with_company_and_number(tmp_db):
+    funds = db.add_fund("Pension Fund", "pension", company_name="Harel", fund_number="12345", db_path=tmp_db)
+    assert funds[0]["company_name"] == "Harel"
+    assert funds[0]["fund_number"] == "12345"
+
+
+def test_add_fund_company_and_number_default_empty(tmp_db):
+    funds = db.add_fund("Pension Fund", "pension", db_path=tmp_db)
+    assert funds[0]["company_name"] == ""
+    assert funds[0]["fund_number"] == ""
+
+
+def test_update_fund_renames(tmp_db):
+    funds = db.add_fund("Old Name", "pension", company_name="Harel", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    updated = db.update_fund(fund_id, {"name": "New Name"}, db_path=tmp_db)
+    assert updated[0]["name"] == "New Name"
+    assert updated[0]["company_name"] == "Harel"  # untouched
+
+
+def test_update_fund_partial_only_changes_given_fields(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", fund_number="1", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    updated = db.update_fund(fund_id, {"fund_number": "2"}, db_path=tmp_db)
+    assert updated[0]["fund_number"] == "2"
+    assert updated[0]["name"] == "Fund A"
+    assert updated[0]["company_name"] == "Harel"
+    assert updated[0]["fund_type"] == "pension"
+
+
+def test_update_fund_invalid_type_raises(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    with pytest.raises(ValueError):
+        db.update_fund(fund_id, {"fund_type": "not_a_real_type"}, db_path=tmp_db)
+
+
+def test_update_nonexistent_fund_raises(tmp_db):
+    with pytest.raises(ValueError):
+        db.update_fund(9999, {"name": "X"}, db_path=tmp_db)
+
+
+def test_update_fund_empty_fields_is_noop(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    updated = db.update_fund(fund_id, {}, db_path=tmp_db)
+    assert updated[0]["name"] == "Fund A"
 
 
 def test_delete_fund_soft_deletes(tmp_db):
@@ -162,7 +233,7 @@ def test_get_funds_route_empty(client):
 
 
 def test_create_fund_route(client):
-    resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension"})
+    resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension", "company_name": "Harel"})
     assert resp.status_code == 201
     names = [f["name"] for f in resp.get_json()["funds"]]
     assert "Pension" in names
@@ -173,13 +244,28 @@ def test_create_fund_missing_fields_returns_400(client):
     assert resp.status_code == 400
 
 
-def test_create_fund_invalid_type_returns_400(client):
-    resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "bogus"})
+def test_create_fund_missing_company_name_returns_400(client):
+    resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension"})
     assert resp.status_code == 400
 
 
+def test_create_fund_invalid_type_returns_400(client):
+    resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "bogus", "company_name": "Harel"})
+    assert resp.status_code == 400
+
+
+def test_create_fund_with_company_and_number_route(client):
+    resp = client.post("/api/funds", json={
+        "name": "Pension", "fund_type": "pension", "company_name": "Harel", "fund_number": "12345",
+    })
+    assert resp.status_code == 201
+    fund = resp.get_json()["funds"][0]
+    assert fund["company_name"] == "Harel"
+    assert fund["fund_number"] == "12345"
+
+
 def test_delete_fund_route(client):
-    create_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension"})
+    create_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension", "company_name": "Harel"})
     fund_id = create_resp.get_json()["funds"][0]["id"]
     resp = client.delete(f"/api/funds/{fund_id}")
     assert resp.status_code == 200
@@ -187,7 +273,7 @@ def test_delete_fund_route(client):
 
 
 def test_create_fund_balance_route(client):
-    create_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension"})
+    create_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension", "company_name": "Harel"})
     fund_id = create_resp.get_json()["funds"][0]["id"]
     resp = client.post(f"/api/funds/{fund_id}/balances", json={"date": "2026-01-01", "balance": 5000})
     assert resp.status_code == 201
@@ -195,14 +281,14 @@ def test_create_fund_balance_route(client):
 
 
 def test_create_fund_balance_missing_fields_returns_400(client):
-    create_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension"})
+    create_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension", "company_name": "Harel"})
     fund_id = create_resp.get_json()["funds"][0]["id"]
     resp = client.post(f"/api/funds/{fund_id}/balances", json={"date": "2026-01-01"})
     assert resp.status_code == 400
 
 
 def test_get_fund_balances_route(client):
-    create_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension"})
+    create_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension", "company_name": "Harel"})
     fund_id = create_resp.get_json()["funds"][0]["id"]
     client.post(f"/api/funds/{fund_id}/balances", json={"date": "2026-01-01", "balance": 5000})
     resp = client.get(f"/api/funds/{fund_id}/balances")
@@ -211,10 +297,79 @@ def test_get_fund_balances_route(client):
 
 
 def test_delete_fund_balance_route(client):
-    create_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension"})
+    create_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension", "company_name": "Harel"})
     fund_id = create_resp.get_json()["funds"][0]["id"]
     bal_resp = client.post(f"/api/funds/{fund_id}/balances", json={"date": "2026-01-01", "balance": 5000})
     balance_id = bal_resp.get_json()["balances"][0]["id"]
     resp = client.delete(f"/api/fund-balances/{balance_id}")
     assert resp.status_code == 200
     assert resp.get_json()["balances"] == []
+
+
+# ── Route-level: fund editing ────────────────────────────────────────────────
+
+def test_update_fund_route_renames(client):
+    create_resp = client.post("/api/funds", json={"name": "Old Name", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={"name": "New Name"})
+    assert resp.status_code == 200
+    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
+    assert fund["name"] == "New Name"
+    assert fund["company_name"] == "Harel"  # untouched fields survive
+
+
+def test_update_fund_route_all_fields(client):
+    members = client.post("/api/household-members", json={"name": "Dad"}).get_json()["members"]
+    owner_id = members[0]["id"]
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={
+        "name": "Renamed", "company_name": "Menora", "fund_number": "999",
+        "fund_type": "investment", "owner_id": owner_id,
+    })
+    assert resp.status_code == 200
+    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
+    assert fund["name"] == "Renamed"
+    assert fund["company_name"] == "Menora"
+    assert fund["fund_number"] == "999"
+    assert fund["fund_type"] == "investment"
+    assert fund["owner_id"] == owner_id
+
+
+def test_update_fund_route_blank_name_returns_400(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={"name": "  "})
+    assert resp.status_code == 400
+
+
+def test_update_fund_route_blank_company_name_returns_400(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={"company_name": ""})
+    assert resp.status_code == 400
+
+
+def test_update_fund_route_invalid_type_returns_400(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={"fund_type": "bogus"})
+    assert resp.status_code == 400
+
+
+def test_update_nonexistent_fund_route_returns_400(client):
+    resp = client.patch("/api/funds/9999", json={"name": "X"})
+    assert resp.status_code == 400
+
+
+def test_update_fund_route_clears_owner(client):
+    members = client.post("/api/household-members", json={"name": "Dad"}).get_json()["members"]
+    owner_id = members[0]["id"]
+    create_resp = client.post("/api/funds", json={
+        "name": "Fund", "fund_type": "pension", "company_name": "Harel", "owner_id": owner_id,
+    })
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={"owner_id": None})
+    assert resp.status_code == 200
+    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
+    assert fund["owner_id"] is None

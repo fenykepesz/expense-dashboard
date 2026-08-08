@@ -57,11 +57,13 @@ CREATE TABLE IF NOT EXISTS household_members (
 );
 
 CREATE TABLE IF NOT EXISTS funds (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT    NOT NULL,
-    fund_type  TEXT    NOT NULL,
-    owner_id   INTEGER REFERENCES household_members(id),
-    is_deleted INTEGER NOT NULL DEFAULT 0
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT    NOT NULL,
+    company_name TEXT    NOT NULL DEFAULT '',
+    fund_number  TEXT    NOT NULL DEFAULT '',
+    fund_type    TEXT    NOT NULL,
+    owner_id     INTEGER REFERENCES household_members(id),
+    is_deleted   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS fund_balances (
@@ -120,6 +122,15 @@ def init_db(db_path=None):
         ]:
             try:
                 conn.execute(f"ALTER TABLE transactions ADD COLUMN {col} {definition}")
+            except sqlite3.OperationalError:
+                pass
+        # Migrate old fund columns
+        for col, definition in [
+            ("company_name", "TEXT NOT NULL DEFAULT ''"),
+            ("fund_number",  "TEXT NOT NULL DEFAULT ''"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE funds ADD COLUMN {col} {definition}")
             except sqlite3.OperationalError:
                 pass
         # Seed categories if the table is empty
@@ -283,7 +294,8 @@ def get_funds(db_path=None):
     with _connect(db_path) as conn:
         rows = conn.execute(
             """
-            SELECT f.id, f.name, f.fund_type, f.owner_id, m.name AS owner_name
+            SELECT f.id, f.name, f.company_name, f.fund_number, f.fund_type, f.owner_id,
+                   m.name AS owner_name
             FROM funds f
             LEFT JOIN household_members m ON m.id = f.owner_id
             WHERE f.is_deleted = 0
@@ -293,14 +305,38 @@ def get_funds(db_path=None):
     return [dict(row) for row in rows]
 
 
-def add_fund(name, fund_type, owner_id=None, db_path=None):
+def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="", db_path=None):
     """Add a new fund. Returns updated list."""
     if fund_type not in FUND_TYPES:
         raise ValueError(f'Invalid fund_type "{fund_type}". Must be one of {FUND_TYPES}.')
     with _connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO funds (name, fund_type, owner_id) VALUES (?, ?, ?)",
-            (name, fund_type, owner_id),
+            "INSERT INTO funds (name, company_name, fund_number, fund_type, owner_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (name, company_name, fund_number, fund_type, owner_id),
+        )
+    return get_funds(db_path)
+
+
+FUND_EDITABLE_FIELDS = {"name", "company_name", "fund_number", "fund_type", "owner_id"}
+
+
+def update_fund(fund_id, fields, db_path=None):
+    """Partially update a fund. `fields` is a dict of column -> new value;
+    only keys present are changed. Returns updated list."""
+    cols = [c for c in fields if c in FUND_EDITABLE_FIELDS]
+    if not cols:
+        return get_funds(db_path)
+    if "fund_type" in fields and fields["fund_type"] not in FUND_TYPES:
+        raise ValueError(f'Invalid fund_type "{fields["fund_type"]}". Must be one of {FUND_TYPES}.')
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT id FROM funds WHERE id = ?", (fund_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"Fund {fund_id} not found.")
+        set_clause = ", ".join(f"{c} = ?" for c in cols)
+        conn.execute(
+            f"UPDATE funds SET {set_clause} WHERE id = ?",
+            [fields[c] for c in cols] + [fund_id],
         )
     return get_funds(db_path)
 

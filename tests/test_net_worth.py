@@ -176,7 +176,7 @@ def test_net_worth_route_empty(client):
 
 
 def test_net_worth_route_with_data(client):
-    fund_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension"})
+    fund_resp = client.post("/api/funds", json={"name": "Pension", "fund_type": "pension", "company_name": "Harel"})
     fund_id = fund_resp.get_json()["funds"][0]["id"]
     client.post(f"/api/funds/{fund_id}/balances", json={"date": "2026-01-01", "balance": 5000})
     resp = client.get("/api/net-worth")

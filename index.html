@@ -792,7 +792,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.14.0</span>
+            <span class="version-badge">v1.15.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1059,8 +1059,12 @@
                 <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
                     <h3 style="margin:0;">💰 Manage Funds</h3>
                     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input type="text" id="newFundCompanyInput" placeholder="Company name…"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:160px;">
                         <input type="text" id="newFundNameInput" placeholder="Fund name…"
-                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:170px;">
+                        <input type="text" id="newFundNumberInput" placeholder="Fund number (optional)"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:160px;">
                         <select id="newFundTypeInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
                             <option value="pension">Pension</option>
                             <option value="study_fund">Study Fund</option>
@@ -1073,8 +1077,16 @@
                         <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addNewFund()">+ Add</button>
                     </div>
                 </div>
-                <div id="fundsList" style="display:flex;flex-wrap:wrap;gap:8px;">
-                    <span style="color:var(--text-secondary);font-size:0.9em;">Loading…</span>
+                <p style="color:var(--text-secondary);font-size:0.78em;margin:-6px 0 12px;">Company name and fund name are required.</p>
+                <div style="overflow-x:auto;">
+                    <table class="transactions-table">
+                        <thead><tr>
+                            <th>Company</th><th>Fund Name</th><th>Fund #</th><th>Type</th><th>Owner</th><th></th>
+                        </tr></thead>
+                        <tbody id="fundsListBody">
+                            <tr><td colspan="6" class="no-data">Loading…</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

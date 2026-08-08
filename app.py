@@ -300,15 +300,46 @@ def get_funds():
 def create_fund():
     data = request.get_json() or {}
     name = (data.get('name') or '').strip()
+    company_name = (data.get('company_name') or '').strip()
     fund_type = data.get('fund_type')
+    fund_number = (data.get('fund_number') or '').strip()
     owner_id = data.get('owner_id')
-    if not name or not fund_type:
-        return jsonify({'error': 'name and fund_type are required'}), 400
+    if not name or not fund_type or not company_name:
+        return jsonify({'error': 'name, company_name, and fund_type are required'}), 400
     try:
-        updated = db.add_fund(name, fund_type, owner_id)
+        updated = db.add_fund(name, fund_type, company_name, owner_id, fund_number)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'funds': updated}), 201
+
+
+@app.route('/api/funds/<int:fund_id>', methods=['PATCH'])
+def patch_fund(fund_id):
+    data = request.get_json()
+    if data is None:
+        return jsonify({'error': 'request body required'}), 400
+    fields = {}
+    if 'name' in data:
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'error': 'name cannot be empty'}), 400
+        fields['name'] = name
+    if 'company_name' in data:
+        company_name = (data.get('company_name') or '').strip()
+        if not company_name:
+            return jsonify({'error': 'company_name cannot be empty'}), 400
+        fields['company_name'] = company_name
+    if 'fund_number' in data:
+        fields['fund_number'] = (data.get('fund_number') or '').strip()
+    if 'fund_type' in data:
+        fields['fund_type'] = data['fund_type']
+    if 'owner_id' in data:
+        fields['owner_id'] = data['owner_id']
+    try:
+        updated = db.update_fund(fund_id, fields)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'funds': updated})
 
 
 @app.route('/api/funds/<int:fund_id>', methods=['DELETE'])

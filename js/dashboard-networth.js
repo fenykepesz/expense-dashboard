@@ -2,6 +2,10 @@
 let netWorthChart;
 let netWorthData = null;
 let netWorthMode = 'total'; // 'total' | 'type' | 'item'
+// Legend click hides a line (default Chart.js behavior), but every filter
+// change destroys and recreates the chart — track hidden labels ourselves
+// so hidden lines stay hidden across re-renders instead of resetting.
+let netWorthHiddenLabels = new Set();
 
 // Palette lives in shared.js (CHART_PALETTE) — alias kept for readability
 const NET_WORTH_PALETTE = CHART_PALETTE;
@@ -173,6 +177,7 @@ function renderNetWorthChart(selected, months) {
             fill: netWorthMode === 'total',
             spanGaps: false,
             tension: 0.3,
+            hidden: netWorthHiddenLabels.has(d.label),
         };
     });
 
@@ -188,6 +193,22 @@ function renderNetWorthChart(selected, months) {
                     display: chartDatasets.length > 1,
                     position: 'top',
                     labels: { color: getThemeColors().textColor },
+                    onClick: (e, legendItem, legend) => {
+                        // Same toggle Chart.js does by default, plus remembering the
+                        // choice in netWorthHiddenLabels so it survives re-renders
+                        const index = legendItem.datasetIndex;
+                        const chart = legend.chart;
+                        const label = chart.data.datasets[index].label;
+                        if (chart.isDatasetVisible(index)) {
+                            chart.hide(index);
+                            legendItem.hidden = true;
+                            netWorthHiddenLabels.add(label);
+                        } else {
+                            chart.show(index);
+                            legendItem.hidden = false;
+                            netWorthHiddenLabels.delete(label);
+                        }
+                    },
                 },
                 tooltip: {
                     callbacks: {

@@ -1,6 +1,10 @@
 let currentFunds = [];
+let fundMembers = [];
+let editingFundId = null;
 let selectedFundId = null;
 let fundBalanceChart;
+
+const FUND_TYPE_LABELS = { pension: 'Pension', study_fund: 'Study Fund', investment: 'Investment', other: 'Other' };
 
 async function loadFundsPanel() {
     const [fundsResp, membersResp] = await Promise.all([
@@ -8,30 +12,103 @@ async function loadFundsPanel() {
         fetch('/api/household-members'),
     ]);
     currentFunds = await fundsResp.json();
-    const members = await membersResp.json();
+    fundMembers = await membersResp.json();
 
     const ownerOpts = '<option value="">No owner</option>' +
-        members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+        fundMembers.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
     document.getElementById('newFundOwnerInput').innerHTML = ownerOpts;
 
+    editingFundId = null;
     renderFundsList();
     renderFundSelect();
 }
 
+function fundTypeOptions(selected) {
+    return Object.entries(FUND_TYPE_LABELS)
+        .map(([val, label]) => `<option value="${val}"${selected === val ? ' selected' : ''}>${label}</option>`)
+        .join('');
+}
+
+function fundOwnerOptions(selectedId) {
+    return '<option value="">No owner</option>' + fundMembers.map(m =>
+        `<option value="${m.id}"${String(selectedId) === String(m.id) ? ' selected' : ''}>${escapeHtml(m.name)}</option>`
+    ).join('');
+}
+
 function renderFundsList() {
-    const list = document.getElementById('fundsList');
+    const body = document.getElementById('fundsListBody');
     if (!currentFunds.length) {
-        list.innerHTML = '<span style="color:var(--text-secondary);font-size:0.9em;">No funds yet — add one above.</span>';
+        body.innerHTML = '<tr><td colspan="6" class="no-data">No funds yet — add one above.</td></tr>';
         return;
     }
-    const typeLabels = { pension: 'Pension', study_fund: 'Study Fund', investment: 'Investment', other: 'Other' };
-    list.innerHTML = currentFunds.map(f => `
-        <span class="cat-pill">
-            ${escapeHtml(f.name)}
-            <span class="cat-pill-count">${typeLabels[f.fund_type] || f.fund_type}${f.owner_name ? ' · ' + escapeHtml(f.owner_name) : ''}</span>
-            <button class="cat-pill-del" title="Delete fund" onclick="deleteFund(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')">✕</button>
-        </span>
+    body.innerHTML = currentFunds.map(f => f.id === editingFundId ? renderFundEditRow(f) : `
+        <tr>
+            <td>${escapeHtml(f.company_name || '—')}</td>
+            <td>${escapeHtml(f.name)}</td>
+            <td>${escapeHtml(f.fund_number || '—')}</td>
+            <td>${FUND_TYPE_LABELS[f.fund_type] || f.fund_type}</td>
+            <td>${f.owner_name ? escapeHtml(f.owner_name) : '—'}</td>
+            <td>
+                <div class="tx-actions">
+                    <button class="btn-excl" onclick="startEditFund(${f.id})" title="Edit">✎</button>
+                    <button class="btn-excl btn-delete" onclick="deleteFund(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')" title="Delete">🗑</button>
+                </div>
+            </td>
+        </tr>
     `).join('');
+}
+
+function renderFundEditRow(f) {
+    const inputStyle = 'border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-primary);border-radius:5px;padding:4px 7px;font-size:0.85em;width:100%;';
+    return `
+        <tr>
+            <td><input type="text" id="editFundCompany" value="${escapeHtml(f.company_name || '')}" style="${inputStyle}"></td>
+            <td><input type="text" id="editFundName" value="${escapeHtml(f.name)}" style="${inputStyle}"></td>
+            <td><input type="text" id="editFundNumber" value="${escapeHtml(f.fund_number || '')}" style="${inputStyle}"></td>
+            <td><select id="editFundType" class="tx-cat-select">${fundTypeOptions(f.fund_type)}</select></td>
+            <td><select id="editFundOwner" class="tx-cat-select">${fundOwnerOptions(f.owner_id)}</select></td>
+            <td>
+                <div class="tx-actions">
+                    <button class="btn-excl" onclick="saveFundEdit(${f.id})" title="Save">✅</button>
+                    <button class="btn-excl" onclick="cancelFundEdit()" title="Cancel">✕</button>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function startEditFund(id) {
+    editingFundId = id;
+    renderFundsList();
+}
+
+function cancelFundEdit() {
+    editingFundId = null;
+    renderFundsList();
+}
+
+async function saveFundEdit(id) {
+    const companyName = document.getElementById('editFundCompany').value.trim();
+    const name = document.getElementById('editFundName').value.trim();
+    const fundNumber = document.getElementById('editFundNumber').value.trim();
+    const fundType = document.getElementById('editFundType').value;
+    const ownerId = document.getElementById('editFundOwner').value || null;
+    if (!name || !companyName) { alert('Fund name and company name are required'); return; }
+
+    const resp = await fetch(`/api/funds/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name, company_name: companyName, fund_number: fundNumber,
+            fund_type: fundType, owner_id: ownerId,
+        }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to update fund'); return; }
+    currentFunds = result.funds;
+    editingFundId = null;
+    renderFundsList();
+    renderFundSelect();
 }
 
 function renderFundSelect() {
@@ -49,18 +126,25 @@ function renderFundSelect() {
 }
 
 async function addNewFund() {
+    const companyName = document.getElementById('newFundCompanyInput').value.trim();
     const name = document.getElementById('newFundNameInput').value.trim();
+    const fundNumber = document.getElementById('newFundNumberInput').value.trim();
     const fundType = document.getElementById('newFundTypeInput').value;
     const ownerId = document.getElementById('newFundOwnerInput').value || null;
-    if (!name) return;
+    if (!name || !companyName) { alert('Fund name and company name are required'); return; }
     const resp = await fetch('/api/funds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, fund_type: fundType, owner_id: ownerId }),
+        body: JSON.stringify({
+            name, company_name: companyName, fund_number: fundNumber,
+            fund_type: fundType, owner_id: ownerId,
+        }),
     });
     const result = await resp.json();
     if (!resp.ok) { alert(result.error || 'Failed to add fund'); return; }
+    document.getElementById('newFundCompanyInput').value = '';
     document.getElementById('newFundNameInput').value = '';
+    document.getElementById('newFundNumberInput').value = '';
     currentFunds = result.funds;
     renderFundsList();
     renderFundSelect();

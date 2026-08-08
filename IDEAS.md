@@ -83,6 +83,15 @@ with a top-level net worth view. Decided so far:
   the new dashboards, rather than growing one monolithic file further
 - [x] **Multi-select account filter** — account filter is now toggle pills (same UX as the
   year picker) so any combination of accounts can be viewed together (v1.13.0)
+- [x] **Fund detail fields + editing (v1.15.0)** — funds now have Company Name (mandatory),
+  Fund Name (mandatory), and Fund Number (optional). The Manage Funds panel is a table
+  (Company / Fund Name / Fund # / Type / Owner) with inline edit (✎) — the first "edit"
+  capability anywhere in the app, via a new `PATCH /api/funds/<id>`. Existing funds migrate
+  with company_name/fund_number defaulted to empty.
+- [x] **Net worth: hide individual chart lines (v1.15.0)** — clicking a legend entry in the
+  By Type / By Item views toggles that line, same as standard Chart.js behavior, but the
+  hidden state now survives filter/mode changes (which recreate the chart) instead of
+  resetting every time.
 - [x] **Monthly Net Cash Flow chart (v1.14.0)** — collapsed-by-default `<details>` panel below
   the Monthly Cash Flow chart on the Bank Accounts tab: diverging bars around a zero baseline
   (teal surplus / orange deficit), scale symmetric around zero, follows all dashboard filters,
