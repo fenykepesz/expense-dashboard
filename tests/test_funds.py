@@ -29,6 +29,8 @@ def test_init_db_migrates_old_funds_table(tmp_path):
     assert funds[0]["fund_number"] == ""
     assert funds[0]["excluded_from_net_worth"] == 0
     assert funds[0]["is_liquid"] == 0
+    assert funds[0]["risk_level"] == 0
+    assert funds[0]["risk_note"] == ""
 
 
 def test_init_db_migrates_old_bank_accounts_table(tmp_path):
@@ -50,6 +52,8 @@ def test_init_db_migrates_old_bank_accounts_table(tmp_path):
     assert len(accounts) == 1
     assert accounts[0]["name"] == "Legacy Account"
     assert accounts[0]["excluded_from_net_worth"] == 0
+    assert accounts[0]["risk_level"] == 0
+    assert accounts[0]["risk_note"] == ""
 
 
 @pytest.fixture
@@ -181,6 +185,40 @@ def test_toggle_fund_excluded_from_net_worth(tmp_db):
     # Fund still appears in get_funds — exclusion only affects net worth, not this listing
     restored = db.update_fund(fund_id, {"excluded_from_net_worth": 0}, db_path=tmp_db)
     assert restored[0]["excluded_from_net_worth"] == 0
+
+
+def test_add_fund_risk_level_defaults_unrated(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    assert funds[0]["risk_level"] == 0
+    assert funds[0]["risk_note"] == ""
+
+
+def test_add_fund_with_risk_level_and_note(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel",
+                         risk_level=3, risk_note="mixed track", db_path=tmp_db)
+    assert funds[0]["risk_level"] == 3
+    assert funds[0]["risk_note"] == "mixed track"
+
+
+def test_add_fund_invalid_risk_level_raises(tmp_db):
+    with pytest.raises(ValueError):
+        db.add_fund("Fund A", "pension", company_name="Harel", risk_level=6, db_path=tmp_db)
+
+
+def test_update_fund_risk_level(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    updated = db.update_fund(fund_id, {"risk_level": 4, "risk_note": "equity track"}, db_path=tmp_db)
+    assert updated[0]["risk_level"] == 4
+    assert updated[0]["risk_note"] == "equity track"
+    cleared = db.update_fund(fund_id, {"risk_level": 0}, db_path=tmp_db)
+    assert cleared[0]["risk_level"] == 0
+
+
+def test_update_fund_invalid_risk_level_raises(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    with pytest.raises(ValueError):
+        db.update_fund(funds[0]["id"], {"risk_level": 99}, db_path=tmp_db)
 
 
 def test_delete_fund_soft_deletes(tmp_db):
@@ -435,6 +473,34 @@ def test_patch_fund_route_toggles_is_liquid(client):
     assert resp.status_code == 200
     fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
     assert fund["is_liquid"] == 1
+
+
+def test_create_fund_route_with_risk_level(client):
+    resp = client.post("/api/funds", json={
+        "name": "Fund", "fund_type": "pension", "company_name": "Harel",
+        "risk_level": 2, "risk_note": "bond-heavy",
+    })
+    assert resp.status_code == 201
+    fund = resp.get_json()["funds"][0]
+    assert fund["risk_level"] == 2
+    assert fund["risk_note"] == "bond-heavy"
+
+
+def test_patch_fund_route_updates_risk_level(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={"risk_level": 5, "risk_note": "crypto"})
+    assert resp.status_code == 200
+    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
+    assert fund["risk_level"] == 5
+    assert fund["risk_note"] == "crypto"
+
+
+def test_patch_fund_route_invalid_risk_level_returns_400(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={"risk_level": -1})
+    assert resp.status_code == 400
 
 
 def test_patch_fund_route_toggles_net_worth_exclude(client):

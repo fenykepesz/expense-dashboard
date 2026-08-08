@@ -792,7 +792,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.17.0</span>
+            <span class="version-badge">v1.18.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1096,10 +1096,12 @@
                 <div style="overflow-x:auto;">
                     <table class="transactions-table">
                         <thead><tr>
-                            <th>Company</th><th>Fund Name</th><th>Fund #</th><th>Type</th><th>Liquid</th><th>Owner</th><th>Net Worth</th><th></th>
+                            <th>Company</th><th>Fund Name</th><th>Fund #</th><th>Type</th><th>Liquid</th>
+                            <th>Risk <span class="tooltip-icon" id="fundsRiskTooltip" title="">ℹ</span></th>
+                            <th>Owner</th><th>Net Worth</th><th></th>
                         </tr></thead>
                         <tbody id="fundsListBody">
-                            <tr><td colspan="8" class="no-data">Loading…</td></tr>
+                            <tr><td colspan="9" class="no-data">Loading…</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1335,6 +1337,19 @@
                 </div>
                 <div id="bankAccountsList" style="display:flex;flex-wrap:wrap;gap:8px;">
                     <span style="color:var(--text-secondary);font-size:0.9em;">Loading…</span>
+                </div>
+                <div id="bankAccountRiskEditPanel" class="hidden" style="margin-top:14px;padding:12px;border:1px solid var(--input-border);border-radius:8px;background:var(--table-header-bg);">
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <strong id="bankAccountRiskEditName" style="font-size:0.9em;"></strong>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.85em;color:var(--text-secondary);">
+                            Risk <span class="tooltip-icon" id="bankRiskTooltip" title="">ℹ</span>
+                            <select id="editAccountRisk" style="height:32px;padding:0 8px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text-primary);font-size:0.9em;"></select>
+                        </label>
+                        <input type="text" id="editAccountRiskNote" placeholder="Note (optional)"
+                            style="height:32px;padding:0 10px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text-primary);font-size:0.85em;flex:1;min-width:180px;">
+                        <button class="btn btn-primary" style="height:32px;font-size:0.85em;" onclick="saveBankAccountRisk()">Save</button>
+                        <button class="btn btn-ghost" style="height:32px;font-size:0.85em;" onclick="cancelBankAccountRiskEdit()">Cancel</button>
+                    </div>
                 </div>
             </div>
 

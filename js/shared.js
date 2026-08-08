@@ -4,6 +4,31 @@ const CHART_PALETTE = ['#667eea', '#0d9488', '#c2410c', '#a21caf', '#4d7c0f'];
 const INCOME_COLOR = '#0d9488';
 const EXPENSE_COLOR = '#c2410c';
 
+// Self-declared risk scale, shared by funds and bank accounts.
+// 0 = Not Rated (default); the user always assigns this themselves —
+// the tool never infers or suggests a level for a specific fund.
+const RISK_LEVEL_LABELS = {
+    0: 'Not Rated',
+    1: 'Capital Guaranteed',
+    2: 'Low Risk',
+    3: 'Moderate Risk',
+    4: 'High Risk',
+    5: 'Very High Risk',
+};
+const RISK_LEVEL_TOOLTIP =
+    'Self-declared risk (you choose, not the tool):\n' +
+    '1 - Capital Guaranteed: checking/savings, money-market (כספית)\n' +
+    '2 - Low Risk: mostly bonds (מסלול סולידי / אג"ח)\n' +
+    '3 - Moderate Risk: mixed stock/bond blend (מסלול כללי)\n' +
+    '4 - High Risk: mostly equities (מסלול מנייתי)\n' +
+    '5 - Very High Risk: concentrated/leveraged (single stocks, crypto)';
+
+function riskLevelOptions(selected) {
+    return Object.entries(RISK_LEVEL_LABELS)
+        .map(([val, label]) => `<option value="${val}"${Number(selected) === Number(val) ? ' selected' : ''}>${label}</option>`)
+        .join('');
+}
+
 let allExpenses = [];
 let filteredExpenses = [];
 let displayExpenses = [];

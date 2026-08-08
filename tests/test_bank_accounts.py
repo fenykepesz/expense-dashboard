@@ -66,16 +66,42 @@ def test_add_bank_account_excluded_from_net_worth_defaults_false(tmp_db):
 def test_toggle_bank_account_excluded_from_net_worth(tmp_db):
     accounts = db.add_bank_account("Checking", db_path=tmp_db)
     account_id = accounts[0]["id"]
-    updated = db.set_bank_account_excluded_from_net_worth(account_id, True, tmp_db)
+    updated = db.update_bank_account(account_id, {"excluded_from_net_worth": 1}, tmp_db)
     assert updated[0]["excluded_from_net_worth"] == 1
     # Still appears in get_bank_accounts — exclusion only affects net worth
-    restored = db.set_bank_account_excluded_from_net_worth(account_id, False, tmp_db)
+    restored = db.update_bank_account(account_id, {"excluded_from_net_worth": 0}, tmp_db)
     assert restored[0]["excluded_from_net_worth"] == 0
 
 
-def test_set_excluded_from_net_worth_nonexistent_account_raises(tmp_db):
+def test_update_nonexistent_bank_account_raises(tmp_db):
     with pytest.raises(ValueError):
-        db.set_bank_account_excluded_from_net_worth(9999, True, tmp_db)
+        db.update_bank_account(9999, {"excluded_from_net_worth": 1}, tmp_db)
+
+
+def test_update_bank_account_empty_fields_is_noop(tmp_db):
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    updated = db.update_bank_account(accounts[0]["id"], {}, tmp_db)
+    assert updated[0]["name"] == "Checking"
+
+
+def test_bank_account_risk_level_defaults_unrated(tmp_db):
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    assert accounts[0]["risk_level"] == 0
+    assert accounts[0]["risk_note"] == ""
+
+
+def test_update_bank_account_risk_level(tmp_db):
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    account_id = accounts[0]["id"]
+    updated = db.update_bank_account(account_id, {"risk_level": 1, "risk_note": "cash"}, tmp_db)
+    assert updated[0]["risk_level"] == 1
+    assert updated[0]["risk_note"] == "cash"
+
+
+def test_update_bank_account_invalid_risk_level_raises(tmp_db):
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    with pytest.raises(ValueError):
+        db.update_bank_account(accounts[0]["id"], {"risk_level": 42}, tmp_db)
 
 
 def test_household_member_delete_blocked_when_owns_bank_account(tmp_db):
@@ -209,6 +235,23 @@ def test_patch_bank_account_route_missing_field_returns_400(client):
 
 def test_patch_nonexistent_bank_account_route_returns_400(client):
     resp = client.patch("/api/bank-accounts/9999", json={"excluded_from_net_worth": True})
+    assert resp.status_code == 400
+
+
+def test_patch_bank_account_route_updates_risk_level(client):
+    create_resp = client.post("/api/bank-accounts", json={"name": "Checking"})
+    account_id = create_resp.get_json()["accounts"][0]["id"]
+    resp = client.patch(f"/api/bank-accounts/{account_id}", json={"risk_level": 1, "risk_note": "cash"})
+    assert resp.status_code == 200
+    account = next(a for a in resp.get_json()["accounts"] if a["id"] == account_id)
+    assert account["risk_level"] == 1
+    assert account["risk_note"] == "cash"
+
+
+def test_patch_bank_account_route_invalid_risk_level_returns_400(client):
+    create_resp = client.post("/api/bank-accounts", json={"name": "Checking"})
+    account_id = create_resp.get_json()["accounts"][0]["id"]
+    resp = client.patch(f"/api/bank-accounts/{account_id}", json={"risk_level": 100})
     assert resp.status_code == 400
 
 

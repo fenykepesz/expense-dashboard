@@ -2,6 +2,7 @@
 // cash-flow dashboard (all accounts, credit-card-dashboard style)
 let currentBankAccounts = [];
 let selectedBankAccountId = null;
+let editingAccountRiskId = null;
 let bankAllTransactions = [];
 let bankDisplayTx = [];   // after filters (incl. excluded when status allows)
 let bankFilteredTx = [];  // bankDisplayTx minus excluded — feeds charts/cards
@@ -21,6 +22,8 @@ async function loadBankAccountsPanel() {
     const ownerOpts = '<option value="">No owner</option>' +
         members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
     document.getElementById('newBankAccountOwnerInput').innerHTML = ownerOpts;
+    document.getElementById('bankRiskTooltip').title = RISK_LEVEL_TOOLTIP;
+    cancelBankAccountRiskEdit();
 
     const catOpts = (availableCategories.length ? availableCategories : ['Uncategorized'])
         .map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
@@ -50,11 +53,46 @@ function renderBankAccountsList() {
     list.innerHTML = currentBankAccounts.map(a => `
         <span class="cat-pill"${a.excluded_from_net_worth ? ' style="opacity:0.55;"' : ''}>
             ${escapeHtml(a.name)}
-            <span class="cat-pill-count">${a.account_number ? '*' + escapeHtml(a.account_number) + ' · ' : ''}${a.owner_name ? escapeHtml(a.owner_name) : 'No owner'}${a.excluded_from_net_worth ? ' · ⊘ excluded from Net Worth' : ''}</span>
+            <span class="cat-pill-count">${a.account_number ? '*' + escapeHtml(a.account_number) + ' · ' : ''}${a.owner_name ? escapeHtml(a.owner_name) : 'No owner'} · Risk: ${escapeHtml(RISK_LEVEL_LABELS[a.risk_level])}${a.excluded_from_net_worth ? ' · ⊘ excluded from Net Worth' : ''}</span>
+            <button class="cat-pill-del" title="Edit risk" onclick="startEditBankAccountRisk(${a.id})" style="color:var(--text-secondary);">✎</button>
             <button class="cat-pill-del" title="${a.excluded_from_net_worth ? 'Include in Net Worth' : 'Exclude from Net Worth'}" onclick="toggleBankAccountNetWorthExclude(${a.id})" style="color:var(--text-secondary);">${a.excluded_from_net_worth ? '↺' : '⊘'}</button>
             <button class="cat-pill-del" title="Delete account" onclick="deleteBankAccount(${a.id}, '${escapeHtml(a.name).replace(/'/g, "\\'")}')">✕</button>
         </span>
     `).join('');
+}
+
+// ── Risk edit (shared panel below the pill list — pills have no row to
+// expand into, unlike the funds table) ─────────────────────────────────
+
+function startEditBankAccountRisk(id) {
+    const account = currentBankAccounts.find(a => a.id === id);
+    if (!account) return;
+    editingAccountRiskId = id;
+    document.getElementById('bankAccountRiskEditName').textContent = account.name;
+    document.getElementById('editAccountRisk').innerHTML = riskLevelOptions(account.risk_level);
+    document.getElementById('editAccountRiskNote').value = account.risk_note || '';
+    document.getElementById('bankAccountRiskEditPanel').classList.remove('hidden');
+}
+
+function cancelBankAccountRiskEdit() {
+    editingAccountRiskId = null;
+    document.getElementById('bankAccountRiskEditPanel').classList.add('hidden');
+}
+
+async function saveBankAccountRisk() {
+    if (!editingAccountRiskId) return;
+    const riskLevel = parseInt(document.getElementById('editAccountRisk').value, 10);
+    const riskNote = document.getElementById('editAccountRiskNote').value.trim();
+    const resp = await fetch(`/api/bank-accounts/${editingAccountRiskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ risk_level: riskLevel, risk_note: riskNote }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to update account'); return; }
+    currentBankAccounts = result.accounts;
+    cancelBankAccountRiskEdit();
+    renderBankAccountsList();
 }
 
 function renderBankAccountSelect() {

@@ -17,6 +17,7 @@ async function loadFundsPanel() {
     const ownerOpts = '<option value="">No owner</option>' +
         fundMembers.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
     document.getElementById('newFundOwnerInput').innerHTML = ownerOpts;
+    document.getElementById('fundsRiskTooltip').title = RISK_LEVEL_TOOLTIP;
 
     editingFundId = null;
     renderFundsList();
@@ -38,13 +39,13 @@ function fundOwnerOptions(selectedId) {
 function renderFundsList() {
     const body = document.getElementById('fundsListBody');
     if (!currentFunds.length) {
-        body.innerHTML = '<tr><td colspan="8" class="no-data">No funds yet — add one above.</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" class="no-data">No funds yet — add one above.</td></tr>';
         return;
     }
     const typeFilter = document.getElementById('fundTypeFilter')?.value || 'all';
     const visibleFunds = typeFilter === 'all' ? currentFunds : currentFunds.filter(f => f.fund_type === typeFilter);
     if (!visibleFunds.length) {
-        body.innerHTML = '<tr><td colspan="8" class="no-data">No funds match this filter.</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" class="no-data">No funds match this filter.</td></tr>';
         return;
     }
     body.innerHTML = visibleFunds.map(f => f.id === editingFundId ? renderFundEditRow(f) : `
@@ -54,6 +55,7 @@ function renderFundsList() {
             <td>${escapeHtml(f.fund_number || '—')}</td>
             <td>${FUND_TYPE_LABELS[f.fund_type] || f.fund_type}</td>
             <td>${f.is_liquid ? '💧 Liquid' : '—'}</td>
+            <td>${RISK_LEVEL_LABELS[f.risk_level] === 'Not Rated' ? '—' : escapeHtml(RISK_LEVEL_LABELS[f.risk_level])}${f.risk_note ? ` <span class="tooltip-icon" title="${escapeHtml(f.risk_note)}">ℹ</span>` : ''}</td>
             <td>${f.owner_name ? escapeHtml(f.owner_name) : '—'}</td>
             <td>${f.excluded_from_net_worth
                 ? '<span style="color:var(--text-secondary);font-size:0.85em;">⊘ Excluded</span>'
@@ -78,6 +80,10 @@ function renderFundEditRow(f) {
             <td><input type="text" id="editFundNumber" value="${escapeHtml(f.fund_number || '')}" style="${inputStyle}"></td>
             <td><select id="editFundType" class="tx-cat-select">${fundTypeOptions(f.fund_type)}</select></td>
             <td style="text-align:center;"><input type="checkbox" id="editFundLiquid" ${f.is_liquid ? 'checked' : ''}></td>
+            <td>
+                <select id="editFundRisk" class="tx-cat-select" style="margin-bottom:3px;">${riskLevelOptions(f.risk_level)}</select>
+                <input type="text" id="editFundRiskNote" placeholder="Note (optional)" value="${escapeHtml(f.risk_note || '')}" style="${inputStyle}">
+            </td>
             <td><select id="editFundOwner" class="tx-cat-select">${fundOwnerOptions(f.owner_id)}</select></td>
             <td style="color:var(--text-secondary);font-size:0.85em;">${f.excluded_from_net_worth ? '⊘ Excluded' : '✓ Included'}</td>
             <td>
@@ -106,6 +112,8 @@ async function saveFundEdit(id) {
     const fundNumber = document.getElementById('editFundNumber').value.trim();
     const fundType = document.getElementById('editFundType').value;
     const isLiquid = document.getElementById('editFundLiquid').checked;
+    const riskLevel = parseInt(document.getElementById('editFundRisk').value, 10);
+    const riskNote = document.getElementById('editFundRiskNote').value.trim();
     const ownerId = document.getElementById('editFundOwner').value || null;
     if (!name || !companyName) { alert('Fund name and company name are required'); return; }
 
@@ -115,6 +123,7 @@ async function saveFundEdit(id) {
         body: JSON.stringify({
             name, company_name: companyName, fund_number: fundNumber,
             fund_type: fundType, owner_id: ownerId, is_liquid: isLiquid,
+            risk_level: riskLevel, risk_note: riskNote,
         }),
     });
     const result = await resp.json();

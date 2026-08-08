@@ -172,6 +172,7 @@ Already in place, as a starting point:
   dimension — not yet used for any classification or scoring
 - Fund identity (company/name/number) and type (pension/study/investment/other) are already
   captured per fund
+- **Risk classification implemented (v1.18.0)** — see below
 
 **Risk — decided to be self-declared, not inferred.** A fund's actual risk depends on the
 specific exposure/breakdown of the underlying mechanism, which this tool has no live data
@@ -196,15 +197,23 @@ onto paperwork the user already has rather than an abstract 1–5:
 Definitions/examples live as static UI help text (educational, not advice about any specific
 fund — the tool never assigns a level, the user always does).
 
-Design details to carry into implementation:
+Design details carried into implementation:
 - Pair the scale with a short free-text note (same pattern as existing transaction notes) —
   e.g. "70% equity, 30% bonds per my last statement" — for detail beyond the 5-level pick
 - Risk is **not** a set-once classification — a fund's underlying exposure can change (track
-  switch, manager reallocation), so the field should be easily re-editable at any time, framed
+  switch, manager reallocation), so the field is easily re-editable at any time, framed
   as "current best guess" rather than a fixed label
 
-Not yet designed:
-- [ ] Implement the risk scale above: DB field + UI (draft definition ready, see table)
+- [x] **Risk classification (v1.18.0)** — self-declared 0–5 `risk_level` + free-text
+  `risk_note` on **both** funds and bank accounts (scope extended to bank accounts too, for
+  symmetry with `excluded_from_net_worth` — most will simply be rated Capital Guaranteed).
+  0 = Not Rated (default, renders as `—`). Funds: new "Risk" column in the Manage Funds table
+  with a ℹ tooltip showing the full scale definition, editable via the existing inline edit
+  row (not on the add form — rating happens after the fund exists). Bank accounts: appended to
+  the pill info line (`· Risk: <label>`), editable via a shared inline panel below the account
+  list (pills have no row to expand into). `db.update_bank_account()` is new — bank accounts
+  previously only had a single-purpose exclude-toggle setter, now generalized the same way
+  `update_fund()` already works.
 - [ ] Growth potential classification per fund (definition TBD — marked "?" by design, still
   an open question; may turn out to be a derived cross-tab of Liquidity × Risk rather than
   its own field — worth checking before building a third independent axis)

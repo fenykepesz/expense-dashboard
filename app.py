@@ -305,10 +305,13 @@ def create_fund():
     fund_number = (data.get('fund_number') or '').strip()
     owner_id = data.get('owner_id')
     is_liquid = bool(data.get('is_liquid'))
+    risk_level = data.get('risk_level', 0) or 0
+    risk_note = (data.get('risk_note') or '').strip()
     if not name or not fund_type or not company_name:
         return jsonify({'error': 'name, company_name, and fund_type are required'}), 400
     try:
-        updated = db.add_fund(name, fund_type, company_name, owner_id, fund_number, is_liquid)
+        updated = db.add_fund(name, fund_type, company_name, owner_id, fund_number,
+                               is_liquid, risk_level, risk_note)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'funds': updated}), 201
@@ -340,6 +343,10 @@ def patch_fund(fund_id):
         fields['excluded_from_net_worth'] = 1 if data['excluded_from_net_worth'] else 0
     if 'is_liquid' in data:
         fields['is_liquid'] = 1 if data['is_liquid'] else 0
+    if 'risk_level' in data:
+        fields['risk_level'] = data['risk_level'] or 0
+    if 'risk_note' in data:
+        fields['risk_note'] = (data.get('risk_note') or '').strip()
     try:
         updated = db.update_fund(fund_id, fields)
     except ValueError as e:
@@ -409,12 +416,17 @@ def patch_bank_account(account_id):
     data = request.get_json()
     if data is None:
         return jsonify({'error': 'request body required'}), 400
-    if 'excluded_from_net_worth' not in data:
-        return jsonify({'error': 'excluded_from_net_worth is required'}), 400
+    fields = {}
+    if 'excluded_from_net_worth' in data:
+        fields['excluded_from_net_worth'] = 1 if data['excluded_from_net_worth'] else 0
+    if 'risk_level' in data:
+        fields['risk_level'] = data['risk_level'] or 0
+    if 'risk_note' in data:
+        fields['risk_note'] = (data.get('risk_note') or '').strip()
+    if not fields:
+        return jsonify({'error': 'no editable fields provided'}), 400
     try:
-        updated = db.set_bank_account_excluded_from_net_worth(
-            account_id, data['excluded_from_net_worth']
-        )
+        updated = db.update_bank_account(account_id, fields)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'accounts': updated})

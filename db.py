@@ -65,7 +65,9 @@ CREATE TABLE IF NOT EXISTS funds (
     owner_id               INTEGER REFERENCES household_members(id),
     is_deleted             INTEGER NOT NULL DEFAULT 0,
     excluded_from_net_worth INTEGER NOT NULL DEFAULT 0,
-    is_liquid              INTEGER NOT NULL DEFAULT 0
+    is_liquid              INTEGER NOT NULL DEFAULT 0,
+    risk_level             INTEGER NOT NULL DEFAULT 0,
+    risk_note              TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS fund_balances (
@@ -83,7 +85,9 @@ CREATE TABLE IF NOT EXISTS bank_accounts (
     account_number          TEXT    NOT NULL DEFAULT '',
     owner_id                INTEGER REFERENCES household_members(id),
     is_deleted              INTEGER NOT NULL DEFAULT 0,
-    excluded_from_net_worth INTEGER NOT NULL DEFAULT 0
+    excluded_from_net_worth INTEGER NOT NULL DEFAULT 0,
+    risk_level              INTEGER NOT NULL DEFAULT 0,
+    risk_note               TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS bank_transactions (
@@ -105,6 +109,16 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
 """
 
 FUND_TYPES = ["pension", "study_fund", "investment", "other"]
+
+# Self-declared risk scale. 0 = Not Rated (default); not a member of this dict,
+# validated separately wherever risk_level is accepted.
+RISK_LEVELS = {
+    1: "Capital Guaranteed",
+    2: "Low Risk",
+    3: "Moderate Risk",
+    4: "High Risk",
+    5: "Very High Risk",
+}
 
 
 def _connect(db_path=None):
@@ -133,6 +147,8 @@ def init_db(db_path=None):
             ("fund_number",             "TEXT NOT NULL DEFAULT ''"),
             ("excluded_from_net_worth", "INTEGER NOT NULL DEFAULT 0"),
             ("is_liquid",               "INTEGER NOT NULL DEFAULT 0"),
+            ("risk_level",              "INTEGER NOT NULL DEFAULT 0"),
+            ("risk_note",               "TEXT NOT NULL DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE funds ADD COLUMN {col} {definition}")
@@ -141,6 +157,8 @@ def init_db(db_path=None):
         # Migrate old bank_accounts columns
         for col, definition in [
             ("excluded_from_net_worth", "INTEGER NOT NULL DEFAULT 0"),
+            ("risk_level",              "INTEGER NOT NULL DEFAULT 0"),
+            ("risk_note",               "TEXT NOT NULL DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE bank_accounts ADD COLUMN {col} {definition}")
@@ -312,7 +330,8 @@ def get_funds(db_path=None):
         rows = conn.execute(
             """
             SELECT f.id, f.name, f.company_name, f.fund_number, f.fund_type, f.owner_id,
-                   f.excluded_from_net_worth, f.is_liquid, m.name AS owner_name
+                   f.excluded_from_net_worth, f.is_liquid, f.risk_level, f.risk_note,
+                   m.name AS owner_name
             FROM funds f
             LEFT JOIN household_members m ON m.id = f.owner_id
             WHERE f.is_deleted = 0
@@ -322,23 +341,31 @@ def get_funds(db_path=None):
     return [dict(row) for row in rows]
 
 
+def _validate_risk_level(fields):
+    """Shared by update_fund/update_bank_account: 0 (Not Rated) or a real level."""
+    if "risk_level" in fields and fields["risk_level"] not in (0, *RISK_LEVELS):
+        raise ValueError(f'Invalid risk_level "{fields["risk_level"]}". Must be 0 or one of {list(RISK_LEVELS)}.')
+
+
 def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="",
-             is_liquid=False, db_path=None):
+             is_liquid=False, risk_level=0, risk_note="", db_path=None):
     """Add a new fund. Returns updated list."""
     if fund_type not in FUND_TYPES:
         raise ValueError(f'Invalid fund_type "{fund_type}". Must be one of {FUND_TYPES}.')
+    _validate_risk_level({"risk_level": risk_level})
     with _connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO funds (name, company_name, fund_number, fund_type, owner_id, is_liquid) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (name, company_name, fund_number, fund_type, owner_id, 1 if is_liquid else 0),
+            "INSERT INTO funds (name, company_name, fund_number, fund_type, owner_id, "
+            "is_liquid, risk_level, risk_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, company_name, fund_number, fund_type, owner_id,
+             1 if is_liquid else 0, risk_level, risk_note),
         )
     return get_funds(db_path)
 
 
 FUND_EDITABLE_FIELDS = {
     "name", "company_name", "fund_number", "fund_type", "owner_id",
-    "excluded_from_net_worth", "is_liquid",
+    "excluded_from_net_worth", "is_liquid", "risk_level", "risk_note",
 }
 
 
@@ -350,6 +377,7 @@ def update_fund(fund_id, fields, db_path=None):
         return get_funds(db_path)
     if "fund_type" in fields and fields["fund_type"] not in FUND_TYPES:
         raise ValueError(f'Invalid fund_type "{fields["fund_type"]}". Must be one of {FUND_TYPES}.')
+    _validate_risk_level(fields)
     with _connect(db_path) as conn:
         row = conn.execute("SELECT id FROM funds WHERE id = ?", (fund_id,)).fetchone()
         if row is None:
@@ -536,7 +564,7 @@ def get_bank_accounts(db_path=None):
         rows = conn.execute(
             """
             SELECT a.id, a.name, a.account_number, a.owner_id,
-                   a.excluded_from_net_worth, m.name AS owner_name
+                   a.excluded_from_net_worth, a.risk_level, a.risk_note, m.name AS owner_name
             FROM bank_accounts a
             LEFT JOIN household_members m ON m.id = a.owner_id
             WHERE a.is_deleted = 0
@@ -566,17 +594,24 @@ def delete_bank_account(account_id, db_path=None):
     return get_bank_accounts(db_path)
 
 
-def set_bank_account_excluded_from_net_worth(account_id, excluded, db_path=None):
-    """Toggle whether an account counts toward Net Worth. The account keeps
-    appearing normally in its own Bank Accounts tab either way. Returns
-    updated list."""
+BANK_ACCOUNT_EDITABLE_FIELDS = {"excluded_from_net_worth", "risk_level", "risk_note"}
+
+
+def update_bank_account(account_id, fields, db_path=None):
+    """Partially update a bank account. `fields` is a dict of column -> new
+    value; only keys present are changed. Returns updated list."""
+    cols = [c for c in fields if c in BANK_ACCOUNT_EDITABLE_FIELDS]
+    if not cols:
+        return get_bank_accounts(db_path)
+    _validate_risk_level(fields)
     with _connect(db_path) as conn:
         row = conn.execute("SELECT id FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
         if row is None:
             raise ValueError(f"Bank account {account_id} not found.")
+        set_clause = ", ".join(f"{c} = ?" for c in cols)
         conn.execute(
-            "UPDATE bank_accounts SET excluded_from_net_worth = ? WHERE id = ?",
-            (1 if excluded else 0, account_id),
+            f"UPDATE bank_accounts SET {set_clause} WHERE id = ?",
+            [fields[c] for c in cols] + [account_id],
         )
     return get_bank_accounts(db_path)
 
