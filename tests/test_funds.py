@@ -27,6 +27,28 @@ def test_init_db_migrates_old_funds_table(tmp_path):
     assert funds[0]["name"] == "Legacy Fund"
     assert funds[0]["company_name"] == ""
     assert funds[0]["fund_number"] == ""
+    assert funds[0]["excluded_from_net_worth"] == 0
+
+
+def test_init_db_migrates_old_bank_accounts_table(tmp_path):
+    """A bank account created before excluded_from_net_worth existed must
+    survive init_db() being re-run and default to not-excluded."""
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(str(path))
+    conn.execute(
+        "CREATE TABLE bank_accounts (id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+        "account_number TEXT NOT NULL DEFAULT '', owner_id INTEGER, "
+        "is_deleted INTEGER NOT NULL DEFAULT 0)"
+    )
+    conn.execute("INSERT INTO bank_accounts (name) VALUES ('Legacy Account')")
+    conn.commit()
+    conn.close()
+
+    db.init_db(path)
+    accounts = db.get_bank_accounts(path)
+    assert len(accounts) == 1
+    assert accounts[0]["name"] == "Legacy Account"
+    assert accounts[0]["excluded_from_net_worth"] == 0
 
 
 @pytest.fixture
@@ -124,6 +146,21 @@ def test_update_fund_empty_fields_is_noop(tmp_db):
     fund_id = funds[0]["id"]
     updated = db.update_fund(fund_id, {}, db_path=tmp_db)
     assert updated[0]["name"] == "Fund A"
+
+
+def test_add_fund_excluded_from_net_worth_defaults_false(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    assert funds[0]["excluded_from_net_worth"] == 0
+
+
+def test_toggle_fund_excluded_from_net_worth(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    updated = db.update_fund(fund_id, {"excluded_from_net_worth": 1}, db_path=tmp_db)
+    assert updated[0]["excluded_from_net_worth"] == 1
+    # Fund still appears in get_funds — exclusion only affects net worth, not this listing
+    restored = db.update_fund(fund_id, {"excluded_from_net_worth": 0}, db_path=tmp_db)
+    assert restored[0]["excluded_from_net_worth"] == 0
 
 
 def test_delete_fund_soft_deletes(tmp_db):
@@ -360,6 +397,15 @@ def test_update_fund_route_invalid_type_returns_400(client):
 def test_update_nonexistent_fund_route_returns_400(client):
     resp = client.patch("/api/funds/9999", json={"name": "X"})
     assert resp.status_code == 400
+
+
+def test_patch_fund_route_toggles_net_worth_exclude(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={"excluded_from_net_worth": True})
+    assert resp.status_code == 200
+    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
+    assert fund["excluded_from_net_worth"] == 1
 
 
 def test_update_fund_route_clears_owner(client):

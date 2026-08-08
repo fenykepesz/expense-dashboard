@@ -38,18 +38,22 @@ function fundOwnerOptions(selectedId) {
 function renderFundsList() {
     const body = document.getElementById('fundsListBody');
     if (!currentFunds.length) {
-        body.innerHTML = '<tr><td colspan="6" class="no-data">No funds yet — add one above.</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" class="no-data">No funds yet — add one above.</td></tr>';
         return;
     }
     body.innerHTML = currentFunds.map(f => f.id === editingFundId ? renderFundEditRow(f) : `
-        <tr>
+        <tr class="${f.excluded_from_net_worth ? 'tx-excluded' : ''}">
             <td>${escapeHtml(f.company_name || '—')}</td>
             <td>${escapeHtml(f.name)}</td>
             <td>${escapeHtml(f.fund_number || '—')}</td>
             <td>${FUND_TYPE_LABELS[f.fund_type] || f.fund_type}</td>
             <td>${f.owner_name ? escapeHtml(f.owner_name) : '—'}</td>
+            <td>${f.excluded_from_net_worth
+                ? '<span style="color:var(--text-secondary);font-size:0.85em;">⊘ Excluded</span>'
+                : '<span style="color:var(--success-color);font-size:0.85em;">✓ Included</span>'}</td>
             <td>
                 <div class="tx-actions">
+                    <button class="btn-excl" onclick="toggleFundNetWorthExclude(${f.id})" title="${f.excluded_from_net_worth ? 'Include in Net Worth' : 'Exclude from Net Worth'}">${f.excluded_from_net_worth ? '↺' : '⊘'}</button>
                     <button class="btn-excl" onclick="startEditFund(${f.id})" title="Edit">✎</button>
                     <button class="btn-excl btn-delete" onclick="deleteFund(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')" title="Delete">🗑</button>
                 </div>
@@ -67,6 +71,7 @@ function renderFundEditRow(f) {
             <td><input type="text" id="editFundNumber" value="${escapeHtml(f.fund_number || '')}" style="${inputStyle}"></td>
             <td><select id="editFundType" class="tx-cat-select">${fundTypeOptions(f.fund_type)}</select></td>
             <td><select id="editFundOwner" class="tx-cat-select">${fundOwnerOptions(f.owner_id)}</select></td>
+            <td style="color:var(--text-secondary);font-size:0.85em;">${f.excluded_from_net_worth ? '⊘ Excluded' : '✓ Included'}</td>
             <td>
                 <div class="tx-actions">
                     <button class="btn-excl" onclick="saveFundEdit(${f.id})" title="Save">✅</button>
@@ -148,6 +153,20 @@ async function addNewFund() {
     currentFunds = result.funds;
     renderFundsList();
     renderFundSelect();
+}
+
+async function toggleFundNetWorthExclude(id) {
+    const fund = currentFunds.find(f => f.id === id);
+    if (!fund) return;
+    const resp = await fetch(`/api/funds/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ excluded_from_net_worth: !fund.excluded_from_net_worth }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to update fund'); return; }
+    currentFunds = result.funds;
+    renderFundsList();
 }
 
 async function deleteFund(id, name) {

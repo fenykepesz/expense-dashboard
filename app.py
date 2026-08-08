@@ -335,6 +335,8 @@ def patch_fund(fund_id):
         fields['fund_type'] = data['fund_type']
     if 'owner_id' in data:
         fields['owner_id'] = data['owner_id']
+    if 'excluded_from_net_worth' in data:
+        fields['excluded_from_net_worth'] = 1 if data['excluded_from_net_worth'] else 0
     try:
         updated = db.update_fund(fund_id, fields)
     except ValueError as e:
@@ -397,6 +399,22 @@ def create_bank_account():
         return jsonify({'error': 'name is required'}), 400
     updated = db.add_bank_account(name, owner_id, account_number)
     return jsonify({'accounts': updated}), 201
+
+
+@app.route('/api/bank-accounts/<int:account_id>', methods=['PATCH'])
+def patch_bank_account(account_id):
+    data = request.get_json()
+    if data is None:
+        return jsonify({'error': 'request body required'}), 400
+    if 'excluded_from_net_worth' not in data:
+        return jsonify({'error': 'excluded_from_net_worth is required'}), 400
+    try:
+        updated = db.set_bank_account_excluded_from_net_worth(
+            account_id, data['excluded_from_net_worth']
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'accounts': updated})
 
 
 @app.route('/api/bank-accounts/<int:account_id>', methods=['DELETE'])

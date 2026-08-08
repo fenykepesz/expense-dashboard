@@ -48,9 +48,10 @@ function renderBankAccountsList() {
         return;
     }
     list.innerHTML = currentBankAccounts.map(a => `
-        <span class="cat-pill">
+        <span class="cat-pill"${a.excluded_from_net_worth ? ' style="opacity:0.55;"' : ''}>
             ${escapeHtml(a.name)}
-            <span class="cat-pill-count">${a.account_number ? '*' + escapeHtml(a.account_number) + ' · ' : ''}${a.owner_name ? escapeHtml(a.owner_name) : 'No owner'}</span>
+            <span class="cat-pill-count">${a.account_number ? '*' + escapeHtml(a.account_number) + ' · ' : ''}${a.owner_name ? escapeHtml(a.owner_name) : 'No owner'}${a.excluded_from_net_worth ? ' · ⊘ excluded from Net Worth' : ''}</span>
+            <button class="cat-pill-del" title="${a.excluded_from_net_worth ? 'Include in Net Worth' : 'Exclude from Net Worth'}" onclick="toggleBankAccountNetWorthExclude(${a.id})" style="color:var(--text-secondary);">${a.excluded_from_net_worth ? '↺' : '⊘'}</button>
             <button class="cat-pill-del" title="Delete account" onclick="deleteBankAccount(${a.id}, '${escapeHtml(a.name).replace(/'/g, "\\'")}')">✕</button>
         </span>
     `).join('');
@@ -97,6 +98,20 @@ async function deleteBankAccount(id, name) {
     renderBankAccountsList();
     renderBankAccountSelect();
     reloadBankTransactions();
+}
+
+async function toggleBankAccountNetWorthExclude(id) {
+    const account = currentBankAccounts.find(a => a.id === id);
+    if (!account) return;
+    const resp = await fetch(`/api/bank-accounts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ excluded_from_net_worth: !account.excluded_from_net_worth }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to update account'); return; }
+    currentBankAccounts = result.accounts;
+    renderBankAccountsList();
 }
 
 function onBankAccountChange() {

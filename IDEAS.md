@@ -83,6 +83,14 @@ with a top-level net worth view. Decided so far:
   the new dashboards, rather than growing one monolithic file further
 - [x] **Multi-select account filter** — account filter is now toggle pills (same UX as the
   year picker) so any combination of accounts can be viewed together (v1.13.0)
+- [x] **Exclude funds/accounts from Net Worth (v1.16.0)** — persistent exclude/restore toggle
+  (⊘/↺) on funds (Manage Funds table, new "Net Worth" status column) and bank accounts
+  (Manage Bank Accounts pills), scoped to Net Worth only — an excluded item keeps counting
+  normally in its own Bank Accounts / Long-Term Funds tab, same as how excluding a transaction
+  only removes it from totals, not from its own table. New `excluded_from_net_worth` column on
+  `funds`/`bank_accounts`, `PATCH /api/bank-accounts/<id>`, `get_net_worth_series` filters both.
+  (Replaces an earlier Chart.js legend-click-to-hide misfeature from the v1.15.0 session that
+  didn't match what "hide" meant here — removed.)
 - [x] **Fund detail fields + editing (v1.15.0)** — funds now have Company Name (mandatory),
   Fund Name (mandatory), and Fund Number (optional). The Manage Funds panel is a table
   (Company / Fund Name / Fund # / Type / Owner) with inline edit (✎) — the first "edit"

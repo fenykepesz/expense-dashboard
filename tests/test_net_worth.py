@@ -142,6 +142,47 @@ def test_deleted_items_excluded_from_series(tmp_db):
     assert result["months"] == ["2026-01"]
 
 
+def test_fund_excluded_from_net_worth_omitted_from_series(tmp_db):
+    fund_id = _add_fund(tmp_db)
+    db.add_fund_balance(fund_id, "2026-01-01", 100, db_path=tmp_db)
+    db.update_fund(fund_id, {"excluded_from_net_worth": 1}, db_path=tmp_db)
+    result = db.get_net_worth_series(tmp_db)
+    assert result["series"] == []
+
+
+def test_bank_account_excluded_from_net_worth_omitted_from_series(tmp_db):
+    account_id = _add_account(tmp_db)
+    db.insert_bank_transactions(
+        [{"date": "2026-01-10", "description": "x", "amount": 50, "type": "income"}],
+        account_id, tmp_db,
+    )
+    db.set_bank_account_excluded_from_net_worth(account_id, True, tmp_db)
+    result = db.get_net_worth_series(tmp_db)
+    assert result["series"] == []
+
+
+def test_excluded_from_net_worth_item_still_appears_in_its_own_listing(tmp_db):
+    """Excluding from Net Worth must NOT hide the item from its own tab —
+    only the Net Worth series is affected."""
+    fund_id = _add_fund(tmp_db)
+    account_id = _add_account(tmp_db)
+    db.update_fund(fund_id, {"excluded_from_net_worth": 1}, db_path=tmp_db)
+    db.set_bank_account_excluded_from_net_worth(account_id, True, tmp_db)
+    assert len(db.get_funds(tmp_db)) == 1
+    assert len(db.get_bank_accounts(tmp_db)) == 1
+
+
+def test_restoring_excluded_fund_reappears_in_series(tmp_db):
+    fund_id = _add_fund(tmp_db)
+    db.add_fund_balance(fund_id, "2026-01-01", 100, db_path=tmp_db)
+    db.update_fund(fund_id, {"excluded_from_net_worth": 1}, db_path=tmp_db)
+    assert db.get_net_worth_series(tmp_db)["series"] == []
+    db.update_fund(fund_id, {"excluded_from_net_worth": 0}, db_path=tmp_db)
+    result = db.get_net_worth_series(tmp_db)
+    assert len(result["series"]) == 1
+    assert result["series"][0]["balances"] == [100]
+
+
 def test_combined_months_span_both_sources(tmp_db):
     fund_id = _add_fund(tmp_db)
     account_id = _add_account(tmp_db)

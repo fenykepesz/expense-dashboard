@@ -57,13 +57,14 @@ CREATE TABLE IF NOT EXISTS household_members (
 );
 
 CREATE TABLE IF NOT EXISTS funds (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    name         TEXT    NOT NULL,
-    company_name TEXT    NOT NULL DEFAULT '',
-    fund_number  TEXT    NOT NULL DEFAULT '',
-    fund_type    TEXT    NOT NULL,
-    owner_id     INTEGER REFERENCES household_members(id),
-    is_deleted   INTEGER NOT NULL DEFAULT 0
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                   TEXT    NOT NULL,
+    company_name           TEXT    NOT NULL DEFAULT '',
+    fund_number            TEXT    NOT NULL DEFAULT '',
+    fund_type              TEXT    NOT NULL,
+    owner_id               INTEGER REFERENCES household_members(id),
+    is_deleted             INTEGER NOT NULL DEFAULT 0,
+    excluded_from_net_worth INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS fund_balances (
@@ -76,11 +77,12 @@ CREATE TABLE IF NOT EXISTS fund_balances (
 );
 
 CREATE TABLE IF NOT EXISTS bank_accounts (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    name           TEXT    NOT NULL,
-    account_number TEXT    NOT NULL DEFAULT '',
-    owner_id       INTEGER REFERENCES household_members(id),
-    is_deleted     INTEGER NOT NULL DEFAULT 0
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                    TEXT    NOT NULL,
+    account_number          TEXT    NOT NULL DEFAULT '',
+    owner_id                INTEGER REFERENCES household_members(id),
+    is_deleted              INTEGER NOT NULL DEFAULT 0,
+    excluded_from_net_worth INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS bank_transactions (
@@ -126,11 +128,20 @@ def init_db(db_path=None):
                 pass
         # Migrate old fund columns
         for col, definition in [
-            ("company_name", "TEXT NOT NULL DEFAULT ''"),
-            ("fund_number",  "TEXT NOT NULL DEFAULT ''"),
+            ("company_name",            "TEXT NOT NULL DEFAULT ''"),
+            ("fund_number",             "TEXT NOT NULL DEFAULT ''"),
+            ("excluded_from_net_worth", "INTEGER NOT NULL DEFAULT 0"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE funds ADD COLUMN {col} {definition}")
+            except sqlite3.OperationalError:
+                pass
+        # Migrate old bank_accounts columns
+        for col, definition in [
+            ("excluded_from_net_worth", "INTEGER NOT NULL DEFAULT 0"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE bank_accounts ADD COLUMN {col} {definition}")
             except sqlite3.OperationalError:
                 pass
         # Seed categories if the table is empty
@@ -290,12 +301,16 @@ def delete_household_member(member_id, db_path=None):
 # ── Funds ─────────────────────────────────────────────────────────────────────
 
 def get_funds(db_path=None):
-    """Return active (non-deleted) funds, with owner name joined, sorted by name."""
+    """Return active (non-deleted) funds, with owner name joined, sorted by name.
+
+    Includes funds excluded from Net Worth — that flag only affects
+    get_net_worth_series, not this listing.
+    """
     with _connect(db_path) as conn:
         rows = conn.execute(
             """
             SELECT f.id, f.name, f.company_name, f.fund_number, f.fund_type, f.owner_id,
-                   m.name AS owner_name
+                   f.excluded_from_net_worth, m.name AS owner_name
             FROM funds f
             LEFT JOIN household_members m ON m.id = f.owner_id
             WHERE f.is_deleted = 0
@@ -318,7 +333,9 @@ def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="", db
     return get_funds(db_path)
 
 
-FUND_EDITABLE_FIELDS = {"name", "company_name", "fund_number", "fund_type", "owner_id"}
+FUND_EDITABLE_FIELDS = {
+    "name", "company_name", "fund_number", "fund_type", "owner_id", "excluded_from_net_worth",
+}
 
 
 def update_fund(fund_id, fields, db_path=None):
@@ -506,11 +523,16 @@ def check_duplicates(transactions, db_path=None):
 # ── Bank accounts ─────────────────────────────────────────────────────────────
 
 def get_bank_accounts(db_path=None):
-    """Return active (non-deleted) bank accounts, with owner name joined."""
+    """Return active (non-deleted) bank accounts, with owner name joined.
+
+    Includes accounts excluded from Net Worth — that flag only affects
+    get_net_worth_series, not this listing.
+    """
     with _connect(db_path) as conn:
         rows = conn.execute(
             """
-            SELECT a.id, a.name, a.account_number, a.owner_id, m.name AS owner_name
+            SELECT a.id, a.name, a.account_number, a.owner_id,
+                   a.excluded_from_net_worth, m.name AS owner_name
             FROM bank_accounts a
             LEFT JOIN household_members m ON m.id = a.owner_id
             WHERE a.is_deleted = 0
@@ -537,6 +559,21 @@ def delete_bank_account(account_id, db_path=None):
         if row is None:
             raise ValueError(f"Bank account {account_id} not found.")
         conn.execute("UPDATE bank_accounts SET is_deleted = 1 WHERE id = ?", (account_id,))
+    return get_bank_accounts(db_path)
+
+
+def set_bank_account_excluded_from_net_worth(account_id, excluded, db_path=None):
+    """Toggle whether an account counts toward Net Worth. The account keeps
+    appearing normally in its own Bank Accounts tab either way. Returns
+    updated list."""
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT id FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"Bank account {account_id} not found.")
+        conn.execute(
+            "UPDATE bank_accounts SET excluded_from_net_worth = ? WHERE id = ?",
+            (1 if excluded else 0, account_id),
+        )
     return get_bank_accounts(db_path)
 
 
@@ -665,14 +702,14 @@ def get_net_worth_series(db_path=None):
             """
             SELECT f.id, f.name, f.fund_type, m.name AS owner_name
             FROM funds f LEFT JOIN household_members m ON m.id = f.owner_id
-            WHERE f.is_deleted = 0 ORDER BY f.name
+            WHERE f.is_deleted = 0 AND f.excluded_from_net_worth = 0 ORDER BY f.name
             """
         ).fetchall()
         accounts = conn.execute(
             """
             SELECT a.id, a.name, m.name AS owner_name
             FROM bank_accounts a LEFT JOIN household_members m ON m.id = a.owner_id
-            WHERE a.is_deleted = 0 ORDER BY a.name
+            WHERE a.is_deleted = 0 AND a.excluded_from_net_worth = 0 ORDER BY a.name
             """
         ).fetchall()
         fund_rows = conn.execute(
