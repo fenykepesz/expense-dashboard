@@ -792,7 +792,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.16.0</span>
+            <span class="version-badge">v1.17.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1074,17 +1074,32 @@
                         <select id="newFundOwnerInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
                             <option value="">No owner</option>
                         </select>
+                        <label style="display:flex;align-items:center;gap:5px;font-size:0.875em;color:var(--text-primary);white-space:nowrap;">
+                            <input type="checkbox" id="newFundLiquidInput"> Liquid
+                        </label>
                         <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addNewFund()">+ Add</button>
                     </div>
                 </div>
-                <p style="color:var(--text-secondary);font-size:0.78em;margin:-6px 0 12px;">Company name and fund name are required.</p>
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:-6px 0 12px;">
+                    <p style="color:var(--text-secondary);font-size:0.78em;margin:0;">Company name and fund name are required.</p>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:0.85em;color:var(--text-secondary);">
+                        Filter by type:
+                        <select id="fundTypeFilter" onchange="renderFundsList()" style="height:30px;padding:0 8px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text-primary);font-size:0.9em;">
+                            <option value="all">All Types</option>
+                            <option value="pension">Pension</option>
+                            <option value="study_fund">Study Fund</option>
+                            <option value="investment">Investment</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </label>
+                </div>
                 <div style="overflow-x:auto;">
                     <table class="transactions-table">
                         <thead><tr>
-                            <th>Company</th><th>Fund Name</th><th>Fund #</th><th>Type</th><th>Owner</th><th>Net Worth</th><th></th>
+                            <th>Company</th><th>Fund Name</th><th>Fund #</th><th>Type</th><th>Liquid</th><th>Owner</th><th>Net Worth</th><th></th>
                         </tr></thead>
                         <tbody id="fundsListBody">
-                            <tr><td colspan="7" class="no-data">Loading…</td></tr>
+                            <tr><td colspan="8" class="no-data">Loading…</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1099,8 +1114,14 @@
                     </p>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
-                    <select id="fundBalanceFundSelect" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onFundBalanceFundChange()">
-                        <option value="">Select a fund…</option>
+                    <select id="fundBalanceCompanySelect" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onFundBalanceCompanyChange()">
+                        <option value="">Select a company…</option>
+                    </select>
+                    <select id="fundBalanceNameSelect" disabled style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onFundBalanceNameChange()">
+                        <option value="">Select a fund name…</option>
+                    </select>
+                    <select id="fundBalanceNumberSelect" disabled style="display:none;height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onFundBalanceNumberChange()">
+                        <option value="">Select a fund #…</option>
                     </select>
                     <input type="date" id="newFundBalanceDate" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
                     <input type="number" id="newFundBalanceAmount" placeholder="Balance" step="0.01"
@@ -1109,6 +1130,7 @@
                         style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:170px;">
                     <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addFundBalanceEntry()">+ Add Balance</button>
                 </div>
+                <p id="fundBalanceSelectedInfo" style="color:var(--text-secondary);font-size:0.8em;margin:-10px 0 14px;min-height:1em;"></p>
                 <div class="chart" style="height:280px;margin-bottom:20px;">
                     <canvas id="fundBalanceChart"></canvas>
                 </div>

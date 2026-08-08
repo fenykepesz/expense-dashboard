@@ -83,6 +83,17 @@ with a top-level net worth view. Decided so far:
   the new dashboards, rather than growing one monolithic file further
 - [x] **Multi-select account filter** — account filter is now toggle pills (same UX as the
   year picker) so any combination of accounts can be viewed together (v1.13.0)
+- [x] **Fund type filter, Liquid flag, cascading fund picker (v1.17.0)** — (1) Manage Funds
+  table gets a "Filter by type" dropdown. (2) New `is_liquid` boolean field (checkbox on
+  add/edit, 💧 Liquid column) marking cash-equivalent funds (e.g. כספית ניהול נזילות) vs
+  locked long-term savings — informational only, not yet wired into any calculation. (3) The
+  Fund Balances "Select a fund" dropdown became a cascading Company → Fund Name → Fund #
+  picker: resolves to a specific fund the moment the choice is unambiguous (e.g. a company
+  with only one fund resolves instantly), and only reveals the Fund # dropdown when two funds
+  genuinely share company+name (verified live against the user's own data: two Altshuler
+  Shaham funds both named "אלטשולר שחם השתלמות כללי", disambiguated by fund number). A
+  one-line "Selected: Company — Name — #Number" confirmation replaces showing resolved values
+  as disabled dropdowns.
 - [x] **Exclude funds/accounts from Net Worth (v1.16.0)** — persistent exclude/restore toggle
   (⊘/↺) on funds (Manage Funds table, new "Net Worth" status column) and bank accounts
   (Manage Bank Accounts pills), scoped to Net Worth only — an excluded item keeps counting

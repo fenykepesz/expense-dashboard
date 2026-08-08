@@ -64,7 +64,8 @@ CREATE TABLE IF NOT EXISTS funds (
     fund_type              TEXT    NOT NULL,
     owner_id               INTEGER REFERENCES household_members(id),
     is_deleted             INTEGER NOT NULL DEFAULT 0,
-    excluded_from_net_worth INTEGER NOT NULL DEFAULT 0
+    excluded_from_net_worth INTEGER NOT NULL DEFAULT 0,
+    is_liquid              INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS fund_balances (
@@ -131,6 +132,7 @@ def init_db(db_path=None):
             ("company_name",            "TEXT NOT NULL DEFAULT ''"),
             ("fund_number",             "TEXT NOT NULL DEFAULT ''"),
             ("excluded_from_net_worth", "INTEGER NOT NULL DEFAULT 0"),
+            ("is_liquid",               "INTEGER NOT NULL DEFAULT 0"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE funds ADD COLUMN {col} {definition}")
@@ -310,7 +312,7 @@ def get_funds(db_path=None):
         rows = conn.execute(
             """
             SELECT f.id, f.name, f.company_name, f.fund_number, f.fund_type, f.owner_id,
-                   f.excluded_from_net_worth, m.name AS owner_name
+                   f.excluded_from_net_worth, f.is_liquid, m.name AS owner_name
             FROM funds f
             LEFT JOIN household_members m ON m.id = f.owner_id
             WHERE f.is_deleted = 0
@@ -320,21 +322,23 @@ def get_funds(db_path=None):
     return [dict(row) for row in rows]
 
 
-def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="", db_path=None):
+def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="",
+             is_liquid=False, db_path=None):
     """Add a new fund. Returns updated list."""
     if fund_type not in FUND_TYPES:
         raise ValueError(f'Invalid fund_type "{fund_type}". Must be one of {FUND_TYPES}.')
     with _connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO funds (name, company_name, fund_number, fund_type, owner_id) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (name, company_name, fund_number, fund_type, owner_id),
+            "INSERT INTO funds (name, company_name, fund_number, fund_type, owner_id, is_liquid) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (name, company_name, fund_number, fund_type, owner_id, 1 if is_liquid else 0),
         )
     return get_funds(db_path)
 
 
 FUND_EDITABLE_FIELDS = {
-    "name", "company_name", "fund_number", "fund_type", "owner_id", "excluded_from_net_worth",
+    "name", "company_name", "fund_number", "fund_type", "owner_id",
+    "excluded_from_net_worth", "is_liquid",
 }
 
 

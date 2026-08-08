@@ -20,7 +20,7 @@ async function loadFundsPanel() {
 
     editingFundId = null;
     renderFundsList();
-    renderFundSelect();
+    renderFundBalancePicker();
 }
 
 function fundTypeOptions(selected) {
@@ -38,15 +38,22 @@ function fundOwnerOptions(selectedId) {
 function renderFundsList() {
     const body = document.getElementById('fundsListBody');
     if (!currentFunds.length) {
-        body.innerHTML = '<tr><td colspan="7" class="no-data">No funds yet — add one above.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="no-data">No funds yet — add one above.</td></tr>';
         return;
     }
-    body.innerHTML = currentFunds.map(f => f.id === editingFundId ? renderFundEditRow(f) : `
+    const typeFilter = document.getElementById('fundTypeFilter')?.value || 'all';
+    const visibleFunds = typeFilter === 'all' ? currentFunds : currentFunds.filter(f => f.fund_type === typeFilter);
+    if (!visibleFunds.length) {
+        body.innerHTML = '<tr><td colspan="8" class="no-data">No funds match this filter.</td></tr>';
+        return;
+    }
+    body.innerHTML = visibleFunds.map(f => f.id === editingFundId ? renderFundEditRow(f) : `
         <tr class="${f.excluded_from_net_worth ? 'tx-excluded' : ''}">
             <td>${escapeHtml(f.company_name || '—')}</td>
             <td>${escapeHtml(f.name)}</td>
             <td>${escapeHtml(f.fund_number || '—')}</td>
             <td>${FUND_TYPE_LABELS[f.fund_type] || f.fund_type}</td>
+            <td>${f.is_liquid ? '💧 Liquid' : '—'}</td>
             <td>${f.owner_name ? escapeHtml(f.owner_name) : '—'}</td>
             <td>${f.excluded_from_net_worth
                 ? '<span style="color:var(--text-secondary);font-size:0.85em;">⊘ Excluded</span>'
@@ -70,6 +77,7 @@ function renderFundEditRow(f) {
             <td><input type="text" id="editFundName" value="${escapeHtml(f.name)}" style="${inputStyle}"></td>
             <td><input type="text" id="editFundNumber" value="${escapeHtml(f.fund_number || '')}" style="${inputStyle}"></td>
             <td><select id="editFundType" class="tx-cat-select">${fundTypeOptions(f.fund_type)}</select></td>
+            <td style="text-align:center;"><input type="checkbox" id="editFundLiquid" ${f.is_liquid ? 'checked' : ''}></td>
             <td><select id="editFundOwner" class="tx-cat-select">${fundOwnerOptions(f.owner_id)}</select></td>
             <td style="color:var(--text-secondary);font-size:0.85em;">${f.excluded_from_net_worth ? '⊘ Excluded' : '✓ Included'}</td>
             <td>
@@ -97,6 +105,7 @@ async function saveFundEdit(id) {
     const name = document.getElementById('editFundName').value.trim();
     const fundNumber = document.getElementById('editFundNumber').value.trim();
     const fundType = document.getElementById('editFundType').value;
+    const isLiquid = document.getElementById('editFundLiquid').checked;
     const ownerId = document.getElementById('editFundOwner').value || null;
     if (!name || !companyName) { alert('Fund name and company name are required'); return; }
 
@@ -105,7 +114,7 @@ async function saveFundEdit(id) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             name, company_name: companyName, fund_number: fundNumber,
-            fund_type: fundType, owner_id: ownerId,
+            fund_type: fundType, owner_id: ownerId, is_liquid: isLiquid,
         }),
     });
     const result = await resp.json();
@@ -113,21 +122,143 @@ async function saveFundEdit(id) {
     currentFunds = result.funds;
     editingFundId = null;
     renderFundsList();
-    renderFundSelect();
+    renderFundBalancePicker();
 }
 
-function renderFundSelect() {
-    const select = document.getElementById('fundBalanceFundSelect');
-    const current = select.value;
-    select.innerHTML = '<option value="">Select a fund…</option>' +
-        currentFunds.map(f => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('');
-    if (current && currentFunds.some(f => String(f.id) === current)) {
-        select.value = current;
+// ── Cascading Company → Fund Name → Fund # picker for balance entry ────
+// Resolves to a specific fund as soon as the choice is unambiguous: e.g.
+// picking a company with only one fund selects it immediately; the Fund
+// Name / Fund # dropdowns only appear when more than one fund still matches.
+const NO_COMPANY_SENTINEL = '__no_company__';
+
+function fundsForCompany(company) {
+    return currentFunds.filter(f => (f.company_name || NO_COMPANY_SENTINEL) === company);
+}
+
+function renderFundBalancePicker() {
+    const companySelect = document.getElementById('fundBalanceCompanySelect');
+    const previousCompany = companySelect.value;
+    const companies = [...new Set(currentFunds.map(f => f.company_name || NO_COMPANY_SENTINEL))]
+        .sort((a, b) => {
+            if (a === NO_COMPANY_SENTINEL) return 1;
+            if (b === NO_COMPANY_SENTINEL) return -1;
+            return a.localeCompare(b);
+        });
+    companySelect.innerHTML = '<option value="">Select a company…</option>' +
+        companies.map(c => `<option value="${escapeHtml(c)}">${c === NO_COMPANY_SENTINEL ? '(No company set)' : escapeHtml(c)}</option>`).join('');
+
+    if (previousCompany && companies.includes(previousCompany)) {
+        companySelect.value = previousCompany;
+        onFundBalanceCompanyChange();
     } else {
-        selectedFundId = null;
+        resetFundNameSelect();
+        resetFundNumberSelect();
+        showSelectedFundInfo(null);
+        loadFundBalancesFor(null);
+    }
+}
+
+function resetFundNameSelect() {
+    const sel = document.getElementById('fundBalanceNameSelect');
+    sel.innerHTML = '<option value="">Select a fund name…</option>';
+    sel.disabled = true;
+}
+
+function resetFundNumberSelect() {
+    const sel = document.getElementById('fundBalanceNumberSelect');
+    sel.innerHTML = '<option value="">Select a fund #…</option>';
+    sel.disabled = true;
+    sel.style.display = 'none';
+}
+
+function onFundBalanceCompanyChange() {
+    const company = document.getElementById('fundBalanceCompanySelect').value;
+    resetFundNumberSelect();
+    if (!company) {
+        resetFundNameSelect();
+        showSelectedFundInfo(null);
+        loadFundBalancesFor(null);
+        return;
+    }
+    const matches = fundsForCompany(company);
+    if (matches.length === 1) {
+        showResolvedFundName(matches[0]);
+        showSelectedFundInfo(matches[0]);
+        loadFundBalancesFor(matches[0].id);
+        return;
+    }
+    const nameSelect = document.getElementById('fundBalanceNameSelect');
+    const names = [...new Set(matches.map(f => f.name))].sort((a, b) => a.localeCompare(b));
+    nameSelect.innerHTML = '<option value="">Select a fund name…</option>' +
+        names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    nameSelect.disabled = false;
+    showSelectedFundInfo(null);
+    loadFundBalancesFor(null);
+}
+
+function onFundBalanceNameChange() {
+    const company = document.getElementById('fundBalanceCompanySelect').value;
+    const name = document.getElementById('fundBalanceNameSelect').value;
+    if (!name) {
+        resetFundNumberSelect();
+        showSelectedFundInfo(null);
+        loadFundBalancesFor(null);
+        return;
+    }
+    const matches = fundsForCompany(company).filter(f => f.name === name);
+    if (matches.length === 1) {
+        resetFundNumberSelect();
+        showSelectedFundInfo(matches[0]);
+        loadFundBalancesFor(matches[0].id);
+        return;
+    }
+    const numSelect = document.getElementById('fundBalanceNumberSelect');
+    numSelect.innerHTML = '<option value="">Select a fund #…</option>' +
+        matches.map(f => `<option value="${f.id}">${escapeHtml(f.fund_number || '(no number)')}</option>`).join('');
+    numSelect.disabled = false;
+    numSelect.style.display = '';
+    showSelectedFundInfo(null);
+    loadFundBalancesFor(null);
+}
+
+function onFundBalanceNumberChange() {
+    const fundId = document.getElementById('fundBalanceNumberSelect').value;
+    const fund = currentFunds.find(f => String(f.id) === fundId);
+    showSelectedFundInfo(fund || null);
+    loadFundBalancesFor(fundId || null);
+}
+
+// Show the auto-resolved fund name as a single disabled option, so the
+// user can see which name was picked even without choosing it explicitly.
+function showResolvedFundName(fund) {
+    const sel = document.getElementById('fundBalanceNameSelect');
+    sel.innerHTML = `<option value="${escapeHtml(fund.name)}" selected>${escapeHtml(fund.name)}</option>`;
+    sel.disabled = true;
+}
+
+// One-line confirmation of the fully-resolved fund — the Fund # dropdown
+// stays hidden whenever it isn't needed to disambiguate, so this is the
+// only place a resolved-by-company-alone or resolved-by-name fund number
+// is shown to the user.
+function showSelectedFundInfo(fund) {
+    const el = document.getElementById('fundBalanceSelectedInfo');
+    if (!fund) { el.textContent = ''; return; }
+    const parts = [fund.company_name || '(No company)', fund.name];
+    if (fund.fund_number) parts.push(`#${fund.fund_number}`);
+    el.textContent = `Selected: ${parts.join(' — ')}`;
+}
+
+async function loadFundBalancesFor(fundId) {
+    selectedFundId = fundId || null;
+    if (!selectedFundId) {
         renderFundBalancesTable([]);
         renderFundBalanceChart([]);
+        return;
     }
+    const resp = await fetch(`/api/funds/${selectedFundId}/balances`);
+    const balances = await resp.json();
+    renderFundBalancesTable(balances);
+    renderFundBalanceChart(balances);
 }
 
 async function addNewFund() {
@@ -136,13 +267,14 @@ async function addNewFund() {
     const fundNumber = document.getElementById('newFundNumberInput').value.trim();
     const fundType = document.getElementById('newFundTypeInput').value;
     const ownerId = document.getElementById('newFundOwnerInput').value || null;
+    const isLiquid = document.getElementById('newFundLiquidInput').checked;
     if (!name || !companyName) { alert('Fund name and company name are required'); return; }
     const resp = await fetch('/api/funds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             name, company_name: companyName, fund_number: fundNumber,
-            fund_type: fundType, owner_id: ownerId,
+            fund_type: fundType, owner_id: ownerId, is_liquid: isLiquid,
         }),
     });
     const result = await resp.json();
@@ -150,9 +282,10 @@ async function addNewFund() {
     document.getElementById('newFundCompanyInput').value = '';
     document.getElementById('newFundNameInput').value = '';
     document.getElementById('newFundNumberInput').value = '';
+    document.getElementById('newFundLiquidInput').checked = false;
     currentFunds = result.funds;
     renderFundsList();
-    renderFundSelect();
+    renderFundBalancePicker();
 }
 
 async function toggleFundNetWorthExclude(id) {
@@ -176,21 +309,7 @@ async function deleteFund(id, name) {
     if (!resp.ok) { alert(result.error || 'Failed to delete fund'); return; }
     currentFunds = result.funds;
     renderFundsList();
-    renderFundSelect();
-}
-
-async function onFundBalanceFundChange() {
-    const select = document.getElementById('fundBalanceFundSelect');
-    selectedFundId = select.value || null;
-    if (!selectedFundId) {
-        renderFundBalancesTable([]);
-        renderFundBalanceChart([]);
-        return;
-    }
-    const resp = await fetch(`/api/funds/${selectedFundId}/balances`);
-    const balances = await resp.json();
-    renderFundBalancesTable(balances);
-    renderFundBalanceChart(balances);
+    renderFundBalancePicker();
 }
 
 function renderFundBalancesTable(balances) {

@@ -304,10 +304,11 @@ def create_fund():
     fund_type = data.get('fund_type')
     fund_number = (data.get('fund_number') or '').strip()
     owner_id = data.get('owner_id')
+    is_liquid = bool(data.get('is_liquid'))
     if not name or not fund_type or not company_name:
         return jsonify({'error': 'name, company_name, and fund_type are required'}), 400
     try:
-        updated = db.add_fund(name, fund_type, company_name, owner_id, fund_number)
+        updated = db.add_fund(name, fund_type, company_name, owner_id, fund_number, is_liquid)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'funds': updated}), 201
@@ -337,6 +338,8 @@ def patch_fund(fund_id):
         fields['owner_id'] = data['owner_id']
     if 'excluded_from_net_worth' in data:
         fields['excluded_from_net_worth'] = 1 if data['excluded_from_net_worth'] else 0
+    if 'is_liquid' in data:
+        fields['is_liquid'] = 1 if data['is_liquid'] else 0
     try:
         updated = db.update_fund(fund_id, fields)
     except ValueError as e:

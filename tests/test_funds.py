@@ -28,6 +28,7 @@ def test_init_db_migrates_old_funds_table(tmp_path):
     assert funds[0]["company_name"] == ""
     assert funds[0]["fund_number"] == ""
     assert funds[0]["excluded_from_net_worth"] == 0
+    assert funds[0]["is_liquid"] == 0
 
 
 def test_init_db_migrates_old_bank_accounts_table(tmp_path):
@@ -151,6 +152,25 @@ def test_update_fund_empty_fields_is_noop(tmp_db):
 def test_add_fund_excluded_from_net_worth_defaults_false(tmp_db):
     funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
     assert funds[0]["excluded_from_net_worth"] == 0
+
+
+def test_add_fund_is_liquid(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", is_liquid=True, db_path=tmp_db)
+    assert funds[0]["is_liquid"] == 1
+
+
+def test_add_fund_is_liquid_defaults_false(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    assert funds[0]["is_liquid"] == 0
+
+
+def test_update_fund_is_liquid(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    updated = db.update_fund(fund_id, {"is_liquid": 1}, db_path=tmp_db)
+    assert updated[0]["is_liquid"] == 1
+    restored = db.update_fund(fund_id, {"is_liquid": 0}, db_path=tmp_db)
+    assert restored[0]["is_liquid"] == 0
 
 
 def test_toggle_fund_excluded_from_net_worth(tmp_db):
@@ -397,6 +417,24 @@ def test_update_fund_route_invalid_type_returns_400(client):
 def test_update_nonexistent_fund_route_returns_400(client):
     resp = client.patch("/api/funds/9999", json={"name": "X"})
     assert resp.status_code == 400
+
+
+def test_create_fund_route_with_is_liquid(client):
+    resp = client.post("/api/funds", json={
+        "name": "Cash Fund", "fund_type": "other", "company_name": "Harel", "is_liquid": True,
+    })
+    assert resp.status_code == 201
+    fund = resp.get_json()["funds"][0]
+    assert fund["is_liquid"] == 1
+
+
+def test_patch_fund_route_toggles_is_liquid(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={"is_liquid": True})
+    assert resp.status_code == 200
+    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
+    assert fund["is_liquid"] == 1
 
 
 def test_patch_fund_route_toggles_net_worth_exclude(client):
