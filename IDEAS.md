@@ -173,15 +173,55 @@ Already in place, as a starting point:
 - Fund identity (company/name/number) and type (pension/study/investment/other) are already
   captured per fund
 
+**Risk — decided to be self-declared, not inferred.** A fund's actual risk depends on the
+specific exposure/breakdown of the underlying mechanism, which this tool has no live data
+source for (would require pulling from Israel's capital markets registry / רשות שוק ההון,
+already ruled out elsewhere in this doc as unrealistic without a live feed). Two benefits of
+self-declaration: it's the only realistically buildable option, and it keeps the tool
+descriptive ("recording your own judgment") rather than prescriptive ("assessing your risk
+for you") — important given the README's existing "not financial advice" disclaimer.
+
+Draft 5-level scale (labels shown in UI, not raw numbers — same pattern as fund type today).
+Anchored to the track names Israeli pension/study funds already use, so self-assessment maps
+onto paperwork the user already has rather than an abstract 1–5:
+
+| # | Label | Meaning | Example anchor |
+|---|---|---|---|
+| 1 | Capital Guaranteed | Value doesn't really fluctuate | Checking/savings, כספית money-market fund |
+| 2 | Low Risk | Mostly bonds; principal largely protected | מסלול סולידי / אג"ח |
+| 3 | Moderate Risk | Mixed stock/bond blend | מסלול כללי (default track for most pension/study funds) |
+| 4 | High Risk | Mostly equities | מסלול מנייתי |
+| 5 | Very High Risk | Concentrated/leveraged/single-position | Individual stocks, crypto, sector-concentrated funds |
+
+Definitions/examples live as static UI help text (educational, not advice about any specific
+fund — the tool never assigns a level, the user always does).
+
+Design details to carry into implementation:
+- Pair the scale with a short free-text note (same pattern as existing transaction notes) —
+  e.g. "70% equity, 30% bonds per my last statement" — for detail beyond the 5-level pick
+- Risk is **not** a set-once classification — a fund's underlying exposure can change (track
+  switch, manager reallocation), so the field should be easily re-editable at any time, framed
+  as "current best guess" rather than a fixed label
+
 Not yet designed:
-- [ ] Risk classification per fund (scale/categories TBD)
+- [ ] Implement the risk scale above: DB field + UI (draft definition ready, see table)
 - [ ] Growth potential classification per fund (definition TBD — marked "?" by design, still
-  an open question)
-- [ ] A combined risk-profile view — how classification feeds into a presentable summary
+  an open question; may turn out to be a derived cross-tab of Liquidity × Risk rather than
+  its own field — worth checking before building a third independent axis)
+- [ ] Liquidity: consider evolving `is_liquid` from a boolean into a tier + optional unlock
+  date (e.g. קרן השתלמות unlocks after 6 years), to support an actual liquidity-ladder view
+- [ ] A combined risk-profile view — cross-tabulating Liquidity × Risk, reusing the existing
+  Net Worth chart infrastructure sliced by these fields instead of fund type
 - [ ] Rebalancing guidance — surfacing when holdings are concentrated in one liquidity/risk
-  bucket
-- [ ] AI-based analysis of the overall financial position
-- [ ] Retirement calculator, built on top of this classification layer
+  bucket (needs an explicit decision on how prescriptive to be, given the "not financial
+  advice" disclaimer)
+- [ ] AI-based analysis of the overall financial position (would be the first non-local
+  feature in this app — needs an explicit, opt-in decision given everything today stays on
+  the user's machine)
+- [ ] Retirement calculator, built on top of this classification layer — closer than it looks,
+  since net worth, monthly contributions per fund (`fund_balances.contribution`), and cash-flow
+  burn rate (Bank Accounts tab) already exist; mainly missing a return-rate assumption per
+  risk tier to project forward
 
 ---
 
