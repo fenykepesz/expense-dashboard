@@ -149,6 +149,42 @@ with a top-level net worth view. Decided so far:
 
 ---
 
+## Fund Classification & Risk Profile (Future Vision)
+
+Big-picture goal: build a tool that identifies and enumerates all the funds a person or
+household owns — bank accounts, long-term funds, investments — so a complete picture of net
+worth emerges. From there, classify each fund by the mechanism used to hold it, along several
+dimensions:
+
+1. **Liquidity** — how quickly the money can be accessed
+2. **Risk** — how exposed the fund is to loss/volatility
+3. **Growth potential** (?) — expected return characteristics
+
+Together these let the tool present the user a **risk profile**, help them see whether their
+holdings are balanced across mechanisms, and eventually support **AI-based analysis** of their
+overall financial position. At a later stage, this classification could become the foundation
+for a **retirement calculator**.
+
+Already in place, as a starting point:
+- Net worth aggregation across bank accounts and funds exists (Net Worth tab, Total/By
+  Type/By Item views)
+- `is_liquid` boolean on funds (v1.17.0) is a first, informational step toward the Liquidity
+  dimension — not yet used for any classification or scoring
+- Fund identity (company/name/number) and type (pension/study/investment/other) are already
+  captured per fund
+
+Not yet designed:
+- [ ] Risk classification per fund (scale/categories TBD)
+- [ ] Growth potential classification per fund (definition TBD — marked "?" by design, still
+  an open question)
+- [ ] A combined risk-profile view — how classification feeds into a presentable summary
+- [ ] Rebalancing guidance — surfacing when holdings are concentrated in one liquidity/risk
+  bucket
+- [ ] AI-based analysis of the overall financial position
+- [ ] Retirement calculator, built on top of this classification layer
+
+---
+
 ## Nice to Have
 
 - [x] Dark/light theme preference persisted in localStorage (already implemented; falls back to system preference)
