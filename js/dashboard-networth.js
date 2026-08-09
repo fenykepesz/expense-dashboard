@@ -74,8 +74,15 @@ function renderNetWorthItemPicker() {
     const container = document.getElementById('netWorthItemPicker');
     container.innerHTML = '';
 
+    // "All" spans the full width as its own row — it toggles everything,
+    // so it shouldn't share a grid cell with the category columns below it.
     const allBtn = makeAllPickerButton(container);
+    allBtn.classList.add('picker-all-btn');
     container.appendChild(allBtn);
+
+    const grid = document.createElement('div');
+    grid.className = 'picker-groups';
+    container.appendChild(grid);
 
     Object.keys(NET_WORTH_TYPE_LABELS).forEach(group => {
         const members = netWorthData.series.filter(s => netWorthGroupOf(s) === group);
@@ -101,7 +108,7 @@ function renderNetWorthItemPicker() {
             row.appendChild(btn);
         });
         groupDiv.appendChild(row);
-        container.appendChild(groupDiv);
+        grid.appendChild(groupDiv);
     });
 }
 

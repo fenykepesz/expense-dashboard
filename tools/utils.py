@@ -10,7 +10,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-__version__ = "1.19.3"
+__version__ = "1.19.4"
 
 
 def load_category_rules(rules_path=None):
