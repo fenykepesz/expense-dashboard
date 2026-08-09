@@ -42,15 +42,33 @@ function setNetWorthMode(mode) {
 }
 
 // Wires up the shared "All + toggleable pills" behavior used by both the
-// item and owner pickers: clicking a pill deactivates All and toggles
-// itself; if nothing ends up active, All takes back over.
+// item and owner pickers: clicking a pill toggles itself, then the overall
+// All button and any per-category All buttons are reconciled to match.
 function wirePickerToggle(container, allBtn, btn) {
     btn.addEventListener('click', () => {
-        allBtn.classList.remove('active');
         btn.classList.toggle('active');
-        const anySelected = container.querySelectorAll('.year-btn:not(.year-btn-all).active').length > 0;
-        if (!anySelected) allBtn.classList.add('active');
+        syncPickerAllButtons(container, allBtn);
         renderNetWorth();
+    });
+}
+
+// Real pills only — excludes the overall All button and per-category All
+// buttons, both of which are bulk-select controls, not selectable items.
+function pickerItemButtons(container) {
+    return [...container.querySelectorAll('.year-btn:not(.year-btn-all):not(.category-all-btn)')];
+}
+
+// Keeps the overall All button and every per-category All button in sync
+// with the actual pill selection, after any individual/category toggle.
+function syncPickerAllButtons(container, allBtn) {
+    const itemBtns = pickerItemButtons(container);
+    const anySelected = itemBtns.some(b => b.classList.contains('active'));
+    allBtn.classList.toggle('active', !anySelected);
+
+    container.querySelectorAll('.category-all-btn').forEach(catBtn => {
+        const groupItems = itemBtns.filter(b => b.dataset.group === catBtn.dataset.group);
+        const allActive = groupItems.length > 0 && groupItems.every(b => b.classList.contains('active'));
+        catBtn.classList.toggle('active', allActive);
     });
 }
 
@@ -97,16 +115,36 @@ function renderNetWorthItemPicker() {
 
         const row = document.createElement('div');
         row.className = 'year-picker';
+
+        const categoryAllBtn = document.createElement('button');
+        categoryAllBtn.type = 'button';
+        categoryAllBtn.className = 'year-btn year-btn-all category-all-btn';
+        categoryAllBtn.textContent = 'All';
+        categoryAllBtn.dataset.group = group;
+        row.appendChild(categoryAllBtn);
+
+        const itemBtns = [];
         members.forEach(s => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'year-btn';
             btn.dataset.key = s.key;
-            btn.textContent = `${s.kind === 'bank' ? '🏦' : '💰'} ${s.name}`;
+            btn.dataset.group = group;
+            btn.innerHTML = `${s.kind === 'bank' ? '🏦' : '💰'} ${escapeHtml(s.name)}` +
+                (s.owner_name ? `<span class="picker-owner-sub">${escapeHtml(s.owner_name)}</span>` : '');
             btn.title = s.owner_name || '';
             wirePickerToggle(container, allBtn, btn);
             row.appendChild(btn);
+            itemBtns.push(btn);
         });
+
+        categoryAllBtn.addEventListener('click', () => {
+            const allActive = itemBtns.every(b => b.classList.contains('active'));
+            itemBtns.forEach(b => b.classList.toggle('active', !allActive));
+            syncPickerAllButtons(container, allBtn);
+            renderNetWorth();
+        });
+
         groupDiv.appendChild(row);
         grid.appendChild(groupDiv);
     });
@@ -146,14 +184,14 @@ function getSelectedNetWorthOwners() {
 
 function getSelectedNetWorthSeries() {
     const container = document.getElementById('netWorthItemPicker');
-    const allBtn = container.querySelector('.year-btn-all');
+    // .picker-all-btn (not the more generic .year-btn-all, which also matches
+    // each category's own "All" button) uniquely identifies the overall toggle.
+    const allBtn = container.querySelector('.picker-all-btn');
     let selected;
     if (!allBtn || allBtn.classList.contains('active')) {
         selected = netWorthData.series;
     } else {
-        const keys = new Set(
-            [...container.querySelectorAll('.year-btn:not(.year-btn-all).active')].map(b => b.dataset.key)
-        );
+        const keys = new Set(pickerItemButtons(container).filter(b => b.classList.contains('active')).map(b => b.dataset.key));
         selected = netWorthData.series.filter(s => keys.has(s.key));
     }
 
