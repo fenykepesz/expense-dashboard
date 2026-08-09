@@ -90,6 +90,11 @@ def test_add_fund_invalid_type_raises(tmp_db):
         db.add_fund("Bad Fund", "not_a_real_type", db_path=tmp_db)
 
 
+def test_add_fund_provident_fund_type(tmp_db):
+    funds = db.add_fund("Kupat Gemel", "provident_fund", company_name="Menora", db_path=tmp_db)
+    assert funds[0]["fund_type"] == "provident_fund"
+
+
 def test_add_fund_with_owner(tmp_db):
     members = db.add_household_member("Dad", tmp_db)
     owner_id = members[0]["id"]

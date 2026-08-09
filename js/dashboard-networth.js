@@ -6,12 +6,16 @@ let netWorthMode = 'total'; // 'total' | 'type' | 'item'
 // Palette lives in shared.js (CHART_PALETTE) — alias kept for readability
 const NET_WORTH_PALETTE = CHART_PALETTE;
 
+// Order matters: colorIndex for the "By Type" chart view is derived from
+// iteration order, so new types must be APPENDED, never inserted, to keep
+// existing types' colors stable for anyone who already has this view open.
 const NET_WORTH_TYPE_LABELS = {
     bank: 'Bank Accounts',
     pension: 'Pension',
     study_fund: 'Study Funds',
     investment: 'Investments',
     other: 'Other Funds',
+    provident_fund: 'Provident Funds',
 };
 
 function netWorthGroupOf(s) {

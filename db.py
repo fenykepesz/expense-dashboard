@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
 );
 """
 
-FUND_TYPES = ["pension", "study_fund", "investment", "other"]
+FUND_TYPES = ["pension", "study_fund", "provident_fund", "investment", "other"]
 
 # Self-declared risk scale. 0 = Not Rated (default); not a member of this dict,
 # validated separately wherever risk_level is accepted.

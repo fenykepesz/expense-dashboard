@@ -94,6 +94,11 @@ with a top-level net worth view. Decided so far:
   Shaham funds both named "אלטשולר שחם השתלמות כללי", disambiguated by fund number). A
   one-line "Selected: Company — Name — #Number" confirmation replaces showing resolved values
   as disabled dropdowns.
+- [x] **Provident fund type (קופת גמל) (v1.18.1)** — `provident_fund` added to `FUND_TYPES`,
+  distinct from Pension/Study Fund/Investment/Other (it's a genuinely different Israeli
+  long-term savings vehicle, not just "investment"). Appended at the end of the type lists
+  everywhere, not inserted, so existing types' colors in the Net Worth "By Type" chart stay
+  stable for anyone with that view already open.
 - [x] **Exclude funds/accounts from Net Worth (v1.16.0)** — persistent exclude/restore toggle
   (⊘/↺) on funds (Manage Funds table, new "Net Worth" status column) and bank accounts
   (Manage Bank Accounts pills), scoped to Net Worth only — an excluded item keeps counting

@@ -4,7 +4,7 @@ let editingFundId = null;
 let selectedFundId = null;
 let fundBalanceChart;
 
-const FUND_TYPE_LABELS = { pension: 'Pension', study_fund: 'Study Fund', investment: 'Investment', other: 'Other' };
+const FUND_TYPE_LABELS = { pension: 'Pension', study_fund: 'Study Fund', provident_fund: 'Provident Fund', investment: 'Investment', other: 'Other' };
 
 async function loadFundsPanel() {
     const [fundsResp, membersResp] = await Promise.all([
