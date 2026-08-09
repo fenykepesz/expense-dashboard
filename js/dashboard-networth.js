@@ -30,6 +30,7 @@ async function loadNetWorthPanel() {
     const resp = await fetch('/api/net-worth');
     netWorthData = await resp.json();
     renderNetWorthItemPicker();
+    renderNetWorthOwnerPicker();
     renderNetWorth();
 }
 
@@ -40,11 +41,20 @@ function setNetWorthMode(mode) {
     renderNetWorth();
 }
 
-// Multi-select item picker, same UX as the dashboard year picker
-function renderNetWorthItemPicker() {
-    const container = document.getElementById('netWorthItemPicker');
-    container.innerHTML = '';
+// Wires up the shared "All + toggleable pills" behavior used by both the
+// item and owner pickers: clicking a pill deactivates All and toggles
+// itself; if nothing ends up active, All takes back over.
+function wirePickerToggle(container, allBtn, btn) {
+    btn.addEventListener('click', () => {
+        allBtn.classList.remove('active');
+        btn.classList.toggle('active');
+        const anySelected = container.querySelectorAll('.year-btn:not(.year-btn-all).active').length > 0;
+        if (!anySelected) allBtn.classList.add('active');
+        renderNetWorth();
+    });
+}
 
+function makeAllPickerButton(container) {
     const allBtn = document.createElement('button');
     allBtn.type = 'button';
     allBtn.className = 'year-btn year-btn-all active';
@@ -54,34 +64,95 @@ function renderNetWorthItemPicker() {
         allBtn.classList.add('active');
         renderNetWorth();
     });
+    return allBtn;
+}
+
+// Multi-select item picker, grouped by type/Bank Accounts so the list reads
+// as categories instead of one flat wall of pills — same grouping + stable
+// order as the "By Type" chart view (NET_WORTH_TYPE_LABELS).
+function renderNetWorthItemPicker() {
+    const container = document.getElementById('netWorthItemPicker');
+    container.innerHTML = '';
+
+    const allBtn = makeAllPickerButton(container);
     container.appendChild(allBtn);
 
-    netWorthData.series.forEach(s => {
+    Object.keys(NET_WORTH_TYPE_LABELS).forEach(group => {
+        const members = netWorthData.series.filter(s => netWorthGroupOf(s) === group);
+        if (!members.length) return;
+
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'picker-group';
+        const label = document.createElement('div');
+        label.className = 'picker-group-label';
+        label.textContent = NET_WORTH_TYPE_LABELS[group];
+        groupDiv.appendChild(label);
+
+        const row = document.createElement('div');
+        row.className = 'year-picker';
+        members.forEach(s => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'year-btn';
+            btn.dataset.key = s.key;
+            btn.textContent = `${s.kind === 'bank' ? '🏦' : '💰'} ${s.name}`;
+            btn.title = s.owner_name || '';
+            wirePickerToggle(container, allBtn, btn);
+            row.appendChild(btn);
+        });
+        groupDiv.appendChild(row);
+        container.appendChild(groupDiv);
+    });
+}
+
+// Multi-select owner picker — ANDs with the item picker above, so picking
+// an owner narrows the cards/chart/table to just that owner's net worth
+// without having to hand-select every one of their funds/accounts.
+function renderNetWorthOwnerPicker() {
+    const container = document.getElementById('netWorthOwnerPicker');
+    container.innerHTML = '';
+
+    const allBtn = makeAllPickerButton(container);
+    container.appendChild(allBtn);
+
+    const owners = [...new Set(netWorthData.series.map(s => s.owner_name || 'No Owner'))]
+        .sort((a, b) => a.localeCompare(b, 'he'));
+    owners.forEach(owner => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'year-btn';
-        btn.dataset.key = s.key;
-        btn.textContent = `${s.kind === 'bank' ? '🏦' : '💰'} ${s.name}`;
-        btn.title = s.owner_name || '';
-        btn.addEventListener('click', () => {
-            allBtn.classList.remove('active');
-            btn.classList.toggle('active');
-            const anySelected = container.querySelectorAll('.year-btn:not(.year-btn-all).active').length > 0;
-            if (!anySelected) allBtn.classList.add('active');
-            renderNetWorth();
-        });
+        btn.dataset.owner = owner;
+        btn.textContent = `👤 ${owner}`;
+        wirePickerToggle(container, allBtn, btn);
         container.appendChild(btn);
     });
+}
+
+function getSelectedNetWorthOwners() {
+    const container = document.getElementById('netWorthOwnerPicker');
+    const allBtn = container.querySelector('.year-btn-all');
+    if (!allBtn || allBtn.classList.contains('active')) return null;
+    return new Set(
+        [...container.querySelectorAll('.year-btn:not(.year-btn-all).active')].map(b => b.dataset.owner)
+    );
 }
 
 function getSelectedNetWorthSeries() {
     const container = document.getElementById('netWorthItemPicker');
     const allBtn = container.querySelector('.year-btn-all');
-    if (!allBtn || allBtn.classList.contains('active')) return netWorthData.series;
-    const keys = new Set(
-        [...container.querySelectorAll('.year-btn:not(.year-btn-all).active')].map(b => b.dataset.key)
-    );
-    return netWorthData.series.filter(s => keys.has(s.key));
+    let selected;
+    if (!allBtn || allBtn.classList.contains('active')) {
+        selected = netWorthData.series;
+    } else {
+        const keys = new Set(
+            [...container.querySelectorAll('.year-btn:not(.year-btn-all).active')].map(b => b.dataset.key)
+        );
+        selected = netWorthData.series.filter(s => keys.has(s.key));
+    }
+
+    const owners = getSelectedNetWorthOwners();
+    if (owners) selected = selected.filter(s => owners.has(s.owner_name || 'No Owner'));
+    return selected;
 }
 
 // Sum series values per month; a month is null only while ALL inputs are null

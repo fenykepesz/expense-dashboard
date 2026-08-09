@@ -253,6 +253,26 @@
             font-style: italic;
         }
 
+        .picker-groups {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .picker-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .picker-group-label {
+            font-size: 0.78em;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
         .monthly-chart-container {
             margin-bottom: 40px;
         }
@@ -792,7 +812,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.19.1</span>
+            <span class="version-badge">v1.19.2</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1381,8 +1401,12 @@
                         </div>
                     </div>
                     <div class="control-group">
+                        <label>Owner:</label>
+                        <div id="netWorthOwnerPicker" class="year-picker"></div>
+                    </div>
+                    <div class="control-group">
                         <label>Include:</label>
-                        <div id="netWorthItemPicker" class="year-picker"></div>
+                        <div id="netWorthItemPicker" class="picker-groups"></div>
                     </div>
                 </div>
                 <div class="chart" style="height:380px;">
