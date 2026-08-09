@@ -324,19 +324,25 @@ def delete_household_member(member_id, db_path=None):
 # ── Funds ─────────────────────────────────────────────────────────────────────
 
 def get_funds(db_path=None):
-    """Return active (non-deleted) funds, with owner name joined, sorted by name.
+    """Return active (non-deleted) funds, with owner name and latest balance
+    joined, sorted by name.
 
     Includes funds excluded from Net Worth — that flag only affects
-    get_net_worth_series, not this listing.
+    get_net_worth_series, not this listing. latest_balance/latest_balance_date
+    are None for a fund with no recorded balance entries yet.
     """
     with _connect(db_path) as conn:
         rows = conn.execute(
             """
             SELECT f.id, f.name, f.company_name, f.fund_number, f.fund_type, f.owner_id,
                    f.excluded_from_net_worth, f.is_liquid, f.risk_level, f.risk_note,
-                   m.name AS owner_name
+                   m.name AS owner_name,
+                   fb.balance AS latest_balance, fb.date AS latest_balance_date
             FROM funds f
             LEFT JOIN household_members m ON m.id = f.owner_id
+            LEFT JOIN fund_balances fb ON fb.id = (
+                SELECT id FROM fund_balances WHERE fund_id = f.id ORDER BY date DESC LIMIT 1
+            )
             WHERE f.is_deleted = 0
             ORDER BY f.name
             """

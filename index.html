@@ -792,7 +792,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.18.2</span>
+            <span class="version-badge">v1.19.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1101,17 +1101,11 @@
                         </select>
                     </label>
                 </div>
+                <p style="color:var(--text-secondary);font-size:0.78em;margin:0 0 8px;">Click any column header to sort. Every field below is edited directly in place — text fields save when you click away, dropdowns and the checkbox save immediately.</p>
                 <div style="overflow-x:auto;">
-                    <table class="transactions-table">
-                        <thead><tr>
-                            <th>Company</th><th>Fund Name</th><th>Fund #</th><th>Type</th><th>Liquid</th>
-                            <th>Risk <span class="tooltip-icon" id="fundsRiskTooltip" title="">ℹ</span></th>
-                            <th>Owner</th><th>Net Worth</th><th></th>
-                        </tr></thead>
-                        <tbody id="fundsListBody">
-                            <tr><td colspan="9" class="no-data">Loading…</td></tr>
-                        </tbody>
-                    </table>
+                    <div id="fundsTableWrap">
+                        <table class="transactions-table"><tbody><tr><td class="no-data">Loading…</td></tr></tbody></table>
+                    </div>
                 </div>
             </div>
 

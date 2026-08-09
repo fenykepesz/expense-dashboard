@@ -94,6 +94,14 @@ with a top-level net worth view. Decided so far:
   Shaham funds both named "אלטשולר שחם השתלמות כללי", disambiguated by fund number). A
   one-line "Selected: Company — Name — #Number" confirmation replaces showing resolved values
   as disabled dropdowns.
+- [x] **Manage Funds table redesign (v1.19.0)** — (1) Type moved to the first column. (2) Every
+  field is now directly editable in place — no more click-✎-to-enter-row-edit-mode: dropdowns
+  (Type, Risk level, Owner) save immediately on change, the Liquid checkbox saves immediately,
+  text fields (Company, Fund Name, Fund #, Risk note) save on blur, matching the notes-input
+  pattern used elsewhere. (3) All columns are sortable by clicking the header (▲/▼/↕
+  indicator), blanks always sort last regardless of direction. (4) New "Latest Value" column
+  showing each fund's most recent balance + as-of date, via a correlated subquery in
+  `get_funds()` — refreshes automatically when a balance is added/deleted in the panel below.
 - [x] **More Israeli fund types (v1.18.1–v1.18.2)** — `provident_fund` (קופת גמל),
   `investment_provident_fund` (קופת גמל להשקעה), `money_market_fund` (קרן כספית), and
   `savings_policy` (פוליסת חסכון) added to `FUND_TYPES`, each a genuinely distinct long-term

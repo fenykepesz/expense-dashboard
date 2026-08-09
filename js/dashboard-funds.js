@@ -1,8 +1,9 @@
 let currentFunds = [];
 let fundMembers = [];
-let editingFundId = null;
 let selectedFundId = null;
 let fundBalanceChart;
+let fundsSortCol = 'name';
+let fundsSortDir = 1;
 
 const FUND_TYPE_LABELS = {
     pension: 'Pension', study_fund: 'Study Fund', provident_fund: 'Provident Fund',
@@ -22,11 +23,15 @@ async function loadFundsPanel() {
     const ownerOpts = '<option value="">No owner</option>' +
         fundMembers.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
     document.getElementById('newFundOwnerInput').innerHTML = ownerOpts;
-    document.getElementById('fundsRiskTooltip').title = RISK_LEVEL_TOOLTIP;
 
-    editingFundId = null;
     renderFundsList();
     renderFundBalancePicker();
+}
+
+async function refreshFundsList() {
+    const resp = await fetch('/api/funds');
+    currentFunds = await resp.json();
+    renderFundsList();
 }
 
 function fundTypeOptions(selected) {
@@ -41,102 +46,135 @@ function fundOwnerOptions(selectedId) {
     ).join('');
 }
 
+// ── Table: sortable headers, every cell directly editable ──────────────
+
+function sortFundsColumn(col) {
+    fundsSortDir = (fundsSortCol === col) ? -fundsSortDir : 1;
+    fundsSortCol = col;
+    renderFundsList();
+}
+
+function sortFunds(list) {
+    return [...list].sort((a, b) => {
+        let va = a[fundsSortCol], vb = b[fundsSortCol];
+        if (fundsSortCol === 'fund_type') { va = FUND_TYPE_LABELS[va] || va; vb = FUND_TYPE_LABELS[vb] || vb; }
+        const aEmpty = va === null || va === undefined || va === '';
+        const bEmpty = vb === null || vb === undefined || vb === '';
+        if (aEmpty && bEmpty) return 0;
+        if (aEmpty) return 1;   // blanks/unset always sort last, both directions
+        if (bEmpty) return -1;
+        if (typeof va === 'number') return fundsSortDir * (va - vb);
+        return fundsSortDir * String(va).localeCompare(String(vb), 'he');
+    });
+}
+
+function fundsTh(col, label, extraHtml = '') {
+    const active = col === fundsSortCol;
+    const arrow = active ? (fundsSortDir === 1 ? ' ▲' : ' ▼') : ' ↕';
+    return `<th onclick="sortFundsColumn('${col}')" style="cursor:pointer;white-space:nowrap;">${label}${extraHtml}<span style="opacity:${active ? 1 : 0.35};font-size:0.75em;">${arrow}</span></th>`;
+}
+
 function renderFundsList() {
-    const body = document.getElementById('fundsListBody');
-    if (!currentFunds.length) {
-        body.innerHTML = '<tr><td colspan="9" class="no-data">No funds yet — add one above.</td></tr>';
-        return;
-    }
+    const wrap = document.getElementById('fundsTableWrap');
     const typeFilter = document.getElementById('fundTypeFilter')?.value || 'all';
     const visibleFunds = typeFilter === 'all' ? currentFunds : currentFunds.filter(f => f.fund_type === typeFilter);
-    if (!visibleFunds.length) {
-        body.innerHTML = '<tr><td colspan="9" class="no-data">No funds match this filter.</td></tr>';
-        return;
+
+    let bodyHtml;
+    if (!currentFunds.length) {
+        bodyHtml = '<tr><td colspan="10" class="no-data">No funds yet — add one above.</td></tr>';
+    } else if (!visibleFunds.length) {
+        bodyHtml = '<tr><td colspan="10" class="no-data">No funds match this filter.</td></tr>';
+    } else {
+        bodyHtml = sortFunds(visibleFunds).map(renderFundRow).join('');
     }
-    body.innerHTML = visibleFunds.map(f => f.id === editingFundId ? renderFundEditRow(f) : `
+
+    const riskTooltip = escapeHtml(RISK_LEVEL_TOOLTIP);
+    wrap.innerHTML = `
+        <table class="transactions-table">
+            <thead><tr>
+                ${fundsTh('fund_type', 'Type')}
+                ${fundsTh('company_name', 'Company')}
+                ${fundsTh('name', 'Fund Name')}
+                ${fundsTh('fund_number', 'Fund #')}
+                ${fundsTh('is_liquid', 'Liquid')}
+                ${fundsTh('risk_level', 'Risk', ` <span class="tooltip-icon" title="${riskTooltip}" onclick="event.stopPropagation()">ℹ</span>`)}
+                ${fundsTh('owner_name', 'Owner')}
+                ${fundsTh('excluded_from_net_worth', 'Net Worth')}
+                ${fundsTh('latest_balance', 'Latest Value')}
+                <th></th>
+            </tr></thead>
+            <tbody>${bodyHtml}</tbody>
+        </table>
+    `;
+}
+
+function renderFundRow(f) {
+    const noteStyle = 'width:100%;max-width:140px;';
+    return `
         <tr class="${f.excluded_from_net_worth ? 'tx-excluded' : ''}">
-            <td>${escapeHtml(f.company_name || '—')}</td>
-            <td>${escapeHtml(f.name)}</td>
-            <td>${escapeHtml(f.fund_number || '—')}</td>
-            <td>${FUND_TYPE_LABELS[f.fund_type] || f.fund_type}</td>
-            <td>${f.is_liquid ? '💧 Liquid' : '—'}</td>
-            <td>${RISK_LEVEL_LABELS[f.risk_level] === 'Not Rated' ? '—' : escapeHtml(RISK_LEVEL_LABELS[f.risk_level])}${f.risk_note ? ` <span class="tooltip-icon" title="${escapeHtml(f.risk_note)}">ℹ</span>` : ''}</td>
-            <td>${f.owner_name ? escapeHtml(f.owner_name) : '—'}</td>
+            <td><select class="tx-cat-select" onchange="updateFundField(${f.id}, 'fund_type', this.value)">${fundTypeOptions(f.fund_type)}</select></td>
+            <td><input type="text" class="tx-note-input" value="${escapeHtml(f.company_name || '')}" placeholder="Company…" onblur="saveFundTextField(${f.id}, 'company_name', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+            <td><input type="text" class="tx-note-input" value="${escapeHtml(f.name)}" placeholder="Fund name…" onblur="saveFundTextField(${f.id}, 'name', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+            <td><input type="text" class="tx-note-input" value="${escapeHtml(f.fund_number || '')}" placeholder="Fund #…" onblur="saveFundTextField(${f.id}, 'fund_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+            <td style="text-align:center;"><input type="checkbox" ${f.is_liquid ? 'checked' : ''} onchange="updateFundField(${f.id}, 'is_liquid', this.checked)"></td>
+            <td>
+                <select class="tx-cat-select" style="margin-bottom:3px;" onchange="updateFundField(${f.id}, 'risk_level', parseInt(this.value, 10))">${riskLevelOptions(f.risk_level)}</select>
+                <input type="text" class="tx-note-input" style="${noteStyle}" value="${escapeHtml(f.risk_note || '')}" placeholder="Note…" onblur="saveFundTextField(${f.id}, 'risk_note', this)" onkeydown="if(event.key==='Enter')this.blur()">
+            </td>
+            <td><select class="tx-cat-select" onchange="updateFundField(${f.id}, 'owner_id', this.value || null)">${fundOwnerOptions(f.owner_id)}</select></td>
             <td>${f.excluded_from_net_worth
                 ? '<span style="color:var(--text-secondary);font-size:0.85em;">⊘ Excluded</span>'
                 : '<span style="color:var(--success-color);font-size:0.85em;">✓ Included</span>'}</td>
+            <td class="amount-cell">${f.latest_balance !== null && f.latest_balance !== undefined
+                ? `${formatCurrency(f.latest_balance)}<br><span style="font-size:0.72em;color:var(--text-secondary);font-weight:normal;">as of ${escapeHtml(f.latest_balance_date)}</span>`
+                : '—'}</td>
             <td>
                 <div class="tx-actions">
                     <button class="btn-excl" onclick="toggleFundNetWorthExclude(${f.id})" title="${f.excluded_from_net_worth ? 'Include in Net Worth' : 'Exclude from Net Worth'}">${f.excluded_from_net_worth ? '↺' : '⊘'}</button>
-                    <button class="btn-excl" onclick="startEditFund(${f.id})" title="Edit">✎</button>
                     <button class="btn-excl btn-delete" onclick="deleteFund(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')" title="Delete">🗑</button>
-                </div>
-            </td>
-        </tr>
-    `).join('');
-}
-
-function renderFundEditRow(f) {
-    const inputStyle = 'border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-primary);border-radius:5px;padding:4px 7px;font-size:0.85em;width:100%;';
-    return `
-        <tr>
-            <td><input type="text" id="editFundCompany" value="${escapeHtml(f.company_name || '')}" style="${inputStyle}"></td>
-            <td><input type="text" id="editFundName" value="${escapeHtml(f.name)}" style="${inputStyle}"></td>
-            <td><input type="text" id="editFundNumber" value="${escapeHtml(f.fund_number || '')}" style="${inputStyle}"></td>
-            <td><select id="editFundType" class="tx-cat-select">${fundTypeOptions(f.fund_type)}</select></td>
-            <td style="text-align:center;"><input type="checkbox" id="editFundLiquid" ${f.is_liquid ? 'checked' : ''}></td>
-            <td>
-                <select id="editFundRisk" class="tx-cat-select" style="margin-bottom:3px;">${riskLevelOptions(f.risk_level)}</select>
-                <input type="text" id="editFundRiskNote" placeholder="Note (optional)" value="${escapeHtml(f.risk_note || '')}" style="${inputStyle}">
-            </td>
-            <td><select id="editFundOwner" class="tx-cat-select">${fundOwnerOptions(f.owner_id)}</select></td>
-            <td style="color:var(--text-secondary);font-size:0.85em;">${f.excluded_from_net_worth ? '⊘ Excluded' : '✓ Included'}</td>
-            <td>
-                <div class="tx-actions">
-                    <button class="btn-excl" onclick="saveFundEdit(${f.id})" title="Save">✅</button>
-                    <button class="btn-excl" onclick="cancelFundEdit()" title="Cancel">✕</button>
                 </div>
             </td>
         </tr>
     `;
 }
 
-function startEditFund(id) {
-    editingFundId = id;
+// Select/checkbox fields: the change is a discrete, final action, so save
+// immediately and re-render (updates the row's own display, e.g. Type label).
+async function updateFundField(id, field, value) {
+    const resp = await fetch(`/api/funds/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to update fund'); renderFundsList(); return; }
+    currentFunds = result.funds;
     renderFundsList();
 }
 
-function cancelFundEdit() {
-    editingFundId = null;
-    renderFundsList();
-}
-
-async function saveFundEdit(id) {
-    const companyName = document.getElementById('editFundCompany').value.trim();
-    const name = document.getElementById('editFundName').value.trim();
-    const fundNumber = document.getElementById('editFundNumber').value.trim();
-    const fundType = document.getElementById('editFundType').value;
-    const isLiquid = document.getElementById('editFundLiquid').checked;
-    const riskLevel = parseInt(document.getElementById('editFundRisk').value, 10);
-    const riskNote = document.getElementById('editFundRiskNote').value.trim();
-    const ownerId = document.getElementById('editFundOwner').value || null;
-    if (!name || !companyName) { alert('Fund name and company name are required'); return; }
+// Text fields: save on blur, only if changed (matches the notes-input pattern
+// used elsewhere), and WITHOUT a full re-render — the input already shows
+// what was typed, and re-rendering mid-interaction-elsewhere would be
+// disruptive. company_name/name/fund_number feed the balance picker below,
+// so that one specifically needs a refresh.
+async function saveFundTextField(id, field, inputEl) {
+    const fund = currentFunds.find(f => f.id === id);
+    if (!fund) return;
+    const value = inputEl.value.trim();
+    const previous = fund[field] || '';
+    if (value === previous) return;
 
     const resp = await fetch(`/api/funds/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            name, company_name: companyName, fund_number: fundNumber,
-            fund_type: fundType, owner_id: ownerId, is_liquid: isLiquid,
-            risk_level: riskLevel, risk_note: riskNote,
-        }),
+        body: JSON.stringify({ [field]: value }),
     });
     const result = await resp.json();
-    if (!resp.ok) { alert(result.error || 'Failed to update fund'); return; }
+    if (!resp.ok) { alert(result.error || 'Failed to update fund'); inputEl.value = previous; return; }
     currentFunds = result.funds;
-    editingFundId = null;
-    renderFundsList();
-    renderFundBalancePicker();
+    if (field === 'company_name' || field === 'name' || field === 'fund_number') {
+        renderFundBalancePicker();
+    }
 }
 
 // ── Cascading Company → Fund Name → Fund # picker for balance entry ────
@@ -408,6 +446,7 @@ async function addFundBalanceEntry() {
     document.getElementById('newFundContribution').value = '';
     renderFundBalancesTable(result.balances);
     renderFundBalanceChart(result.balances);
+    refreshFundsList(); // Latest Value column needs to reflect the new entry
 }
 
 async function deleteFundBalanceEntry(id) {
@@ -417,4 +456,5 @@ async function deleteFundBalanceEntry(id) {
     if (!resp.ok) { alert(result.error || 'Failed to delete entry'); return; }
     renderFundBalancesTable(result.balances);
     renderFundBalanceChart(result.balances);
+    refreshFundsList(); // Latest Value column needs to reflect the deletion
 }

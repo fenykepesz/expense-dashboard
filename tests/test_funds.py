@@ -241,6 +241,23 @@ def test_update_fund_invalid_risk_level_raises(tmp_db):
         db.update_fund(funds[0]["id"], {"risk_level": 99}, db_path=tmp_db)
 
 
+def test_get_funds_latest_balance_none_when_no_entries(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    assert funds[0]["latest_balance"] is None
+    assert funds[0]["latest_balance_date"] is None
+
+
+def test_get_funds_latest_balance_picks_most_recent_date(tmp_db):
+    funds = db.add_fund("Fund A", "pension", company_name="Harel", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    db.add_fund_balance(fund_id, "2026-01-01", 10000, db_path=tmp_db)
+    db.add_fund_balance(fund_id, "2026-03-01", 12000, db_path=tmp_db)
+    db.add_fund_balance(fund_id, "2026-02-01", 11000, db_path=tmp_db)
+    updated = db.get_funds(tmp_db)
+    assert updated[0]["latest_balance"] == 12000
+    assert updated[0]["latest_balance_date"] == "2026-03-01"
+
+
 def test_delete_fund_soft_deletes(tmp_db):
     funds = db.add_fund("Temp Fund", "other", db_path=tmp_db)
     fund_id = funds[0]["id"]
