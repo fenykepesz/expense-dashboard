@@ -110,6 +110,12 @@ def test_add_fund_investment_provident_fund_type(tmp_db):
     assert funds[0]["fund_type"] == "investment_provident_fund"
 
 
+def test_add_fund_real_estate_type(tmp_db):
+    funds = db.add_fund("Primary Residence", "real_estate", company_name="N/A", is_liquid=False, db_path=tmp_db)
+    assert funds[0]["fund_type"] == "real_estate"
+    assert funds[0]["is_liquid"] == 0
+
+
 def test_add_fund_with_owner(tmp_db):
     members = db.add_household_member("Dad", tmp_db)
     owner_id = members[0]["id"]

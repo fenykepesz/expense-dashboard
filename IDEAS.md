@@ -94,6 +94,10 @@ with a top-level net worth view. Decided so far:
   Shaham funds both named "אלטשולר שחם השתלמות כללי", disambiguated by fund number). A
   one-line "Selected: Company — Name — #Number" confirmation replaces showing resolved values
   as disabled dropdowns.
+- [x] **Real Estate fund type (v1.19.1)** — `real_estate` added to `FUND_TYPES` for tracking a
+  home or other property alongside long-term funds (a fund with manually-entered balances, no
+  mortgage/liability tracking — use net equity if there's a mortgage). `NET_WORTH_TYPE_LABELS`
+  entry appended at the end, same color-stability rule as the other fund-type additions below.
 - [x] **Manage Funds table redesign (v1.19.0)** — (1) Type moved to the first column. (2) Every
   field is now directly editable in place — no more click-✎-to-enter-row-edit-mode: dropdowns
   (Type, Risk level, Owner) save immediately on change, the Liquid checkbox saves immediately,

@@ -9,7 +9,7 @@ const FUND_TYPE_LABELS = {
     pension: 'Pension', study_fund: 'Study Fund', provident_fund: 'Provident Fund',
     investment_provident_fund: 'Investment Provident Fund',
     money_market_fund: 'Money Market Fund', savings_policy: 'Savings Policy',
-    investment: 'Investment', other: 'Other',
+    investment: 'Investment', real_estate: 'Real Estate', other: 'Other',
 };
 
 async function loadFundsPanel() {

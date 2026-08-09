@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
 
 FUND_TYPES = [
     "pension", "study_fund", "provident_fund", "investment_provident_fund",
-    "money_market_fund", "savings_policy", "investment", "other",
+    "money_market_fund", "savings_policy", "investment", "real_estate", "other",
 ]
 
 # Self-declared risk scale. 0 = Not Rated (default); not a member of this dict,

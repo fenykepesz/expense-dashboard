@@ -19,6 +19,7 @@ const NET_WORTH_TYPE_LABELS = {
     money_market_fund: 'Money Market Funds',
     savings_policy: 'Savings Policies',
     investment_provident_fund: 'Investment Provident Funds',
+    real_estate: 'Real Estate',
 };
 
 function netWorthGroupOf(s) {
