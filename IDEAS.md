@@ -94,13 +94,15 @@ with a top-level net worth view. Decided so far:
   Shaham funds both named "אלטשולר שחם השתלמות כללי", disambiguated by fund number). A
   one-line "Selected: Company — Name — #Number" confirmation replaces showing resolved values
   as disabled dropdowns.
-- [x] **Net Worth: categorized Include picker + Owner filter (v1.19.2)** — (1) The "Include"
-  item picker is now grouped into labeled sections (Bank Accounts, then one per fund type
-  present) instead of one flat wall of pills — same grouping/order as the "By Type" chart view.
-  (2) New "Owner" pill picker (All + one per household member, "No Owner" bucket for
-  unassigned items) that ANDs with the Include picker: selecting an owner narrows the summary
-  cards, chart, and Latest Balances table down to just that owner's net worth, without having
-  to hand-select every one of their funds/accounts.
+- [x] **Net Worth: categorized Include picker + Owner filter (v1.19.2–v1.19.3)** — (1) The
+  "Include" item picker is now a table-like grid — Type as a column header, that type's funds
+  listed as pills underneath — instead of one flat wall of pills; same grouping/order as the
+  "By Type" chart view (v1.19.3 switched the columns from stacked rows to true side-by-side
+  CSS grid columns after the first pass wasn't table-like enough). (2) New "Owner" pill picker
+  (All + one per household member, "No Owner" bucket for unassigned items) that ANDs with the
+  Include picker: selecting an owner narrows the summary cards, chart, and Latest Balances
+  table down to just that owner's net worth, without having to hand-select every one of their
+  funds/accounts.
 - [x] **Real Estate fund type (v1.19.1)** — `real_estate` added to `FUND_TYPES` for tracking a
   home or other property alongside long-term funds (a fund with manually-entered balances, no
   mortgage/liability tracking — use net equity if there's a mortgage). `NET_WORTH_TYPE_LABELS`
