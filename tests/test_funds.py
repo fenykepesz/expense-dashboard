@@ -95,6 +95,21 @@ def test_add_fund_provident_fund_type(tmp_db):
     assert funds[0]["fund_type"] == "provident_fund"
 
 
+def test_add_fund_money_market_fund_type(tmp_db):
+    funds = db.add_fund("Keren Kaspit", "money_market_fund", company_name="Harel", db_path=tmp_db)
+    assert funds[0]["fund_type"] == "money_market_fund"
+
+
+def test_add_fund_savings_policy_type(tmp_db):
+    funds = db.add_fund("Polisat Chisachon", "savings_policy", company_name="Clal", db_path=tmp_db)
+    assert funds[0]["fund_type"] == "savings_policy"
+
+
+def test_add_fund_investment_provident_fund_type(tmp_db):
+    funds = db.add_fund("Gemel Lehaskaa", "investment_provident_fund", company_name="Meitav", db_path=tmp_db)
+    assert funds[0]["fund_type"] == "investment_provident_fund"
+
+
 def test_add_fund_with_owner(tmp_db):
     members = db.add_household_member("Dad", tmp_db)
     owner_id = members[0]["id"]
