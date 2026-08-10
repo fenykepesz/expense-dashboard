@@ -81,30 +81,40 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
-- [ ] **Stock/brokerage holdings, entered as Symbol + Quantity (proposed 2026-08-10, not yet
-  scoped/built)** — a new way of recording a fund's value for stock holdings specifically:
-  instead of typing one lump balance per month (today's pattern for every other fund type),
-  enter **Symbol** + **Quantity** + **Value Date**, and derive the rest — unit price, total
-  value, and an approximate **net value** (total minus a flat 25% tax-on-gains estimate — exact
-  formula still TBD, e.g. whether it taxes the full value or only the gain over cost basis).
-  User wants the Manage Funds table to show stock-specific columns instead of the generic
-  ones for this fund type: Brokerage Firm, Symbol, Quantity, Value Date, Stock Value (unit),
-  Total Value, Net Value.
-  - **Open question the user explicitly asked about — manual entry vs. live price lookup**:
-    fetching the unit price automatically (some market-data API) vs. just typing the
-    price-per-unit yourself at each monthly check-in, same cadence as every other fund.
-    Live lookup would be the app's **first-ever external network dependency** — everything
-    today, including bank import, is local file upload or manual entry, by design (see the
-    "Long-term funds: monthly manual balance entry — no statement parser planned initially"
-    decision above). It also brings problems this app has never had to deal with: an API
+- [x] **Stock/brokerage holdings (v1.20.0)** — a separate "Manage Stock Holdings" panel under
+  Long-Term Funds (own tables `stock_holdings`/`stock_values`, own API, own UI — not shoehorned
+  into `funds`, since the columns don't fit the generic Company/Fund Name shape). Add a holding
+  once (Symbol, Brokerage Firm, Type label Stock/ESPP/RSU, Owner, Cost Basis per unit), then
+  record Quantity + Price per unit at each check-in (upserts per holding+date, same pattern as
+  fund balances) — Value Date auto-picks the last recorded quantity into the form as a starting
+  point. Total Value and Net Value are derived, never typed: `Net Value = Total Value − 25% ×
+  max(0, Total Value − Cost Basis × Quantity)` (`db.STOCK_TAX_RATE`, `_compute_stock_value`) —
+  taxes only the gain above cost basis, matching how capital gains actually work for stock,
+  ESPP, and RSU alike once cost basis is set correctly (purchase price for stock/ESPP,
+  vesting-date fair market value for RSU — the Type label never branches the math, only the
+  cost basis does). If Cost Basis is left blank, Net Value shows "⚠ Needs cost basis" instead
+  of guessing — a holding with no cost basis is a genuinely unknown-gain state, not something
+  worth a fake default (decided against auto-filling 25%-of-value or similar, since that number
+  would look exactly as trustworthy as a real one while quietly being wrong). Counts toward Net
+  Worth (via `kind: "stock"` in `get_net_worth_series`, own `NET_WORTH_TYPE_LABELS` entry,
+  folded into the "Long-Term Funds" summary card) using Net Value when known, falling back to
+  Total Value when cost basis is unset — a holding is never silently dropped from the total
+  just because one field hasn't been filled in yet. No live price lookup — manual entry only,
+  by design; see the discussion below for why.
+  - **Manual entry over live price lookup, decided in discussion before building**: fetching
+    the unit price automatically (some market-data API) vs. typing it in at each check-in, same
+    cadence as every other fund. Live lookup would have been the app's first-ever external
+    network dependency — everything else is local file upload or manual entry, by design (see
+    the "Long-term funds: monthly manual balance entry — no statement parser planned initially"
+    decision above) — and brings problems this app has never had to deal with: an API
     key/service to pick, rate limits, currency mismatches for non-ILS symbols, "symbol not
-    found" errors, and values that are only ever "as of whenever you last opened the tab" —
-    which isn't meaningfully better than a manual price for a tool updated ~monthly anyway.
-    **Leaning manual for a first version**: keep Symbol/Quantity/unit-price as three typed
-    fields (instead of one typed total), let the app derive Total Value and Net Value — this
-    removes the multiplication/tax-math typos a lump-sum entry invites, without taking on an
-    API integration for a number that's re-typed once a month regardless. Live lookup can be
-    a later enhancement if manual entry turns out to be annoying in practice.
+    found" errors, and a value that's only ever "as of whenever you last opened the tab," which
+    isn't meaningfully better than a manual price for a tool updated ~monthly anyway. Symbol +
+    Quantity + unit-price as three typed fields (instead of one typed lump total) still gets
+    most of the benefit — the app does the multiplication/tax math instead of you, removing the
+    error-prone part, without taking on an API integration for a number re-typed once a month
+    regardless. Live lookup remains a possible later enhancement if manual entry proves
+    annoying in practice.
 - [x] **Multi-select account filter** — account filter is now toggle pills (same UX as the
   year picker) so any combination of accounts can be viewed together (v1.13.0)
 - [x] **Fund type filter, Liquid flag, cascading fund picker (v1.17.0)** — (1) Manage Funds

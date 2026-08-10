@@ -312,6 +312,13 @@
             color: var(--text-secondary);
         }
 
+        .stock-warn {
+            color: #c2410c;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: help;
+        }
+
         .year-btn.active .picker-owner-sub {
             color: rgba(255, 255, 255, 0.8);
         }
@@ -855,7 +862,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.19.5</span>
+            <span class="version-badge">v1.20.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1214,6 +1221,72 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Manage Stock Holdings panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <h3 style="margin:0;">📈 Manage Stock Holdings</h3>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input type="text" id="newStockSymbolInput" placeholder="Symbol…"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:110px;">
+                        <input type="text" id="newStockBrokerageInput" placeholder="Brokerage firm (optional)"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:180px;">
+                        <select id="newStockTypeInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                            <option value="stock">Stock</option>
+                            <option value="espp">ESPP</option>
+                            <option value="rsu">RSU</option>
+                        </select>
+                        <select id="newStockOwnerInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                            <option value="">No owner</option>
+                        </select>
+                        <input type="number" step="0.01" id="newStockCostBasisInput" placeholder="Cost basis/unit (optional)"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:180px;">
+                        <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addNewStockHolding()">+ Add</button>
+                    </div>
+                </div>
+                <p style="color:var(--text-secondary);font-size:0.78em;margin:0 0 8px;">
+                    Symbol is required. Cost Basis is the value already accounted for per unit — purchase price for
+                    stock/ESPP, fair market value at vesting for RSU — used to tax only the gain, never the full
+                    value. Leave it blank if unknown; Net Value will show a warning instead of guessing.
+                    Click any column header to sort.
+                </p>
+                <div style="overflow-x:auto;">
+                    <div id="stocksTableWrap">
+                        <table class="transactions-table"><tbody><tr><td class="no-data">Loading…</td></tr></tbody></table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Record a Stock Value panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <div style="margin-bottom:16px;">
+                    <h3 style="margin-bottom:4px;">🧾 Record a Stock Value</h3>
+                    <p style="color:var(--text-secondary);font-size:0.9em;margin:0;">
+                        Record quantity + price for any date. Adding the same holding + date again updates that entry.
+                    </p>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+                    <select id="stockValueHoldingSelect" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onStockValueHoldingChange()">
+                        <option value="">Select a holding…</option>
+                    </select>
+                    <input type="date" id="newStockValueDate" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
+                    <input type="number" step="any" id="newStockValueQuantity" placeholder="Quantity"
+                        style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:120px;">
+                    <input type="number" step="0.01" id="newStockValuePrice" placeholder="Price per unit"
+                        style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:140px;">
+                    <button class="btn btn-primary" style="height:34px;font-size:0.875em;" onclick="addStockValueEntry()">+ Add Value</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="transactions-table">
+                        <thead><tr>
+                            <th>Date</th><th>Quantity</th><th>Price (unit)</th><th></th>
+                        </tr></thead>
+                        <tbody id="stockValuesBody">
+                            <tr><td colspan="4" class="no-data">Select a holding above to see its value history.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <!-- ===== Bank Accounts Tab ===== -->
@@ -1480,6 +1553,7 @@
     <script src="js/merchants.js"></script>
     <script src="js/household.js"></script>
     <script src="js/dashboard-funds.js"></script>
+    <script src="js/dashboard-stocks.js"></script>
     <script src="js/dashboard-bank.js"></script>
     <script src="js/dashboard-networth.js"></script>
     <script src="js/backup.js"></script>

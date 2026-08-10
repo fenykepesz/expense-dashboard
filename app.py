@@ -392,6 +392,96 @@ def remove_fund_balance(balance_id):
     return jsonify({'balances': updated})
 
 
+# --- Stock Holdings ---
+
+@app.route('/api/stock-holdings')
+def get_stock_holdings():
+    return jsonify(db.get_stock_holdings())
+
+
+@app.route('/api/stock-holdings', methods=['POST'])
+def create_stock_holding():
+    data = request.get_json() or {}
+    symbol = (data.get('symbol') or '').strip().upper()
+    brokerage_firm = (data.get('brokerage_firm') or '').strip()
+    holding_type = data.get('holding_type', 'stock')
+    owner_id = data.get('owner_id')
+    cost_basis = data.get('cost_basis')
+    if not symbol:
+        return jsonify({'error': 'symbol is required'}), 400
+    try:
+        updated = db.add_stock_holding(symbol, brokerage_firm, holding_type, owner_id, cost_basis)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'holdings': updated}), 201
+
+
+@app.route('/api/stock-holdings/<int:holding_id>', methods=['PATCH'])
+def patch_stock_holding(holding_id):
+    data = request.get_json()
+    if data is None:
+        return jsonify({'error': 'request body required'}), 400
+    fields = {}
+    if 'symbol' in data:
+        symbol = (data.get('symbol') or '').strip().upper()
+        if not symbol:
+            return jsonify({'error': 'symbol cannot be empty'}), 400
+        fields['symbol'] = symbol
+    if 'brokerage_firm' in data:
+        fields['brokerage_firm'] = (data.get('brokerage_firm') or '').strip()
+    if 'holding_type' in data:
+        fields['holding_type'] = data['holding_type']
+    if 'owner_id' in data:
+        fields['owner_id'] = data['owner_id']
+    if 'cost_basis' in data:
+        fields['cost_basis'] = data['cost_basis']
+    if 'excluded_from_net_worth' in data:
+        fields['excluded_from_net_worth'] = 1 if data['excluded_from_net_worth'] else 0
+    try:
+        updated = db.update_stock_holding(holding_id, fields)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'holdings': updated})
+
+
+@app.route('/api/stock-holdings/<int:holding_id>', methods=['DELETE'])
+def remove_stock_holding(holding_id):
+    try:
+        updated = db.delete_stock_holding(holding_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'holdings': updated})
+
+
+@app.route('/api/stock-holdings/<int:holding_id>/values')
+def get_stock_values(holding_id):
+    return jsonify(db.get_stock_values(holding_id))
+
+
+@app.route('/api/stock-holdings/<int:holding_id>/values', methods=['POST'])
+def create_stock_value(holding_id):
+    data = request.get_json() or {}
+    date = data.get('date')
+    quantity = data.get('quantity')
+    price_per_unit = data.get('price_per_unit')
+    if not date or quantity is None or price_per_unit is None:
+        return jsonify({'error': 'date, quantity, and price_per_unit are required'}), 400
+    try:
+        updated = db.add_stock_value(holding_id, date, quantity, price_per_unit)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'values': updated}), 201
+
+
+@app.route('/api/stock-values/<int:value_id>', methods=['DELETE'])
+def remove_stock_value(value_id):
+    try:
+        updated = db.delete_stock_value(value_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'values': updated})
+
+
 # --- Bank Accounts ---
 
 @app.route('/api/bank-accounts')

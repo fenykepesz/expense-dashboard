@@ -16,7 +16,7 @@ function switchTab(name) {
     });
     if (name === 'merchants') { if (!merchantsLoaded) loadMerchants(); loadCategoriesPanel(); loadHouseholdMembersPanel(); }
     if (name === 'dashboard') { loadExpenseData(); loadBackupInfo(); }
-    if (name === 'funds') { loadFundsPanel(); }
+    if (name === 'funds') { loadFundsPanel(); loadStocksPanel(); }
     if (name === 'bank') { loadBankAccountsPanel(); }
     if (name === 'networth') { loadNetWorthPanel(); }
 }

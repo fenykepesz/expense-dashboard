@@ -20,10 +20,19 @@ const NET_WORTH_TYPE_LABELS = {
     savings_policy: 'Savings Policies',
     investment_provident_fund: 'Investment Provident Funds',
     real_estate: 'Real Estate',
+    stock: 'Stocks',
 };
 
 function netWorthGroupOf(s) {
-    return s.kind === 'bank' ? 'bank' : s.fund_type;
+    if (s.kind === 'bank') return 'bank';
+    if (s.kind === 'stock') return 'stock';
+    return s.fund_type;
+}
+
+function netWorthIcon(s) {
+    if (s.kind === 'bank') return '🏦';
+    if (s.kind === 'stock') return '📈';
+    return '💰';
 }
 
 async function loadNetWorthPanel() {
@@ -130,7 +139,7 @@ function renderNetWorthItemPicker() {
             btn.className = 'year-btn';
             btn.dataset.key = s.key;
             btn.dataset.group = group;
-            btn.innerHTML = `${s.kind === 'bank' ? '🏦' : '💰'} ${escapeHtml(s.name)}` +
+            btn.innerHTML = `${netWorthIcon(s)} ${escapeHtml(s.name)}` +
                 (s.owner_name ? `<span class="picker-owner-sub">${escapeHtml(s.owner_name)}</span>` : '');
             btn.title = s.owner_name || '';
             wirePickerToggle(container, allBtn, btn);
@@ -229,7 +238,7 @@ function renderNetWorthCards(selected, months) {
     }
     const last = months.length - 1;
     const total = sumSeries(selected, months.length);
-    const fundsTotal = sumSeries(selected.filter(s => s.kind === 'fund'), months.length)[last];
+    const fundsTotal = sumSeries(selected.filter(s => s.kind === 'fund' || s.kind === 'stock'), months.length)[last];
     const bankTotal = sumSeries(selected.filter(s => s.kind === 'bank'), months.length)[last];
     const change = last > 0 && total[last - 1] !== null && total[last] !== null
         ? total[last] - total[last - 1] : null;
@@ -350,7 +359,7 @@ function renderNetWorthTable(selected, months) {
         const group = NET_WORTH_TYPE_LABELS[netWorthGroupOf(s)] || '';
         return `
             <tr>
-                <td>${s.kind === 'bank' ? '🏦' : '💰'} ${escapeHtml(s.name)}</td>
+                <td>${netWorthIcon(s)} ${escapeHtml(s.name)}</td>
                 <td>${escapeHtml(group)}</td>
                 <td>${escapeHtml(s.owner_name || '—')}</td>
                 <td>${latestIdx === -1 ? '—' : escapeHtml(months[latestIdx])}</td>
