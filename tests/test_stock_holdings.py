@@ -295,6 +295,19 @@ def test_net_worth_series_includes_stock_with_net_value(tmp_db):
     assert stock_series["balances"][-1] == 950  # net value, not total
 
 
+def test_net_worth_series_includes_holding_type(tmp_db):
+    """Two holdings can share a Symbol (e.g. an RSU grant and a separate
+    ESPP purchase of the same company) — holding_type must be exposed so
+    the UI can tell them apart wherever they're identified by name alone."""
+    db.add_stock_holding("KLAC", holding_type="espp", cost_basis=162.57, db_path=tmp_db)
+    holdings = db.add_stock_holding("KLAC", holding_type="rsu", cost_basis=0, db_path=tmp_db)
+    for h in holdings:
+        db.add_stock_value(h["id"], "2026-01-01", 10, 100, db_path=tmp_db)
+    result = db.get_net_worth_series(tmp_db)
+    stock_types = {s["holding_type"] for s in result["series"] if s["kind"] == "stock"}
+    assert stock_types == {"espp", "rsu"}
+
+
 def test_net_worth_series_stock_falls_back_to_total_value_without_cost_basis(tmp_db):
     holdings = db.add_stock_holding("AAPL", db_path=tmp_db)  # no cost_basis
     holding_id = holdings[0]["id"]

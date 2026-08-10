@@ -956,7 +956,7 @@ def get_net_worth_series(db_path=None):
         ).fetchall()
         stocks = conn.execute(
             """
-            SELECT h.id, h.symbol, h.cost_basis, m.name AS owner_name
+            SELECT h.id, h.symbol, h.cost_basis, h.holding_type, m.name AS owner_name
             FROM stock_holdings h LEFT JOIN household_members m ON m.id = h.owner_id
             WHERE h.is_deleted = 0 AND h.excluded_from_net_worth = 0 ORDER BY h.symbol
             """
@@ -1041,7 +1041,7 @@ def get_net_worth_series(db_path=None):
                 balances.append(net_value if net_value is not None else total_value)
         series.append({
             "key": f"stock-{s['id']}", "kind": "stock", "name": s["symbol"],
-            "fund_type": None, "owner_name": s["owner_name"],
+            "fund_type": None, "owner_name": s["owner_name"], "holding_type": s["holding_type"],
             "balances": balances,
         })
 

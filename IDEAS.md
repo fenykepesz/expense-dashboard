@@ -81,7 +81,7 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
-- [x] **Stock/brokerage holdings (v1.20.0)** — a separate "Manage Stock Holdings" panel under
+- [x] **Stock/brokerage holdings (v1.20.0–v1.20.1)** — a separate "Manage Stock Holdings" panel under
   Long-Term Funds (own tables `stock_holdings`/`stock_values`, own API, own UI — not shoehorned
   into `funds`, since the columns don't fit the generic Company/Fund Name shape). Add a holding
   once (Symbol, Brokerage Firm, Type label Stock/ESPP/RSU, Owner, Cost Basis per unit), then
@@ -115,6 +115,18 @@ with a top-level net worth view. Decided so far:
     error-prone part, without taking on an API integration for a number re-typed once a month
     regardless. Live lookup remains a possible later enhancement if manual entry proves
     annoying in practice.
+  - **v1.20.1 follow-up, found while the user entered their real holdings**: two holdings can
+    legitimately share a Symbol — e.g. an RSU grant and a separate ESPP purchase of the same
+    company, each with a different Cost Basis. (1) The Net Worth "Include" picker's pill now
+    shows the holding Type (ESPP/RSU/Stock) as part of its sub-line alongside Owner, and the
+    Latest Balances table appends it in parentheses next to the name, so two same-symbol rows
+    stay visually distinguishable everywhere items are identified by name alone (previously only
+    the Manage Stock Holdings table itself showed Type). (2) Adding the Stocks category was the
+    9th column in the Include picker's category row — CSS Grid's `auto-fill` fixes a column
+    count for the WHOLE grid, so the 9th category stranded itself alone on an otherwise-empty
+    second row. Switched to a fixed-width flex row (each category a hard 135px, long pill labels
+    wrap instead of growing the column) with horizontal scroll as a fallback, not the primary
+    mechanism — today's 9 categories fit in one row with room to spare.
 - [x] **Multi-select account filter** — account filter is now toggle pills (same UX as the
   year picker) so any combination of accounts can be viewed together (v1.13.0)
 - [x] **Fund type filter, Liquid flag, cascading fund picker (v1.17.0)** — (1) Manage Funds

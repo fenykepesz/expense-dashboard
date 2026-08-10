@@ -35,6 +35,19 @@ function netWorthIcon(s) {
     return '💰';
 }
 
+// Owner + (for stocks) Type — two different stock holdings can share the
+// same Symbol (e.g. an RSU grant and a separate ESPP purchase of the same
+// company), so the Type needs to show wherever items are identified by
+// name alone, not just in the Manage Stock Holdings table.
+function netWorthSubLine(s) {
+    const parts = [];
+    if (s.owner_name) parts.push(s.owner_name);
+    if (s.kind === 'stock' && s.holding_type) {
+        parts.push(STOCK_HOLDING_TYPE_LABELS[s.holding_type] || s.holding_type);
+    }
+    return parts.join(' · ');
+}
+
 async function loadNetWorthPanel() {
     const resp = await fetch('/api/net-worth');
     netWorthData = await resp.json();
@@ -139,9 +152,10 @@ function renderNetWorthItemPicker() {
             btn.className = 'year-btn';
             btn.dataset.key = s.key;
             btn.dataset.group = group;
+            const subLine = netWorthSubLine(s);
             btn.innerHTML = `${netWorthIcon(s)} ${escapeHtml(s.name)}` +
-                (s.owner_name ? `<span class="picker-owner-sub">${escapeHtml(s.owner_name)}</span>` : '');
-            btn.title = s.owner_name || '';
+                (subLine ? `<span class="picker-owner-sub">${escapeHtml(subLine)}</span>` : '');
+            btn.title = subLine;
             wirePickerToggle(container, allBtn, btn);
             row.appendChild(btn);
             itemBtns.push(btn);
@@ -357,9 +371,12 @@ function renderNetWorthTable(selected, months) {
             if (s.balances[i] !== null) { latestIdx = i; break; }
         }
         const group = NET_WORTH_TYPE_LABELS[netWorthGroupOf(s)] || '';
+        const typeSuffix = (s.kind === 'stock' && s.holding_type)
+            ? ` <span style="color:var(--text-secondary);font-size:0.85em;">(${escapeHtml(STOCK_HOLDING_TYPE_LABELS[s.holding_type] || s.holding_type)})</span>`
+            : '';
         return `
             <tr>
-                <td>${netWorthIcon(s)} ${escapeHtml(s.name)}</td>
+                <td>${netWorthIcon(s)} ${escapeHtml(s.name)}${typeSuffix}</td>
                 <td>${escapeHtml(group)}</td>
                 <td>${escapeHtml(s.owner_name || '—')}</td>
                 <td>${latestIdx === -1 ? '—' : escapeHtml(months[latestIdx])}</td>

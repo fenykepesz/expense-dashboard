@@ -262,22 +262,35 @@
         }
 
         .picker-groups {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
-            gap: 14px;
-            align-items: start;
+            /* Flex row + horizontal scroll instead of a wrapping grid: a
+               grid's column count is fixed once and applies to every row,
+               so one extra category (e.g. adding Stocks) can silently
+               strand a lone column on its own orphaned row. Each column
+               has a FIXED width (not just a minimum) so long pill labels
+               wrap instead of growing the column — at 135px x 9 categories
+               this comfortably fits without scrolling on a normal-width
+               screen; the scroll is a fallback for narrower screens or
+               more categories than fit, not the primary mechanism. */
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            overflow-x: auto;
+            padding-bottom: 6px;
         }
 
         .picker-group {
             display: flex;
             flex-direction: column;
             gap: 5px;
-            padding-right: 12px;
+            flex: 0 0 auto;
+            width: 135px;
+            padding-right: 8px;
             border-right: 1px solid var(--border-color);
         }
 
         .picker-group:last-child {
             border-right: none;
+            padding-right: 0;
         }
 
         .picker-group-label {
@@ -862,7 +875,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.20.0</span>
+            <span class="version-badge">v1.20.1</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
