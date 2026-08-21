@@ -31,6 +31,8 @@ def test_init_db_migrates_old_funds_table(tmp_path):
     assert funds[0]["is_liquid"] == 0
     assert funds[0]["risk_level"] == 0
     assert funds[0]["risk_note"] == ""
+    assert funds[0]["official_fund_number"] == ""
+    assert funds[0]["fees"] == []
 
 
 def test_init_db_migrates_old_bank_accounts_table(tmp_path):
@@ -140,6 +142,23 @@ def test_add_fund_company_and_number_default_empty(tmp_db):
     funds = db.add_fund("Pension Fund", "pension", db_path=tmp_db)
     assert funds[0]["company_name"] == ""
     assert funds[0]["fund_number"] == ""
+
+
+def test_add_fund_with_official_fund_number(tmp_db):
+    funds = db.add_fund("Pension Fund", "pension", official_fund_number="OFF-999", db_path=tmp_db)
+    assert funds[0]["official_fund_number"] == "OFF-999"
+
+
+def test_add_fund_official_fund_number_defaults_empty(tmp_db):
+    funds = db.add_fund("Pension Fund", "pension", db_path=tmp_db)
+    assert funds[0]["official_fund_number"] == ""
+
+
+def test_update_fund_official_fund_number(tmp_db):
+    funds = db.add_fund("Fund A", "pension", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    updated = db.update_fund(fund_id, {"official_fund_number": "OFF-1"}, db_path=tmp_db)
+    assert updated[0]["official_fund_number"] == "OFF-1"
 
 
 def test_update_fund_renames(tmp_db):
@@ -362,6 +381,83 @@ def test_get_all_fund_balances_no_filter(tmp_db):
     assert len(db.get_fund_balances(db_path=tmp_db)) == 2
 
 
+# ── DB-level: fund fees ───────────────────────────────────────────────────────
+
+def test_get_fund_fees_empty_by_default(tmp_db):
+    funds = db.add_fund("Fund A", "pension", db_path=tmp_db)
+    assert db.get_fund_fees(funds[0]["id"], tmp_db) == []
+
+
+def test_add_fund_fee(tmp_db):
+    funds = db.add_fund("Fund A", "pension", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    updated = db.add_fund_fee(fund_id, "total", 0.65, tmp_db)
+    fund = next(f for f in updated if f["id"] == fund_id)
+    assert len(fund["fees"]) == 1
+    assert fund["fees"][0]["fee_basis"] == "total"
+    assert fund["fees"][0]["fee_percent"] == 0.65
+
+
+def test_add_fund_fee_invalid_basis_raises(tmp_db):
+    funds = db.add_fund("Fund A", "pension", db_path=tmp_db)
+    with pytest.raises(ValueError):
+        db.add_fund_fee(funds[0]["id"], "not_a_real_basis", 0.5, db_path=tmp_db)
+
+
+def test_add_fund_fee_unknown_fund_raises(tmp_db):
+    with pytest.raises(ValueError):
+        db.add_fund_fee(9999, "total", 0.5, db_path=tmp_db)
+
+
+def test_add_fund_fee_upserts_same_basis(tmp_db):
+    funds = db.add_fund("Fund A", "pension", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    db.add_fund_fee(fund_id, "total", 0.65, tmp_db)
+    updated = db.add_fund_fee(fund_id, "total", 0.50, tmp_db)
+    fund = next(f for f in updated if f["id"] == fund_id)
+    assert len(fund["fees"]) == 1
+    assert fund["fees"][0]["fee_percent"] == 0.50
+
+
+def test_add_fund_fee_multiple_bases_at_once(tmp_db):
+    """A fund can charge a Deposits fee AND a Total fee simultaneously."""
+    funds = db.add_fund("Fund A", "pension", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    db.add_fund_fee(fund_id, "deposits", 2.0, tmp_db)
+    updated = db.add_fund_fee(fund_id, "total", 0.65, tmp_db)
+    fund = next(f for f in updated if f["id"] == fund_id)
+    bases = {fee["fee_basis"] for fee in fund["fees"]}
+    assert bases == {"deposits", "total"}
+
+
+def test_delete_fund_fee(tmp_db):
+    funds = db.add_fund("Fund A", "pension", db_path=tmp_db)
+    fund_id = funds[0]["id"]
+    db.add_fund_fee(fund_id, "total", 0.65, tmp_db)
+    fee_id = db.get_fund_fees(fund_id, tmp_db)[0]["id"]
+    updated = db.delete_fund_fee(fee_id, tmp_db)
+    fund = next(f for f in updated if f["id"] == fund_id)
+    assert fund["fees"] == []
+
+
+def test_delete_nonexistent_fund_fee_raises(tmp_db):
+    with pytest.raises(ValueError):
+        db.delete_fund_fee(9999, tmp_db)
+
+
+def test_get_funds_includes_fees_for_multiple_funds_independently(tmp_db):
+    db.add_fund("Fund A", "pension", db_path=tmp_db)
+    funds = db.add_fund("Fund B", "investment", db_path=tmp_db)
+    fund_a = next(f["id"] for f in funds if f["name"] == "Fund A")
+    fund_b = next(f["id"] for f in funds if f["name"] == "Fund B")
+    db.add_fund_fee(fund_a, "total", 0.65, tmp_db)
+    updated = db.get_funds(tmp_db)
+    a = next(f for f in updated if f["id"] == fund_a)
+    b = next(f for f in updated if f["id"] == fund_b)
+    assert len(a["fees"]) == 1
+    assert b["fees"] == []
+
+
 # ── Route-level ──────────────────────────────────────────────────────────────
 
 def test_get_funds_route_empty(client):
@@ -566,3 +662,69 @@ def test_update_fund_route_clears_owner(client):
     assert resp.status_code == 200
     fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
     assert fund["owner_id"] is None
+
+
+# ── Route-level: official fund number ────────────────────────────────────────
+
+def test_create_fund_route_with_official_fund_number(client):
+    resp = client.post("/api/funds", json={
+        "name": "Fund", "fund_type": "pension", "company_name": "Harel",
+        "official_fund_number": "OFF-42",
+    })
+    assert resp.status_code == 201
+    assert resp.get_json()["funds"][0]["official_fund_number"] == "OFF-42"
+
+
+def test_patch_fund_route_updates_official_fund_number(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.patch(f"/api/funds/{fund_id}", json={"official_fund_number": "OFF-7"})
+    assert resp.status_code == 200
+    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
+    assert fund["official_fund_number"] == "OFF-7"
+
+
+# ── Route-level: fund fees ───────────────────────────────────────────────────
+
+def test_create_fund_fee_route(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.post(f"/api/funds/{fund_id}/fees", json={"fee_basis": "total", "fee_percent": 0.65})
+    assert resp.status_code == 201
+    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
+    assert fund["fees"][0]["fee_basis"] == "total"
+    assert fund["fees"][0]["fee_percent"] == 0.65
+
+
+def test_create_fund_fee_route_missing_fields_returns_400(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.post(f"/api/funds/{fund_id}/fees", json={"fee_basis": "total"})
+    assert resp.status_code == 400
+
+
+def test_create_fund_fee_route_invalid_basis_returns_400(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    resp = client.post(f"/api/funds/{fund_id}/fees", json={"fee_basis": "bogus", "fee_percent": 1})
+    assert resp.status_code == 400
+
+
+def test_create_fund_fee_route_multiple_bases(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    client.post(f"/api/funds/{fund_id}/fees", json={"fee_basis": "deposits", "fee_percent": 2.0})
+    resp = client.post(f"/api/funds/{fund_id}/fees", json={"fee_basis": "total", "fee_percent": 0.65})
+    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
+    assert {fee["fee_basis"] for fee in fund["fees"]} == {"deposits", "total"}
+
+
+def test_delete_fund_fee_route(client):
+    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
+    fund_id = create_resp.get_json()["funds"][0]["id"]
+    fee_resp = client.post(f"/api/funds/{fund_id}/fees", json={"fee_basis": "total", "fee_percent": 0.65})
+    fee_id = fee_resp.get_json()["funds"][0]["fees"][0]["id"]
+    resp = client.delete(f"/api/fund-fees/{fee_id}")
+    assert resp.status_code == 200
+    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
+    assert fund["fees"] == []

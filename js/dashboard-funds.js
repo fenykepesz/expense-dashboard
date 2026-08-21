@@ -12,6 +12,28 @@ const FUND_TYPE_LABELS = {
     investment: 'Investment', real_estate: 'Real Estate', other: 'Other',
 };
 
+// A fund can charge more than one of these at once (e.g. a deposit fee AND
+// a separate balance fee) — see FEE_BASIS_OPTIONS in db.py.
+const FEE_BASIS_OPTIONS = ['deposits', 'earnings', 'total'];
+const FEE_BASIS_LABELS = { deposits: 'Deposits', earnings: 'Earnings', total: 'Total' };
+
+const FUND_COLUMN_TOOLTIPS = {
+    fund_type: 'The category of long-term savings vehicle (pension, study fund, provident fund, etc.).',
+    company_name: 'The financial institution or insurer managing this fund.',
+    name: 'The name of this specific fund or track.',
+    fund_number: 'Your personal account/policy number for this fund, as shown on your own statements.',
+    official_fund_number: "The fund/track's official industry-wide identifier — the same for everyone invested in it, not specific to your account.",
+    is_liquid: 'Marks cash-equivalent funds you could withdraw quickly, as opposed to locked long-term savings.',
+    fees: "Annual management fee(s) this fund charges, and what they're calculated on — Deposits, Earnings, or Total balance. A fund can charge more than one at once.",
+    owner_name: 'Which household member this fund belongs to.',
+    excluded_from_net_worth: "Whether this fund counts toward the Net Worth tab's totals.",
+    latest_balance: 'The most recently recorded balance for this fund, and when it was recorded.',
+};
+
+function thTooltip(text) {
+    return ` <span class="tooltip-icon" title="${escapeHtml(text)}" onclick="event.stopPropagation()">ℹ</span>`;
+}
+
 async function loadFundsPanel() {
     const [fundsResp, membersResp] = await Promise.all([
         fetch('/api/funds'),
@@ -74,6 +96,12 @@ function fundsTh(col, label, extraHtml = '') {
     return `<th onclick="sortFundsColumn('${col}')" style="cursor:pointer;white-space:nowrap;">${label}${extraHtml}<span style="opacity:${active ? 1 : 0.35};font-size:0.75em;">${arrow}</span></th>`;
 }
 
+// Fees isn't meaningfully sortable (a fund can have 0-3 fee rows) — a plain,
+// non-clickable header with just a tooltip instead of fundsTh's sort wiring.
+function fundsThPlain(label, tooltip) {
+    return `<th style="white-space:nowrap;">${label}${thTooltip(tooltip)}</th>`;
+}
+
 function renderFundsList() {
     const wrap = document.getElementById('fundsTableWrap');
     const typeFilter = document.getElementById('fundTypeFilter')?.value || 'all';
@@ -81,31 +109,52 @@ function renderFundsList() {
 
     let bodyHtml;
     if (!currentFunds.length) {
-        bodyHtml = '<tr><td colspan="10" class="no-data">No funds yet — add one above.</td></tr>';
+        bodyHtml = '<tr><td colspan="12" class="no-data">No funds yet — add one above.</td></tr>';
     } else if (!visibleFunds.length) {
-        bodyHtml = '<tr><td colspan="10" class="no-data">No funds match this filter.</td></tr>';
+        bodyHtml = '<tr><td colspan="12" class="no-data">No funds match this filter.</td></tr>';
     } else {
         bodyHtml = sortFunds(visibleFunds).map(renderFundRow).join('');
     }
 
-    const riskTooltip = escapeHtml(RISK_LEVEL_TOOLTIP);
     wrap.innerHTML = `
         <table class="transactions-table">
             <thead><tr>
-                ${fundsTh('fund_type', 'Type')}
-                ${fundsTh('company_name', 'Company')}
-                ${fundsTh('name', 'Fund Name')}
-                ${fundsTh('fund_number', 'Fund #')}
-                ${fundsTh('is_liquid', 'Liquid')}
-                ${fundsTh('risk_level', 'Risk', ` <span class="tooltip-icon" title="${riskTooltip}" onclick="event.stopPropagation()">ℹ</span>`)}
-                ${fundsTh('owner_name', 'Owner')}
-                ${fundsTh('excluded_from_net_worth', 'Net Worth')}
-                ${fundsTh('latest_balance', 'Latest Value')}
+                ${fundsTh('fund_type', 'Type', thTooltip(FUND_COLUMN_TOOLTIPS.fund_type))}
+                ${fundsTh('company_name', 'Company', thTooltip(FUND_COLUMN_TOOLTIPS.company_name))}
+                ${fundsTh('name', 'Fund Name', thTooltip(FUND_COLUMN_TOOLTIPS.name))}
+                ${fundsTh('fund_number', 'Fund #', thTooltip(FUND_COLUMN_TOOLTIPS.fund_number))}
+                ${fundsTh('official_fund_number', 'Official Fund #', thTooltip(FUND_COLUMN_TOOLTIPS.official_fund_number))}
+                ${fundsTh('is_liquid', 'Liquid', thTooltip(FUND_COLUMN_TOOLTIPS.is_liquid))}
+                ${fundsTh('risk_level', 'Risk', thTooltip(RISK_LEVEL_TOOLTIP))}
+                ${fundsThPlain('Fees', FUND_COLUMN_TOOLTIPS.fees)}
+                ${fundsTh('owner_name', 'Owner', thTooltip(FUND_COLUMN_TOOLTIPS.owner_name))}
+                ${fundsTh('excluded_from_net_worth', 'Net Worth', thTooltip(FUND_COLUMN_TOOLTIPS.excluded_from_net_worth))}
+                ${fundsTh('latest_balance', 'Latest Value', thTooltip(FUND_COLUMN_TOOLTIPS.latest_balance))}
                 <th></th>
             </tr></thead>
             <tbody>${bodyHtml}</tbody>
         </table>
     `;
+}
+
+function renderFundFeesCell(f) {
+    const badges = (f.fees || []).map(fee => `
+        <span class="fee-badge">${escapeHtml(FEE_BASIS_LABELS[fee.fee_basis] || fee.fee_basis)} ${fee.fee_percent}%
+            <button type="button" class="fee-badge-remove" onclick="deleteFundFee(${fee.id})" title="Remove fee">×</button>
+        </span>`).join('');
+
+    const usedBases = new Set((f.fees || []).map(fee => fee.fee_basis));
+    const availableBases = FEE_BASIS_OPTIONS.filter(b => !usedBases.has(b));
+    const addRow = availableBases.length ? `
+        <div class="fee-add-row">
+            <select class="fee-basis-input" id="feeBasis-${f.id}">
+                ${availableBases.map(b => `<option value="${b}">${FEE_BASIS_LABELS[b]}</option>`).join('')}
+            </select>
+            <input type="number" step="0.01" class="fee-percent-input" id="feePercent-${f.id}" placeholder="%">
+            <button type="button" class="btn-excl" onclick="addFundFee(${f.id})" title="Add fee">+</button>
+        </div>` : '';
+
+    return `<div class="fee-badges">${badges}</div>${addRow}`;
 }
 
 function renderFundRow(f) {
@@ -116,11 +165,13 @@ function renderFundRow(f) {
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.company_name || '')}" placeholder="Company…" onblur="saveFundTextField(${f.id}, 'company_name', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.name)}" placeholder="Fund name…" onblur="saveFundTextField(${f.id}, 'name', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.fund_number || '')}" placeholder="Fund #…" onblur="saveFundTextField(${f.id}, 'fund_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+            <td><input type="text" class="tx-note-input" value="${escapeHtml(f.official_fund_number || '')}" placeholder="Official #…" onblur="saveFundTextField(${f.id}, 'official_fund_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td style="text-align:center;"><input type="checkbox" ${f.is_liquid ? 'checked' : ''} onchange="updateFundField(${f.id}, 'is_liquid', this.checked)"></td>
             <td>
                 <select class="tx-cat-select" style="margin-bottom:3px;" onchange="updateFundField(${f.id}, 'risk_level', parseInt(this.value, 10))">${riskLevelOptions(f.risk_level)}</select>
                 <input type="text" class="tx-note-input" style="${noteStyle}" value="${escapeHtml(f.risk_note || '')}" placeholder="Note…" onblur="saveFundTextField(${f.id}, 'risk_note', this)" onkeydown="if(event.key==='Enter')this.blur()">
             </td>
+            <td>${renderFundFeesCell(f)}</td>
             <td><select class="tx-cat-select" onchange="updateFundField(${f.id}, 'owner_id', this.value || null)">${fundOwnerOptions(f.owner_id)}</select></td>
             <td>${f.excluded_from_net_worth
                 ? '<span style="color:var(--text-secondary);font-size:0.85em;">⊘ Excluded</span>'
@@ -317,6 +368,7 @@ async function addNewFund() {
     const companyName = document.getElementById('newFundCompanyInput').value.trim();
     const name = document.getElementById('newFundNameInput').value.trim();
     const fundNumber = document.getElementById('newFundNumberInput').value.trim();
+    const officialFundNumber = document.getElementById('newFundOfficialNumberInput').value.trim();
     const fundType = document.getElementById('newFundTypeInput').value;
     const ownerId = document.getElementById('newFundOwnerInput').value || null;
     const isLiquid = document.getElementById('newFundLiquidInput').checked;
@@ -326,6 +378,7 @@ async function addNewFund() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             name, company_name: companyName, fund_number: fundNumber,
+            official_fund_number: officialFundNumber,
             fund_type: fundType, owner_id: ownerId, is_liquid: isLiquid,
         }),
     });
@@ -334,10 +387,36 @@ async function addNewFund() {
     document.getElementById('newFundCompanyInput').value = '';
     document.getElementById('newFundNameInput').value = '';
     document.getElementById('newFundNumberInput').value = '';
+    document.getElementById('newFundOfficialNumberInput').value = '';
     document.getElementById('newFundLiquidInput').checked = false;
     currentFunds = result.funds;
     renderFundsList();
     renderFundBalancePicker();
+}
+
+async function addFundFee(fundId) {
+    const basisSelect = document.getElementById(`feeBasis-${fundId}`);
+    const percentInput = document.getElementById(`feePercent-${fundId}`);
+    const feeBasis = basisSelect.value;
+    const feePercent = percentInput.value.trim();
+    if (feePercent === '') { alert('Enter a fee percentage'); return; }
+    const resp = await fetch(`/api/funds/${fundId}/fees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fee_basis: feeBasis, fee_percent: parseFloat(feePercent) }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to add fee'); return; }
+    currentFunds = result.funds;
+    renderFundsList();
+}
+
+async function deleteFundFee(feeId) {
+    const resp = await fetch(`/api/fund-fees/${feeId}`, { method: 'DELETE' });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to delete fee'); return; }
+    currentFunds = result.funds;
+    renderFundsList();
 }
 
 async function toggleFundNetWorthExclude(id) {

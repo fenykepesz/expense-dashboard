@@ -81,6 +81,21 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Official Fund Number, Management Fees, column tooltips (v1.21.0)** — three additions to
+  the Manage Funds table. (1) **Official Fund #** — a new field distinct from the existing
+  (personal) Fund #: the fund/track's official industry-wide identifier, shared by everyone
+  invested in it rather than specific to your account. Same optional-text treatment as Fund #,
+  available on both the add form and inline in the table. (2) **Management Fees** — a fund can
+  charge more than one fee at once (e.g. a Deposits fee AND a separate Total/balance fee
+  simultaneously — common for real Israeli pension/study/provident funds), so this is a related
+  table (`fund_fees`, `UNIQUE(fund_id, fee_basis)`) rather than one column: up to one fee per
+  basis (Deposits/Earnings/Total), rendered as small removable badges in a "Fees" column with
+  an inline add-row (basis dropdown + % input) that only offers bases not already used.
+  `add_fund_fee`/`delete_fund_fee` return the full funds list (fees embedded per fund via
+  `get_funds()`) so the table re-renders the same way any other inline edit does. (3) **Column
+  tooltips** — every column header in the Manage Funds table now has an ℹ tooltip icon
+  explaining what it means (`FUND_COLUMN_TOOLTIPS` in dashboard-funds.js, `thTooltip()` helper),
+  extending the pattern that previously only existed for the Risk column.
 - [x] **Stock/brokerage holdings (v1.20.0–v1.20.1)** — a separate "Manage Stock Holdings" panel under
   Long-Term Funds (own tables `stock_holdings`/`stock_values`, own API, own UI — not shoehorned
   into `funds`, since the columns don't fit the generic Company/Fund Name shape). Add a holding

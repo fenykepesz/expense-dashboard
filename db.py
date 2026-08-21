@@ -67,7 +67,8 @@ CREATE TABLE IF NOT EXISTS funds (
     excluded_from_net_worth INTEGER NOT NULL DEFAULT 0,
     is_liquid              INTEGER NOT NULL DEFAULT 0,
     risk_level             INTEGER NOT NULL DEFAULT 0,
-    risk_note              TEXT    NOT NULL DEFAULT ''
+    risk_note              TEXT    NOT NULL DEFAULT '',
+    official_fund_number   TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS fund_balances (
@@ -77,6 +78,14 @@ CREATE TABLE IF NOT EXISTS fund_balances (
     balance      REAL    NOT NULL,
     contribution REAL    NOT NULL DEFAULT 0,
     UNIQUE(fund_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS fund_fees (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    fund_id     INTEGER NOT NULL REFERENCES funds(id),
+    fee_basis   TEXT    NOT NULL,
+    fee_percent REAL    NOT NULL,
+    UNIQUE(fund_id, fee_basis)
 );
 
 CREATE TABLE IF NOT EXISTS bank_accounts (
@@ -134,6 +143,11 @@ FUND_TYPES = [
     "money_market_fund", "savings_policy", "investment", "real_estate", "other",
 ]
 
+# A fund can charge more than one of these at once (e.g. a deposit fee AND a
+# separate balance fee) — hence a UNIQUE(fund_id, fee_basis) row per basis,
+# not a single fee column on `funds`.
+FEE_BASIS_OPTIONS = ["deposits", "earnings", "total"]
+
 # Label only — never branches the tax math. Cost basis already captures what
 # differs between them (purchase price for stock/ESPP, vesting-date fair
 # market value for RSU); see the "Stock/brokerage holdings" IDEAS.md entry.
@@ -182,6 +196,7 @@ def init_db(db_path=None):
             ("is_liquid",               "INTEGER NOT NULL DEFAULT 0"),
             ("risk_level",              "INTEGER NOT NULL DEFAULT 0"),
             ("risk_note",               "TEXT NOT NULL DEFAULT ''"),
+            ("official_fund_number",    "TEXT NOT NULL DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE funds ADD COLUMN {col} {definition}")
@@ -359,17 +374,19 @@ def delete_household_member(member_id, db_path=None):
 # ── Funds ─────────────────────────────────────────────────────────────────────
 
 def get_funds(db_path=None):
-    """Return active (non-deleted) funds, with owner name and latest balance
-    joined, sorted by name.
+    """Return active (non-deleted) funds, with owner name, latest balance,
+    and management fees joined, sorted by name.
 
     Includes funds excluded from Net Worth — that flag only affects
     get_net_worth_series, not this listing. latest_balance/latest_balance_date
-    are None for a fund with no recorded balance entries yet.
+    are None for a fund with no recorded balance entries yet. `fees` is a
+    list of {id, fee_basis, fee_percent} — empty if none are set.
     """
     with _connect(db_path) as conn:
         rows = conn.execute(
             """
-            SELECT f.id, f.name, f.company_name, f.fund_number, f.fund_type, f.owner_id,
+            SELECT f.id, f.name, f.company_name, f.fund_number, f.official_fund_number,
+                   f.fund_type, f.owner_id,
                    f.excluded_from_net_worth, f.is_liquid, f.risk_level, f.risk_note,
                    m.name AS owner_name,
                    fb.balance AS latest_balance, fb.date AS latest_balance_date
@@ -382,7 +399,20 @@ def get_funds(db_path=None):
             ORDER BY f.name
             """
         ).fetchall()
-    return [dict(row) for row in rows]
+        fee_rows = conn.execute(
+            "SELECT id, fund_id, fee_basis, fee_percent FROM fund_fees ORDER BY fee_basis"
+        ).fetchall()
+
+    fees_by_fund = {}
+    for fr in fee_rows:
+        fees_by_fund.setdefault(fr["fund_id"], []).append(
+            {"id": fr["id"], "fee_basis": fr["fee_basis"], "fee_percent": fr["fee_percent"]}
+        )
+
+    funds = [dict(row) for row in rows]
+    for f in funds:
+        f["fees"] = fees_by_fund.get(f["id"], [])
+    return funds
 
 
 def _validate_risk_level(fields):
@@ -392,23 +422,23 @@ def _validate_risk_level(fields):
 
 
 def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="",
-             is_liquid=False, risk_level=0, risk_note="", db_path=None):
+             is_liquid=False, risk_level=0, risk_note="", official_fund_number="", db_path=None):
     """Add a new fund. Returns updated list."""
     if fund_type not in FUND_TYPES:
         raise ValueError(f'Invalid fund_type "{fund_type}". Must be one of {FUND_TYPES}.')
     _validate_risk_level({"risk_level": risk_level})
     with _connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO funds (name, company_name, fund_number, fund_type, owner_id, "
-            "is_liquid, risk_level, risk_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (name, company_name, fund_number, fund_type, owner_id,
+            "INSERT INTO funds (name, company_name, fund_number, official_fund_number, "
+            "fund_type, owner_id, is_liquid, risk_level, risk_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, company_name, fund_number, official_fund_number, fund_type, owner_id,
              1 if is_liquid else 0, risk_level, risk_note),
         )
     return get_funds(db_path)
 
 
 FUND_EDITABLE_FIELDS = {
-    "name", "company_name", "fund_number", "fund_type", "owner_id",
+    "name", "company_name", "fund_number", "official_fund_number", "fund_type", "owner_id",
     "excluded_from_net_worth", "is_liquid", "risk_level", "risk_note",
 }
 
@@ -441,6 +471,60 @@ def delete_fund(fund_id, db_path=None):
         if row is None:
             raise ValueError(f"Fund {fund_id} not found.")
         conn.execute("UPDATE funds SET is_deleted = 1 WHERE id = ?", (fund_id,))
+    return get_funds(db_path)
+
+
+# ── Fund management fees ─────────────────────────────────────────────────────
+#
+# A fund can charge more than one fee at once (e.g. a deposit fee AND a
+# separate balance fee), so this is a one-to-few related table, not columns
+# on `funds` — at most one row per (fund, basis) via the UNIQUE constraint.
+
+def get_fund_fees(fund_id=None, db_path=None):
+    """Return fee entries, optionally filtered to one fund."""
+    with _connect(db_path) as conn:
+        if fund_id is None:
+            rows = conn.execute(
+                "SELECT id, fund_id, fee_basis, fee_percent FROM fund_fees ORDER BY fund_id, fee_basis"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, fund_id, fee_basis, fee_percent FROM fund_fees "
+                "WHERE fund_id = ? ORDER BY fee_basis",
+                (fund_id,),
+            ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def add_fund_fee(fund_id, fee_basis, fee_percent, db_path=None):
+    """Add or update a fund's fee for a given basis (upsert on fund_id+fee_basis
+    — a fund has at most one fee per basis, but can have one per basis at
+    once). Returns the updated funds list, since fees render inline there."""
+    if fee_basis not in FEE_BASIS_OPTIONS:
+        raise ValueError(f'Invalid fee_basis "{fee_basis}". Must be one of {FEE_BASIS_OPTIONS}.')
+    with _connect(db_path) as conn:
+        fund = conn.execute("SELECT id FROM funds WHERE id = ?", (fund_id,)).fetchone()
+        if fund is None:
+            raise ValueError(f"Fund {fund_id} not found.")
+        conn.execute(
+            """
+            INSERT INTO fund_fees (fund_id, fee_basis, fee_percent)
+            VALUES (?, ?, ?)
+            ON CONFLICT(fund_id, fee_basis) DO UPDATE SET
+                fee_percent = excluded.fee_percent
+            """,
+            (fund_id, fee_basis, fee_percent),
+        )
+    return get_funds(db_path)
+
+
+def delete_fund_fee(fee_id, db_path=None):
+    """Remove one fee entry. Returns the updated funds list."""
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT id FROM fund_fees WHERE id = ?", (fee_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"Fund fee {fee_id} not found.")
+        conn.execute("DELETE FROM fund_fees WHERE id = ?", (fee_id,))
     return get_funds(db_path)
 
 

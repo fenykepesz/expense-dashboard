@@ -716,6 +716,65 @@
         .transactions-table th.note-col,
         .transactions-table td.note-col { width: 190px; max-width: 190px; }
 
+        .fee-badges {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            margin-bottom: 4px;
+        }
+
+        .fee-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 0.78em;
+            white-space: nowrap;
+            width: fit-content;
+        }
+
+        .fee-badge-remove {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 1em;
+            line-height: 1;
+            padding: 0;
+        }
+        .fee-badge-remove:hover {
+            color: var(--error-color);
+        }
+
+        .fee-add-row {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .fee-basis-input {
+            font-size: 0.75em;
+            padding: 2px 4px;
+            border-radius: 5px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            width: 78px;
+        }
+
+        .fee-percent-input {
+            font-size: 0.75em;
+            padding: 2px 4px;
+            border-radius: 5px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            width: 48px;
+        }
+
         .btn-excl {
             background: none;
             border: none;
@@ -875,7 +934,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.20.1</span>
+            <span class="version-badge">v1.21.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1147,6 +1206,8 @@
                         <input type="text" id="newFundNameInput" placeholder="Fund name…"
                             style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:170px;">
                         <input type="text" id="newFundNumberInput" placeholder="Fund number (optional)"
+                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:160px;">
+                        <input type="text" id="newFundOfficialNumberInput" placeholder="Official fund # (optional)"
                             style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:160px;">
                         <select id="newFundTypeInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
                             <option value="pension">Pension</option>

@@ -303,6 +303,7 @@ def create_fund():
     company_name = (data.get('company_name') or '').strip()
     fund_type = data.get('fund_type')
     fund_number = (data.get('fund_number') or '').strip()
+    official_fund_number = (data.get('official_fund_number') or '').strip()
     owner_id = data.get('owner_id')
     is_liquid = bool(data.get('is_liquid'))
     risk_level = data.get('risk_level', 0) or 0
@@ -311,7 +312,7 @@ def create_fund():
         return jsonify({'error': 'name, company_name, and fund_type are required'}), 400
     try:
         updated = db.add_fund(name, fund_type, company_name, owner_id, fund_number,
-                               is_liquid, risk_level, risk_note)
+                               is_liquid, risk_level, risk_note, official_fund_number)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'funds': updated}), 201
@@ -335,6 +336,8 @@ def patch_fund(fund_id):
         fields['company_name'] = company_name
     if 'fund_number' in data:
         fields['fund_number'] = (data.get('fund_number') or '').strip()
+    if 'official_fund_number' in data:
+        fields['official_fund_number'] = (data.get('official_fund_number') or '').strip()
     if 'fund_type' in data:
         fields['fund_type'] = data['fund_type']
     if 'owner_id' in data:
@@ -390,6 +393,29 @@ def remove_fund_balance(balance_id):
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'balances': updated})
+
+
+@app.route('/api/funds/<int:fund_id>/fees', methods=['POST'])
+def create_fund_fee(fund_id):
+    data = request.get_json() or {}
+    fee_basis = data.get('fee_basis')
+    fee_percent = data.get('fee_percent')
+    if not fee_basis or fee_percent is None:
+        return jsonify({'error': 'fee_basis and fee_percent are required'}), 400
+    try:
+        updated = db.add_fund_fee(fund_id, fee_basis, fee_percent)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'funds': updated}), 201
+
+
+@app.route('/api/fund-fees/<int:fee_id>', methods=['DELETE'])
+def remove_fund_fee(fee_id):
+    try:
+        updated = db.delete_fund_fee(fee_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'funds': updated})
 
 
 # --- Stock Holdings ---
