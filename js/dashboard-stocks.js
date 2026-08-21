@@ -78,7 +78,7 @@ function renderStocksList() {
     const wrap = document.getElementById('stocksTableWrap');
     let bodyHtml;
     if (!currentStockHoldings.length) {
-        bodyHtml = '<tr><td colspan="12" class="no-data">No stock holdings yet — add one above.</td></tr>';
+        bodyHtml = '<tr><td colspan="13" class="no-data">No stock holdings yet — add one above.</td></tr>';
     } else {
         bodyHtml = sortStocks(currentStockHoldings).map(renderStockRow).join('');
     }
@@ -95,6 +95,7 @@ function renderStocksList() {
                 ${stocksTh('holding_type', 'Type')}
                 ${stocksTh('owner_name', 'Owner')}
                 ${stocksTh('cost_basis', 'Cost Basis')}
+                ${stocksTh('isin', 'ISIN')}
                 ${stocksTh('excluded_from_net_worth', 'Net Worth')}
                 <th></th>
             </tr></thead>
@@ -123,6 +124,7 @@ function renderStockRow(h) {
             <td><select class="tx-cat-select" onchange="updateStockField(${h.id}, 'holding_type', this.value)">${stockTypeOptions(h.holding_type)}</select></td>
             <td><select class="tx-cat-select" onchange="updateStockField(${h.id}, 'owner_id', this.value || null)">${stockOwnerOptions(h.owner_id)}</select></td>
             <td><input type="number" step="0.01" class="tx-note-input" style="width:100px;" value="${h.cost_basis !== null && h.cost_basis !== undefined ? h.cost_basis : ''}" placeholder="Not set" onblur="saveStockCostBasis(${h.id}, this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+            <td><input type="text" class="tx-note-input" style="width:110px;" value="${escapeHtml(h.isin || '')}" placeholder="ISIN…" onblur="saveStockTextField(${h.id}, 'isin', this)" onkeydown="if(event.key==='Enter')this.blur()" title="Set this to include this direct holding in the Look-Through Direct + Indirect merge."></td>
             <td>${h.excluded_from_net_worth
                 ? '<span style="color:var(--text-secondary);font-size:0.85em;">⊘ Excluded</span>'
                 : '<span style="color:var(--success-color);font-size:0.85em;">✓ Included</span>'}</td>

@@ -304,6 +304,8 @@ def create_fund():
     fund_type = data.get('fund_type')
     fund_number = (data.get('fund_number') or '').strip()
     official_fund_number = (data.get('official_fund_number') or '').strip()
+    track_number = (data.get('track_number') or '').strip()
+    institution_reg_number = (data.get('institution_reg_number') or '').strip()
     owner_id = data.get('owner_id')
     is_liquid = bool(data.get('is_liquid'))
     risk_level = data.get('risk_level', 0) or 0
@@ -312,7 +314,8 @@ def create_fund():
         return jsonify({'error': 'name, company_name, and fund_type are required'}), 400
     try:
         updated = db.add_fund(name, fund_type, company_name, owner_id, fund_number,
-                               is_liquid, risk_level, risk_note, official_fund_number)
+                               is_liquid, risk_level, risk_note, official_fund_number,
+                               track_number, institution_reg_number)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'funds': updated}), 201
@@ -338,6 +341,10 @@ def patch_fund(fund_id):
         fields['fund_number'] = (data.get('fund_number') or '').strip()
     if 'official_fund_number' in data:
         fields['official_fund_number'] = (data.get('official_fund_number') or '').strip()
+    if 'track_number' in data:
+        fields['track_number'] = (data.get('track_number') or '').strip()
+    if 'institution_reg_number' in data:
+        fields['institution_reg_number'] = (data.get('institution_reg_number') or '').strip()
     if 'fund_type' in data:
         fields['fund_type'] = data['fund_type']
     if 'owner_id' in data:
@@ -433,10 +440,11 @@ def create_stock_holding():
     holding_type = data.get('holding_type', 'stock')
     owner_id = data.get('owner_id')
     cost_basis = data.get('cost_basis')
+    isin = (data.get('isin') or '').strip().upper()
     if not symbol:
         return jsonify({'error': 'symbol is required'}), 400
     try:
-        updated = db.add_stock_holding(symbol, brokerage_firm, holding_type, owner_id, cost_basis)
+        updated = db.add_stock_holding(symbol, brokerage_firm, holding_type, owner_id, cost_basis, isin)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'holdings': updated}), 201
@@ -461,6 +469,8 @@ def patch_stock_holding(holding_id):
         fields['owner_id'] = data['owner_id']
     if 'cost_basis' in data:
         fields['cost_basis'] = data['cost_basis']
+    if 'isin' in data:
+        fields['isin'] = (data.get('isin') or '').strip().upper()
     if 'excluded_from_net_worth' in data:
         fields['excluded_from_net_worth'] = 1 if data['excluded_from_net_worth'] else 0
     try:
@@ -506,6 +516,89 @@ def remove_stock_value(value_id):
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'values': updated})
+
+
+# --- Look-Through Holdings ---
+
+@app.route('/api/lookthrough/import', methods=['POST'])
+def lookthrough_import_preview():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    f = request.files['file']
+    filename = f.filename or ''
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
+        f.save(tmp.name)
+        tmp_path = tmp.name
+
+    try:
+        from holdings_filing_to_json import parse_holdings_filing
+        result = parse_holdings_filing(tmp_path, db.get_funds())
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        os.unlink(tmp_path)
+
+    result['source_filename'] = filename
+    matched_fund_ids = sorted({r['fund_id'] for r in result['rows']})
+    result['matched_fund_ids'] = matched_fund_ids
+    return jsonify(result)
+
+
+@app.route('/api/lookthrough/import/confirm', methods=['POST'])
+def lookthrough_import_confirm():
+    data = request.get_json()
+    if not data or 'rows' not in data:
+        return jsonify({'error': 'No parsed filing data provided'}), 400
+
+    try:
+        _create_backup()
+    except Exception:
+        pass
+
+    result = db.replace_fund_holdings_filing(
+        data.get('institution_reg_number', ''),
+        data.get('institution_name', ''),
+        data.get('period_year'),
+        data.get('period_quarter'),
+        data['rows'],
+        data.get('source_filename', ''),
+    )
+    return jsonify(result), 201
+
+
+@app.route('/api/lookthrough/filings')
+def get_holdings_filings():
+    return jsonify(db.get_holdings_filings())
+
+
+@app.route('/api/lookthrough/filings/<int:filing_id>', methods=['DELETE'])
+def remove_holdings_filing(filing_id):
+    try:
+        updated = db.delete_holdings_filing(filing_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify(updated)
+
+
+@app.route('/api/lookthrough/securities')
+def get_security_holdings():
+    return jsonify(db.get_security_holdings())
+
+
+@app.route('/api/lookthrough/overlap')
+def get_overlap_holdings():
+    return jsonify(db.get_overlap_holdings())
+
+
+@app.route('/api/lookthrough/concentration')
+def get_concentration_rollups():
+    return jsonify(db.get_concentration_rollups())
+
+
+@app.route('/api/lookthrough/merged')
+def get_merged_direct_indirect():
+    return jsonify(db.get_merged_direct_indirect())
 
 
 # --- Bank Accounts ---

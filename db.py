@@ -68,7 +68,9 @@ CREATE TABLE IF NOT EXISTS funds (
     is_liquid              INTEGER NOT NULL DEFAULT 0,
     risk_level             INTEGER NOT NULL DEFAULT 0,
     risk_note              TEXT    NOT NULL DEFAULT '',
-    official_fund_number   TEXT    NOT NULL DEFAULT ''
+    official_fund_number   TEXT    NOT NULL DEFAULT '',
+    track_number           TEXT    NOT NULL DEFAULT '',
+    institution_reg_number TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS fund_balances (
@@ -125,7 +127,8 @@ CREATE TABLE IF NOT EXISTS stock_holdings (
     cost_basis              REAL, -- intentionally nullable: 0 is a valid cost basis,
                                   -- NULL means "not entered yet" (see _compute_stock_value)
     is_deleted              INTEGER NOT NULL DEFAULT 0,
-    excluded_from_net_worth INTEGER NOT NULL DEFAULT 0
+    excluded_from_net_worth INTEGER NOT NULL DEFAULT 0,
+    isin                    TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS stock_values (
@@ -135,6 +138,34 @@ CREATE TABLE IF NOT EXISTS stock_values (
     quantity       REAL    NOT NULL,
     price_per_unit REAL    NOT NULL,
     UNIQUE(holding_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS holdings_filings (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    institution_reg_number TEXT    NOT NULL,
+    institution_name       TEXT    NOT NULL DEFAULT '',
+    period_year            INTEGER NOT NULL,
+    period_quarter         INTEGER NOT NULL,
+    source_filename        TEXT    NOT NULL DEFAULT '',
+    imported_at            TEXT    NOT NULL DEFAULT '',
+    is_deleted             INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(institution_reg_number, period_year, period_quarter)
+);
+
+CREATE TABLE IF NOT EXISTS fund_holdings (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    filing_id       INTEGER NOT NULL REFERENCES holdings_filings(id),
+    fund_id         INTEGER NOT NULL REFERENCES funds(id),
+    instrument_type TEXT    NOT NULL,
+    issuer_name     TEXT    NOT NULL DEFAULT '',
+    issuer_number   TEXT    NOT NULL DEFAULT '',
+    security_name   TEXT    NOT NULL DEFAULT '',
+    security_number TEXT    NOT NULL DEFAULT '',
+    pct_of_track    REAL    NOT NULL DEFAULT 0,
+    fair_value_ils  REAL    NOT NULL DEFAULT 0,
+    country         TEXT    NOT NULL DEFAULT '',
+    sector          TEXT    NOT NULL DEFAULT '',
+    currency        TEXT    NOT NULL DEFAULT ''
 );
 """
 
@@ -147,6 +178,15 @@ FUND_TYPES = [
 # separate balance fee) — hence a UNIQUE(fund_id, fee_basis) row per basis,
 # not a single fee column on `funds`.
 FEE_BASIS_OPTIONS = ["deposits", "earnings", "total"]
+
+# Kept granular (tradable/non-tradable variants stay distinct) rather than
+# collapsed, matching the look-through feature's "full precision, no cutoffs"
+# design — see IDEAS.md.
+INSTRUMENT_TYPES = [
+    "cash", "govt_bond", "corp_bond", "equity_traded", "equity_nontraded",
+    "etf", "mutual_fund", "warrant", "option", "future", "structured_product",
+    "investment_fund", "loan", "deposit", "real_estate", "other",
+]
 
 # Label only — never branches the tax math. Cost basis already captures what
 # differs between them (purchase price for stock/ESPP, vesting-date fair
@@ -197,6 +237,8 @@ def init_db(db_path=None):
             ("risk_level",              "INTEGER NOT NULL DEFAULT 0"),
             ("risk_note",               "TEXT NOT NULL DEFAULT ''"),
             ("official_fund_number",    "TEXT NOT NULL DEFAULT ''"),
+            ("track_number",            "TEXT NOT NULL DEFAULT ''"),
+            ("institution_reg_number",  "TEXT NOT NULL DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE funds ADD COLUMN {col} {definition}")
@@ -210,6 +252,22 @@ def init_db(db_path=None):
         ]:
             try:
                 conn.execute(f"ALTER TABLE bank_accounts ADD COLUMN {col} {definition}")
+            except sqlite3.OperationalError:
+                pass
+        # Migrate old stock_holdings columns
+        for col, definition in [
+            ("isin", "TEXT NOT NULL DEFAULT ''"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE stock_holdings ADD COLUMN {col} {definition}")
+            except sqlite3.OperationalError:
+                pass
+        # Migrate old fund_holdings columns
+        for col, definition in [
+            ("fair_value_ils", "REAL NOT NULL DEFAULT 0"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE fund_holdings ADD COLUMN {col} {definition}")
             except sqlite3.OperationalError:
                 pass
         # Seed categories if the table is empty
@@ -386,6 +444,7 @@ def get_funds(db_path=None):
         rows = conn.execute(
             """
             SELECT f.id, f.name, f.company_name, f.fund_number, f.official_fund_number,
+                   f.track_number, f.institution_reg_number,
                    f.fund_type, f.owner_id,
                    f.excluded_from_net_worth, f.is_liquid, f.risk_level, f.risk_note,
                    m.name AS owner_name,
@@ -421,24 +480,52 @@ def _validate_risk_level(fields):
         raise ValueError(f'Invalid risk_level "{fields["risk_level"]}". Must be 0 or one of {list(RISK_LEVELS)}.')
 
 
+def _validate_unique_track_key(conn, institution_reg_number, track_number, exclude_fund_id=None):
+    """A fund's (institution_reg_number, track_number) pair, when both are
+    set, must be unique among active funds — two of the user's own funds
+    resolving to the same look-through filing rows would make aggregation
+    ambiguous (which fund's balance does a matched row actually belong to?).
+    """
+    if not institution_reg_number or not track_number:
+        return
+    query = (
+        "SELECT id FROM funds WHERE is_deleted = 0 "
+        "AND institution_reg_number = ? AND track_number = ?"
+    )
+    params = [institution_reg_number, track_number]
+    if exclude_fund_id is not None:
+        query += " AND id != ?"
+        params.append(exclude_fund_id)
+    if conn.execute(query, params).fetchone():
+        raise ValueError(
+            f'Another fund already uses institution "{institution_reg_number}" '
+            f'+ track "{track_number}".'
+        )
+
+
 def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="",
-             is_liquid=False, risk_level=0, risk_note="", official_fund_number="", db_path=None):
+             is_liquid=False, risk_level=0, risk_note="", official_fund_number="",
+             track_number="", institution_reg_number="", db_path=None):
     """Add a new fund. Returns updated list."""
     if fund_type not in FUND_TYPES:
         raise ValueError(f'Invalid fund_type "{fund_type}". Must be one of {FUND_TYPES}.')
     _validate_risk_level({"risk_level": risk_level})
     with _connect(db_path) as conn:
+        _validate_unique_track_key(conn, institution_reg_number, track_number)
         conn.execute(
             "INSERT INTO funds (name, company_name, fund_number, official_fund_number, "
-            "fund_type, owner_id, is_liquid, risk_level, risk_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (name, company_name, fund_number, official_fund_number, fund_type, owner_id,
-             1 if is_liquid else 0, risk_level, risk_note),
+            "track_number, institution_reg_number, fund_type, owner_id, is_liquid, "
+            "risk_level, risk_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, company_name, fund_number, official_fund_number, track_number,
+             institution_reg_number, fund_type, owner_id, 1 if is_liquid else 0,
+             risk_level, risk_note),
         )
     return get_funds(db_path)
 
 
 FUND_EDITABLE_FIELDS = {
-    "name", "company_name", "fund_number", "official_fund_number", "fund_type", "owner_id",
+    "name", "company_name", "fund_number", "official_fund_number", "track_number",
+    "institution_reg_number", "fund_type", "owner_id",
     "excluded_from_net_worth", "is_liquid", "risk_level", "risk_note",
 }
 
@@ -453,9 +540,15 @@ def update_fund(fund_id, fields, db_path=None):
         raise ValueError(f'Invalid fund_type "{fields["fund_type"]}". Must be one of {FUND_TYPES}.')
     _validate_risk_level(fields)
     with _connect(db_path) as conn:
-        row = conn.execute("SELECT id FROM funds WHERE id = ?", (fund_id,)).fetchone()
+        row = conn.execute(
+            "SELECT institution_reg_number, track_number FROM funds WHERE id = ?", (fund_id,)
+        ).fetchone()
         if row is None:
             raise ValueError(f"Fund {fund_id} not found.")
+        if "institution_reg_number" in fields or "track_number" in fields:
+            resolved_inst = fields.get("institution_reg_number", row["institution_reg_number"])
+            resolved_track = fields.get("track_number", row["track_number"])
+            _validate_unique_track_key(conn, resolved_inst, resolved_track, exclude_fund_id=fund_id)
         set_clause = ", ".join(f"{c} = ?" for c in cols)
         conn.execute(
             f"UPDATE funds SET {set_clause} WHERE id = ?",
@@ -601,7 +694,7 @@ def get_stock_holdings(db_path=None):
         rows = conn.execute(
             """
             SELECT h.id, h.symbol, h.brokerage_firm, h.holding_type, h.owner_id,
-                   h.cost_basis, h.excluded_from_net_worth, m.name AS owner_name,
+                   h.cost_basis, h.excluded_from_net_worth, h.isin, m.name AS owner_name,
                    sv.date AS latest_date, sv.quantity AS latest_quantity,
                    sv.price_per_unit AS latest_price
             FROM stock_holdings h
@@ -627,21 +720,22 @@ def get_stock_holdings(db_path=None):
 
 
 def add_stock_holding(symbol, brokerage_firm="", holding_type="stock", owner_id=None,
-                       cost_basis=None, db_path=None):
+                       cost_basis=None, isin="", db_path=None):
     """Add a new stock holding. Returns updated list."""
     if holding_type not in STOCK_HOLDING_TYPES:
         raise ValueError(f'Invalid holding_type "{holding_type}". Must be one of {STOCK_HOLDING_TYPES}.')
     with _connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO stock_holdings (symbol, brokerage_firm, holding_type, owner_id, cost_basis) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (symbol, brokerage_firm, holding_type, owner_id, cost_basis),
+            "INSERT INTO stock_holdings (symbol, brokerage_firm, holding_type, owner_id, "
+            "cost_basis, isin) VALUES (?, ?, ?, ?, ?, ?)",
+            (symbol, brokerage_firm, holding_type, owner_id, cost_basis, isin),
         )
     return get_stock_holdings(db_path)
 
 
 STOCK_HOLDING_EDITABLE_FIELDS = {
-    "symbol", "brokerage_firm", "holding_type", "owner_id", "cost_basis", "excluded_from_net_worth",
+    "symbol", "brokerage_firm", "holding_type", "owner_id", "cost_basis",
+    "excluded_from_net_worth", "isin",
 }
 
 
@@ -728,6 +822,340 @@ def delete_stock_value(value_id, db_path=None):
         holding_id = row["holding_id"]
         conn.execute("DELETE FROM stock_values WHERE id = ?", (value_id,))
     return get_stock_values(holding_id, db_path)
+
+
+# ── Look-through holdings ────────────────────────────────────────────────────
+#
+# One quarterly regulatory filing (holdings_filings) per institution, each
+# holding a snapshot of security-level rows (fund_holdings) already resolved
+# to a specific fund_id and scoped to the user's own tracks at parse time —
+# aggregation here never needs to re-derive which fund a row belongs to.
+
+def replace_fund_holdings_filing(institution_reg_number, institution_name, period_year,
+                                  period_quarter, rows, source_filename="", db_path=None):
+    """Upsert one institution-quarter filing and replace all of its holdings
+    rows. `rows` is a list of dicts: fund_id, instrument_type, issuer_name,
+    issuer_number, security_name, security_number, pct_of_track,
+    fair_value_ils, country, sector, currency. Re-uploading the SAME
+    (institution, year, quarter) is a
+    full replace, not an append — a filing is a point-in-time snapshot, and
+    companies do file corrected re-submissions. Uploading a genuinely new
+    quarter is a separate filing (new row), so history isn't lost."""
+    imported_at = datetime.now().isoformat(timespec="seconds")
+    with _connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO holdings_filings
+                (institution_reg_number, institution_name, period_year, period_quarter,
+                 source_filename, imported_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(institution_reg_number, period_year, period_quarter) DO UPDATE SET
+                institution_name = excluded.institution_name,
+                source_filename = excluded.source_filename,
+                imported_at = excluded.imported_at,
+                is_deleted = 0
+            """,
+            (institution_reg_number, institution_name, period_year, period_quarter,
+             source_filename, imported_at),
+        )
+        filing_id = conn.execute(
+            "SELECT id FROM holdings_filings WHERE institution_reg_number = ? "
+            "AND period_year = ? AND period_quarter = ?",
+            (institution_reg_number, period_year, period_quarter),
+        ).fetchone()["id"]
+        conn.execute("DELETE FROM fund_holdings WHERE filing_id = ?", (filing_id,))
+        conn.executemany(
+            """
+            INSERT INTO fund_holdings
+                (filing_id, fund_id, instrument_type, issuer_name, issuer_number,
+                 security_name, security_number, pct_of_track, fair_value_ils,
+                 country, sector, currency)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (filing_id, r["fund_id"], r["instrument_type"], r.get("issuer_name", ""),
+                 r.get("issuer_number", ""), r.get("security_name", ""),
+                 r.get("security_number", ""), r.get("pct_of_track", 0),
+                 r.get("fair_value_ils", 0), r.get("country", ""),
+                 r.get("sector", ""), r.get("currency", ""))
+                for r in rows
+            ],
+        )
+    return {"filing_id": filing_id, "inserted": len(rows)}
+
+
+def get_holdings_filings(db_path=None):
+    """Return active filings, newest period first."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, institution_reg_number, institution_name, period_year, "
+            "period_quarter, source_filename, imported_at FROM holdings_filings "
+            "WHERE is_deleted = 0 ORDER BY period_year DESC, period_quarter DESC, institution_name"
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def delete_holdings_filing(filing_id, db_path=None):
+    """Soft-delete a filing. Returns updated list."""
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT id FROM holdings_filings WHERE id = ?", (filing_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"Holdings filing {filing_id} not found.")
+        conn.execute("UPDATE holdings_filings SET is_deleted = 1 WHERE id = ?", (filing_id,))
+    return get_holdings_filings(db_path)
+
+
+def _latest_filing_ids(conn):
+    """Among active filings, the id of the latest (period_year, period_quarter)
+    per institution — the "current state" rule every look-through aggregation
+    read uses. A stale filing for an institution that's since been
+    superseded never contributes once a newer one for that same institution
+    exists."""
+    rows = conn.execute(
+        "SELECT id, institution_reg_number, period_year, period_quarter "
+        "FROM holdings_filings WHERE is_deleted = 0"
+    ).fetchall()
+    latest = {}
+    for r in rows:
+        key = r["institution_reg_number"]
+        period = (r["period_year"], r["period_quarter"])
+        if key not in latest or period > latest[key][0]:
+            latest[key] = (period, r["id"])
+    return {v[1] for v in latest.values()}
+
+
+def get_security_holdings(db_path=None):
+    """Per-security look-through exposure across every active fund, using
+    the latest filing per institution. Grouped by (issuer_number,
+    security_number) — falling back to (issuer_number, security_name) for
+    rows that structurally lack a security number (cash, loans, deposits),
+    then (instrument_type, issuer_name) as a last resort — never by name
+    alone when an ID exists, per the look-through feature's core matching
+    decision.
+
+    Dollar value comes directly from each row's `fair_value_ils` (the
+    filing's own absolute fair-value column, already scoped to that
+    specific track) — NOT from fund_balances × pct_of_track. That formula
+    was tried first and confirmed wrong against a real filing: the
+    "% of track" column actually sums to ~100% WITHIN EACH INSTRUMENT-TYPE
+    SHEET for a track, not across the track's total value, so multiplying
+    it by the fund's whole balance made every instrument category
+    independently claim ~100% of the fund. fair_value_ils has no such
+    problem and doesn't depend on fund_balances being in sync with the
+    filing period at all.
+
+    Divergent sector/country/currency across rows grouped as "the same
+    security" (independent filers can classify identically-keyed securities
+    differently) sets `classification_conflict` and leaves that field None
+    rather than silently picking one — see `*_values` for what was seen.
+    """
+    with _connect(db_path) as conn:
+        latest_ids = _latest_filing_ids(conn)
+        if not latest_ids:
+            return {"securities": [], "active_funds": []}
+        placeholders = ",".join(["?"] * len(latest_ids))
+        holding_rows = conn.execute(
+            f"""
+            SELECT fh.fund_id, fh.instrument_type, fh.issuer_name, fh.issuer_number,
+                   fh.security_name, fh.security_number, fh.pct_of_track,
+                   fh.fair_value_ils, fh.country, fh.sector, fh.currency,
+                   f.name AS fund_name, f.fund_type
+            FROM fund_holdings fh
+            JOIN funds f ON f.id = fh.fund_id AND f.is_deleted = 0
+            WHERE fh.filing_id IN ({placeholders})
+            """,
+            list(latest_ids),
+        ).fetchall()
+
+    groups = {}
+    active_funds = {}
+    for r in holding_rows:
+        active_funds[r["fund_id"]] = {
+            "id": r["fund_id"], "name": r["fund_name"], "fund_type": r["fund_type"],
+        }
+
+        if r["security_number"]:
+            key = ("id", r["issuer_number"], r["security_number"])
+        elif r["security_name"]:
+            key = ("name", r["issuer_number"], r["security_name"])
+        else:
+            key = ("type", r["instrument_type"], r["issuer_name"])
+
+        g = groups.setdefault(key, {
+            "issuer_name": r["issuer_name"], "issuer_number": r["issuer_number"],
+            "security_name": r["security_name"] or r["issuer_name"],
+            "security_number": r["security_number"], "instrument_type": r["instrument_type"],
+            "combined_value": 0.0, "by_fund": {},
+            "_countries": set(), "_sectors": set(), "_currencies": set(),
+        })
+
+        value = r["fair_value_ils"]
+        g["combined_value"] += value
+        g["by_fund"][r["fund_id"]] = g["by_fund"].get(r["fund_id"], 0.0) + value
+        if r["country"]:
+            g["_countries"].add(r["country"])
+        if r["sector"]:
+            g["_sectors"].add(r["sector"])
+        if r["currency"]:
+            g["_currencies"].add(r["currency"])
+
+    securities = []
+    for g in groups.values():
+        g["fund_count"] = len(g["by_fund"])
+        g["country_values"] = sorted(g.pop("_countries"))
+        g["sector_values"] = sorted(g.pop("_sectors"))
+        g["currency_values"] = sorted(g.pop("_currencies"))
+        g["classification_conflict"] = (
+            len(g["country_values"]) > 1 or len(g["sector_values"]) > 1 or len(g["currency_values"]) > 1
+        )
+        g["country"] = g["country_values"][0] if len(g["country_values"]) == 1 else None
+        g["sector"] = g["sector_values"][0] if len(g["sector_values"]) == 1 else None
+        g["currency"] = g["currency_values"][0] if len(g["currency_values"]) == 1 else None
+        g["combined_value"] = round(g["combined_value"], 2)
+        g["by_fund"] = {k: round(v, 2) for k, v in g["by_fund"].items()}
+        securities.append(g)
+
+    securities.sort(key=lambda s: s["combined_value"], reverse=True)
+    return {"securities": securities, "active_funds": list(active_funds.values())}
+
+
+def get_overlap_holdings(db_path=None):
+    """Securities held in 2+ of the user's funds, with the largest single
+    fund's share of the combined value as a concentration signal."""
+    result = get_security_holdings(db_path)
+    overlap = []
+    for s in result["securities"]:
+        if s["fund_count"] < 2:
+            continue
+        s = dict(s)
+        s["max_single_fund_share"] = (
+            round(max(s["by_fund"].values()) / s["combined_value"], 4) if s["combined_value"] else None
+        )
+        overlap.append(s)
+    return {"securities": overlap, "active_funds": result["active_funds"]}
+
+
+def get_concentration_rollups(db_path=None):
+    """Sector/Country/Currency rollups, each with a dual denominator:
+    pct_of_portfolio (of every security) and pct_of_named (excluding blank
+    or classification_conflict rows) — so unclassified holdings can't
+    silently dilute the categorized breakdown, and can't silently vanish
+    from the overall total either. Plus same_issuer_cross_type: exposure to
+    the same issuer summed across every instrument type it appears as (e.g.
+    a bank's stock + that bank's bonds = one counterparty exposure)."""
+    securities = get_security_holdings(db_path)["securities"]
+    total_portfolio = sum(s["combined_value"] for s in securities)
+
+    def rollup(field):
+        named_total = sum(
+            s["combined_value"] for s in securities
+            if s[field] and not s["classification_conflict"]
+        )
+        buckets = {}
+        unclassified = 0.0
+        conflicting = 0.0
+        for s in securities:
+            if s["classification_conflict"]:
+                conflicting += s["combined_value"]
+            elif not s[field]:
+                unclassified += s["combined_value"]
+            else:
+                buckets[s[field]] = buckets.get(s[field], 0.0) + s["combined_value"]
+        rows = [
+            {
+                "label": label, "value": round(value, 2),
+                "pct_of_portfolio": round(value / total_portfolio, 4) if total_portfolio else 0,
+                "pct_of_named": round(value / named_total, 4) if named_total else 0,
+            }
+            for label, value in sorted(buckets.items(), key=lambda kv: kv[1], reverse=True)
+        ]
+        for label, value in (("Unclassified", unclassified), ("Conflicting", conflicting)):
+            if value:
+                rows.append({
+                    "label": label, "value": round(value, 2),
+                    "pct_of_portfolio": round(value / total_portfolio, 4) if total_portfolio else 0,
+                    "pct_of_named": None,
+                })
+        return rows
+
+    issuer_groups = {}
+    for s in securities:
+        key = s["issuer_number"] or s["issuer_name"]
+        g = issuer_groups.setdefault(key, {
+            "issuer_name": s["issuer_name"], "issuer_number": s["issuer_number"],
+            "combined_value": 0.0, "instrument_types": set(), "fund_ids": set(),
+        })
+        g["combined_value"] += s["combined_value"]
+        g["instrument_types"].add(s["instrument_type"])
+        g["fund_ids"].update(s["by_fund"].keys())
+    same_issuer_cross_type = sorted(
+        (
+            {
+                "issuer_name": g["issuer_name"], "issuer_number": g["issuer_number"],
+                "combined_value": round(g["combined_value"], 2),
+                "instrument_types": sorted(g["instrument_types"]),
+                "fund_count": len(g["fund_ids"]),
+            }
+            for g in issuer_groups.values() if len(g["instrument_types"]) > 1
+        ),
+        key=lambda g: g["combined_value"], reverse=True,
+    )
+
+    return {
+        "by_sector": rollup("sector"),
+        "by_country": rollup("country"),
+        "by_currency": rollup("currency"),
+        "same_issuer_cross_type": same_issuer_cross_type,
+        "total_portfolio": round(total_portfolio, 2),
+    }
+
+
+def get_merged_direct_indirect(db_path=None):
+    """Merges fund-derived (indirect) look-through exposure with directly
+    held stock_holdings, matched strictly on security_number == isin (both
+    non-blank) — no name-based fallback, per the look-through feature's
+    ID-only matching decision. A direct holding with no ISIN set can't
+    participate in the merge at all and is reported in `unmatched_direct`
+    as needing one; a direct holding WITH an ISIN that simply doesn't match
+    any fund's exposure still appears in `merged` as a direct-only entry
+    (indirect_value 0), since that's a legitimate outcome, not an error."""
+    indirect = get_security_holdings(db_path)["securities"]
+    direct = get_stock_holdings(db_path)
+
+    by_isin = {}
+    for s in indirect:
+        if s["security_number"]:
+            by_isin[s["security_number"]] = {
+                "security_name": s["security_name"], "security_number": s["security_number"],
+                "indirect_value": s["combined_value"], "direct_value": 0.0,
+                "by_fund": s["by_fund"],
+            }
+
+    unmatched_direct = []
+    for h in direct:
+        direct_value = h["latest_net_value"] if h["latest_net_value"] is not None else (h["latest_total_value"] or 0)
+        if not h["isin"]:
+            unmatched_direct.append({
+                "holding_id": h["id"], "symbol": h["symbol"], "value": direct_value,
+            })
+            continue
+        entry = by_isin.get(h["isin"])
+        if entry is None:
+            entry = by_isin[h["isin"]] = {
+                "security_name": h["symbol"], "security_number": h["isin"],
+                "indirect_value": 0.0, "direct_value": 0.0, "by_fund": {},
+            }
+        entry["direct_value"] += direct_value
+
+    merged = []
+    for entry in by_isin.values():
+        entry["combined_value"] = round(entry["indirect_value"] + entry["direct_value"], 2)
+        entry["indirect_value"] = round(entry["indirect_value"], 2)
+        entry["direct_value"] = round(entry["direct_value"], 2)
+        merged.append(entry)
+    merged.sort(key=lambda e: e["combined_value"], reverse=True)
+
+    return {"merged": merged, "unmatched_direct": unmatched_direct}
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────

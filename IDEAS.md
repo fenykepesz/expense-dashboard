@@ -81,6 +81,40 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through security-level holdings (v1.22.0)** — new top-level "🔎 Look-Through" tab:
+  imports the quarterly "מצבת נכסים" (Uniform Structure asset statement) regulatory filing that
+  Israeli insurance companies and pension/provident fund managers publish, and aggregates
+  security-level exposure across every one of the user's funds combined (pension + study fund +
+  provident fund etc. all sum seamlessly), merged with existing direct stock holdings by ISIN.
+  One `.xlsx` per institution, ~30 sheets; a new `tools/holdings_filing_to_json.py` parses every
+  holdings-shaped sheet by matching **header text** against a shared `CANONICAL_FIELDS` dict
+  (not column position — real column counts ranged 16–53 across sheet types), so the same code
+  handles cash, bonds, equities, ETFs, mutual funds, derivatives, real estate, loans, etc.
+  without any institution-specific branches — validated against two real institutions' actual
+  filings (Phoenix and Menora), not just synthetic fixtures. Rows are scoped at parse time to
+  only the caller's own funds' `(institution_reg_number, track_number)` pairs — two new `funds`
+  fields, validated unique together — so a multi-billion-shekel company-wide filing never gets
+  stored beyond the tracks actually configured. Full security-level precision (every holding
+  row, no minimum-weight cutoff), full institution/track scope, no fund-type restriction. Two
+  new tables (`holdings_filings` one row per institution-quarter, `fund_holdings` the per-row
+  snapshot); re-uploading the same quarter replaces cleanly, a new quarter preserves history for
+  free. Four views: All Securities, Overlap (2+ funds), Concentration (sector/country/currency
+  rollups with a dual denominator so unclassified holdings can't silently dilute or vanish from
+  the total, plus same-issuer-cross-type grouping), and Direct + Indirect (merges with
+  `stock_holdings` by ISIN). ETF/mutual-fund second-order look-through (decomposing what's
+  *inside* a fund the user's fund holds) is explicitly out of scope for now.
+  - **Real bug found and fixed during end-to-end verification against the actual Phoenix file**:
+    the column labeled "% of track's assets" (`שיעור מנכסי אפיק ההשקעה`) turned out to sum to
+    ~100% *within each instrument-type sheet* for a track, not across the track's total value —
+    one bond sheet had a row at 525%. The original formula (`fund_balance × pct_of_track`) was
+    tried first and looked reasonable until this was checked directly against real numbers,
+    where it overcounted massively (every instrument category independently claiming ~100% of
+    the fund). Every holdings sheet also carries an absolute `שווי הוגן (באלפי ש"ח)` (fair value,
+    thousands ILS) column, already scoped to that specific track — summing it across all of one
+    track's sheets produced a sane total that matched the track's real order of magnitude, and
+    it doesn't depend on `fund_balances` being in sync with the filing period at all. Switched
+    to that as the actual value source; `pct_of_track` is still parsed and stored but only as an
+    informational per-category weight, never used for dollar math.
 - [x] **Official Fund Number, Management Fees, column tooltips (v1.21.0–v1.21.1)** — three additions to
   the Manage Funds table. (1) **Official Fund #** — a new field distinct from the existing
   (personal) Fund #: the fund/track's official industry-wide identifier, shared by everyone

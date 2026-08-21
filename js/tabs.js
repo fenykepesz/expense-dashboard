@@ -1,7 +1,7 @@
 // =====================================================================
 // Tab Navigation
 // =====================================================================
-const TAB_IDS = { dashboard: 'dashboardContent', merchants: 'tab-merchants', funds: 'tab-funds', bank: 'tab-bank', networth: 'tab-networth' };
+const TAB_IDS = { dashboard: 'dashboardContent', merchants: 'tab-merchants', funds: 'tab-funds', bank: 'tab-bank', networth: 'tab-networth', lookthrough: 'tab-lookthrough' };
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -19,6 +19,7 @@ function switchTab(name) {
     if (name === 'funds') { loadFundsPanel(); loadStocksPanel(); }
     if (name === 'bank') { loadBankAccountsPanel(); }
     if (name === 'networth') { loadNetWorthPanel(); }
+    if (name === 'lookthrough') { loadLookThroughPanel(); }
 }
 
 // On load: land on the Bank Accounts tab. Categories are awaited first

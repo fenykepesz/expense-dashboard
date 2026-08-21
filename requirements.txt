@@ -1,3 +1,4 @@
 flask>=3.0
 pdfplumber>=0.11    # required by tools/pdf_to_json.py
 pytest>=8.0         # for running the test suite
+openpyxl>=3.1       # required by tools/holdings_filing_to_json.py

@@ -23,6 +23,8 @@ const FUND_COLUMN_TOOLTIPS = {
     name: 'The name of this specific fund or track.',
     fund_number: 'Your personal account/policy number for this fund, as shown on your own statements.',
     official_fund_number: "The fund/track's official industry-wide identifier — the same for everyone invested in it, not specific to your account.",
+    track_number: "This fund's investment track number, as it appears in the institution's regulatory holdings filing (מספר מסלול) — set this and Institution Reg # to include it in Look-Through aggregation.",
+    institution_reg_number: "The managing institution's registration number (ח.פ.), as shown on its regulatory holdings filing's cover sheet — used to match this fund to an uploaded Look-Through filing.",
     is_liquid: 'Marks cash-equivalent funds you could withdraw quickly, as opposed to locked long-term savings.',
     fees: "Annual management fee(s) this fund charges, and what they're calculated on — Deposits, Earnings, or Total balance. A fund can charge more than one at once.",
     owner_name: 'Which household member this fund belongs to.',
@@ -94,7 +96,8 @@ function sortFunds(list) {
 // transaction table's initTxResize (dashboard-credit-card.js) ─────────────
 const FUNDS_COL_DEFAULTS = {
     fund_type: 130, company_name: 110, name: 160, fund_number: 90,
-    official_fund_number: 100, is_liquid: 60, risk_level: 150, fees: 170,
+    official_fund_number: 100, track_number: 90, institution_reg_number: 110,
+    is_liquid: 60, risk_level: 150, fees: 170,
     owner_name: 110, excluded_from_net_worth: 90, latest_balance: 120, action: 70,
 };
 
@@ -160,9 +163,9 @@ function renderFundsList() {
 
     let bodyHtml;
     if (!currentFunds.length) {
-        bodyHtml = '<tr><td colspan="12" class="no-data">No funds yet — add one above.</td></tr>';
+        bodyHtml = '<tr><td colspan="14" class="no-data">No funds yet — add one above.</td></tr>';
     } else if (!visibleFunds.length) {
-        bodyHtml = '<tr><td colspan="12" class="no-data">No funds match this filter.</td></tr>';
+        bodyHtml = '<tr><td colspan="14" class="no-data">No funds match this filter.</td></tr>';
     } else {
         bodyHtml = sortFunds(visibleFunds).map(renderFundRow).join('');
     }
@@ -176,6 +179,8 @@ function renderFundsList() {
                 <col style="width:${w.name}px;">
                 <col style="width:${w.fund_number}px;">
                 <col style="width:${w.official_fund_number}px;">
+                <col style="width:${w.track_number}px;">
+                <col style="width:${w.institution_reg_number}px;">
                 <col style="width:${w.is_liquid}px;">
                 <col style="width:${w.risk_level}px;">
                 <col style="width:${w.fees}px;">
@@ -190,6 +195,8 @@ function renderFundsList() {
                 ${fundsTh('name', 'Fund Name', thTooltip(FUND_COLUMN_TOOLTIPS.name))}
                 ${fundsTh('fund_number', 'Fund #', thTooltip(FUND_COLUMN_TOOLTIPS.fund_number))}
                 ${fundsTh('official_fund_number', 'Official Fund #', thTooltip(FUND_COLUMN_TOOLTIPS.official_fund_number))}
+                ${fundsTh('track_number', 'Track #', thTooltip(FUND_COLUMN_TOOLTIPS.track_number))}
+                ${fundsTh('institution_reg_number', 'Institution Reg #', thTooltip(FUND_COLUMN_TOOLTIPS.institution_reg_number))}
                 ${fundsTh('is_liquid', 'Liquid', thTooltip(FUND_COLUMN_TOOLTIPS.is_liquid))}
                 ${fundsTh('risk_level', 'Risk', thTooltip(RISK_LEVEL_TOOLTIP))}
                 ${fundsThPlain('Fees', FUND_COLUMN_TOOLTIPS.fees)}
@@ -233,6 +240,8 @@ function renderFundRow(f) {
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.name)}" placeholder="Fund name…" onblur="saveFundTextField(${f.id}, 'name', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.fund_number || '')}" placeholder="Fund #…" onblur="saveFundTextField(${f.id}, 'fund_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.official_fund_number || '')}" placeholder="Official #…" onblur="saveFundTextField(${f.id}, 'official_fund_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+            <td><input type="text" class="tx-note-input" value="${escapeHtml(f.track_number || '')}" placeholder="Track #…" onblur="saveFundTextField(${f.id}, 'track_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
+            <td><input type="text" class="tx-note-input" value="${escapeHtml(f.institution_reg_number || '')}" placeholder="Institution reg #…" onblur="saveFundTextField(${f.id}, 'institution_reg_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td style="text-align:center;"><input type="checkbox" ${f.is_liquid ? 'checked' : ''} onchange="updateFundField(${f.id}, 'is_liquid', this.checked)"></td>
             <td>
                 <select class="tx-cat-select" style="margin-bottom:3px;" onchange="updateFundField(${f.id}, 'risk_level', parseInt(this.value, 10))">${riskLevelOptions(f.risk_level)}</select>

@@ -955,7 +955,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.21.1</span>
+            <span class="version-badge">v1.22.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -963,6 +963,7 @@
                 <button class="tab-btn" data-tab="dashboard">💳 Credit Cards</button>
                 <button class="tab-btn" data-tab="funds">💰 Long-Term Funds</button>
                 <button class="tab-btn" data-tab="networth">📈 Net Worth</button>
+                <button class="tab-btn" data-tab="lookthrough">🔎 Look-Through</button>
             </nav>
         </div>
 
@@ -1638,6 +1639,70 @@
             </div>
         </div>
 
+        <!-- ===== Look-Through Tab ===== -->
+        <div id="tab-lookthrough" class="hidden">
+
+            <!-- Upload panel -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <h3>📥 Import a Holdings Filing</h3>
+                <p style="color:var(--text-secondary);margin-bottom:18px;font-size:0.9em;">
+                    Upload an institution's quarterly "מצבת נכסים" (Uniform Structure) regulatory filing —
+                    one .xlsx per company. Rows are matched to funds you've set a Track # + Institution Reg #
+                    on (edit those in the Manage Funds table, Long-Term Funds tab); everything else in the
+                    file is ignored. Processed locally, never leaves your machine.
+                </p>
+
+                <div id="lookthroughDropzone" class="import-dropzone">
+                    <div style="font-size:2em;">📂</div>
+                    <strong>Drag &amp; drop a filing here</strong>
+                    <p>or <span style="color:#667eea;cursor:pointer;" onclick="document.getElementById('lookthroughFileInput').click()">browse to choose</span></p>
+                    <p id="lookthroughFileName" style="color:#667eea;margin-top:8px;font-weight:600;"></p>
+                </div>
+                <input type="file" id="lookthroughFileInput" accept=".xlsx" style="display:none;">
+
+                <div style="margin-top:16px;">
+                    <button class="btn btn-primary" id="lookthroughAnalyzeBtn" disabled onclick="analyzeLookthroughFile()">Analyze File</button>
+                </div>
+
+                <div id="lookthroughPreview" class="hidden" style="margin-top:20px;"></div>
+            </div>
+
+            <!-- Filings list -->
+            <div class="chart-container" style="margin-bottom:20px;">
+                <h3 style="margin-bottom:16px;">📋 Imported Filings</h3>
+                <p style="color:var(--text-secondary);font-size:0.78em;margin:0 0 8px;">
+                    Every view below always uses the most recent filing per institution — an older filing for
+                    an institution you've since re-uploaded no longer contributes.
+                </p>
+                <div style="overflow-x:auto;">
+                    <table class="transactions-table">
+                        <thead><tr>
+                            <th>Institution</th><th>Period</th><th>Imported</th><th></th>
+                        </tr></thead>
+                        <tbody id="lookthroughFilingsBody">
+                            <tr><td colspan="4" class="no-data">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Views -->
+            <div class="chart-container">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <h3 style="margin:0;">🔎 Look-Through Holdings</h3>
+                    <div id="lookthroughViewPicker" class="year-picker">
+                        <button type="button" class="year-btn active" data-view="securities" onclick="setLookthroughView('securities')">All Securities</button>
+                        <button type="button" class="year-btn" data-view="overlap" onclick="setLookthroughView('overlap')">Overlap</button>
+                        <button type="button" class="year-btn" data-view="concentration" onclick="setLookthroughView('concentration')">Concentration</button>
+                        <button type="button" class="year-btn" data-view="merged" onclick="setLookthroughView('merged')">Direct + Indirect</button>
+                    </div>
+                </div>
+                <div id="lookthroughViewBody">
+                    <p class="no-data">Loading…</p>
+                </div>
+            </div>
+        </div>
+
     </div> <!-- Close dashboard -->
 
     <script src="js/shared.js"></script>
@@ -1649,6 +1714,7 @@
     <script src="js/dashboard-stocks.js"></script>
     <script src="js/dashboard-bank.js"></script>
     <script src="js/dashboard-networth.js"></script>
+    <script src="js/dashboard-lookthrough.js"></script>
     <script src="js/backup.js"></script>
     <script src="js/tabs.js"></script>
 </body>
