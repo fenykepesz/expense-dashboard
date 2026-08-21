@@ -90,16 +90,67 @@ function sortFunds(list) {
     });
 }
 
+// ── Column widths: resizable + persisted, same pattern as the credit-card
+// transaction table's initTxResize (dashboard-credit-card.js) ─────────────
+const FUNDS_COL_DEFAULTS = {
+    fund_type: 130, company_name: 110, name: 160, fund_number: 90,
+    official_fund_number: 100, is_liquid: 60, risk_level: 150, fees: 170,
+    owner_name: 110, excluded_from_net_worth: 90, latest_balance: 120, action: 70,
+};
+
+function getFundsColWidths() {
+    try { return Object.assign({}, FUNDS_COL_DEFAULTS, JSON.parse(localStorage.getItem('fundsColWidths'))); }
+    catch { return Object.assign({}, FUNDS_COL_DEFAULTS); }
+}
+
+function saveFundsColWidths(w) { localStorage.setItem('fundsColWidths', JSON.stringify(w)); }
+
+function initFundsResize(widths) {
+    const table = document.querySelector('#fundsTableWrap table');
+    if (!table) return;
+    const handles = table.querySelectorAll('.col-resize-handle');
+    handles.forEach((handle, i) => {
+        handle.addEventListener('mousedown', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const col = table.querySelectorAll('col')[i];
+            const startX = e.clientX;
+            const startW = parseInt(col.style.width);
+            handle.classList.add('resizing');
+            const onMove = ev => {
+                const newW = Math.max(50, startW + ev.clientX - startX);
+                col.style.width = newW + 'px';
+            };
+            const onUp = () => {
+                handle.classList.remove('resizing');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                const keys = Object.keys(FUNDS_COL_DEFAULTS);
+                const cols = table.querySelectorAll('col');
+                const saved = {};
+                keys.forEach((k, j) => { saved[k] = parseInt(cols[j].style.width); });
+                saveFundsColWidths(saved);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+    });
+}
+
+// Every header except the last (a bare action column, nothing after it to
+// resize against) gets a drag handle on its right edge.
+const FUNDS_COL_RESIZE_HANDLE = '<div class="col-resize-handle" onclick="event.stopPropagation()"></div>';
+
 function fundsTh(col, label, extraHtml = '') {
     const active = col === fundsSortCol;
     const arrow = active ? (fundsSortDir === 1 ? ' ▲' : ' ▼') : ' ↕';
-    return `<th onclick="sortFundsColumn('${col}')" style="cursor:pointer;white-space:nowrap;">${label}${extraHtml}<span style="opacity:${active ? 1 : 0.35};font-size:0.75em;">${arrow}</span></th>`;
+    return `<th onclick="sortFundsColumn('${col}')" style="cursor:pointer;white-space:nowrap;">${label}${extraHtml}<span style="opacity:${active ? 1 : 0.35};font-size:0.75em;">${arrow}</span>${FUNDS_COL_RESIZE_HANDLE}</th>`;
 }
 
 // Fees isn't meaningfully sortable (a fund can have 0-3 fee rows) — a plain,
 // non-clickable header with just a tooltip instead of fundsTh's sort wiring.
 function fundsThPlain(label, tooltip) {
-    return `<th style="white-space:nowrap;">${label}${thTooltip(tooltip)}</th>`;
+    return `<th style="white-space:nowrap;">${label}${thTooltip(tooltip)}${FUNDS_COL_RESIZE_HANDLE}</th>`;
 }
 
 function renderFundsList() {
@@ -116,8 +167,23 @@ function renderFundsList() {
         bodyHtml = sortFunds(visibleFunds).map(renderFundRow).join('');
     }
 
+    const w = getFundsColWidths();
     wrap.innerHTML = `
-        <table class="transactions-table">
+        <table class="transactions-table" style="table-layout:fixed;width:100%;">
+            <colgroup>
+                <col style="width:${w.fund_type}px;">
+                <col style="width:${w.company_name}px;">
+                <col style="width:${w.name}px;">
+                <col style="width:${w.fund_number}px;">
+                <col style="width:${w.official_fund_number}px;">
+                <col style="width:${w.is_liquid}px;">
+                <col style="width:${w.risk_level}px;">
+                <col style="width:${w.fees}px;">
+                <col style="width:${w.owner_name}px;">
+                <col style="width:${w.excluded_from_net_worth}px;">
+                <col style="width:${w.latest_balance}px;">
+                <col style="width:${w.action}px;">
+            </colgroup>
             <thead><tr>
                 ${fundsTh('fund_type', 'Type', thTooltip(FUND_COLUMN_TOOLTIPS.fund_type))}
                 ${fundsTh('company_name', 'Company', thTooltip(FUND_COLUMN_TOOLTIPS.company_name))}
@@ -135,6 +201,7 @@ function renderFundsList() {
             <tbody>${bodyHtml}</tbody>
         </table>
     `;
+    initFundsResize(w);
 }
 
 function renderFundFeesCell(f) {

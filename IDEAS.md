@@ -81,7 +81,7 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
-- [x] **Official Fund Number, Management Fees, column tooltips (v1.21.0)** — three additions to
+- [x] **Official Fund Number, Management Fees, column tooltips (v1.21.0–v1.21.1)** — three additions to
   the Manage Funds table. (1) **Official Fund #** — a new field distinct from the existing
   (personal) Fund #: the fund/track's official industry-wide identifier, shared by everyone
   invested in it rather than specific to your account. Same optional-text treatment as Fund #,
@@ -96,6 +96,18 @@ with a top-level net worth view. Decided so far:
   tooltips** — every column header in the Manage Funds table now has an ℹ tooltip icon
   explaining what it means (`FUND_COLUMN_TOOLTIPS` in dashboard-funds.js, `thTooltip()` helper),
   extending the pattern that previously only existed for the Risk column.
+  - **v1.21.1 follow-up** — table usability, requested right after seeing it live with ~30 rows:
+    (1) columns are now drag-to-resize (same pattern as the credit-card transaction table:
+    `<colgroup>` + `.col-resize-handle`, widths persisted to `localStorage`). (2) The app's
+    overall max-width grew from 1400px to 1800px so more columns fit without horizontal
+    scrolling on a normal-width screen. (3) The table now sits in a height-bounded,
+    internally-scrolling box with a sticky header, instead of growing to full height and
+    pushing its horizontal scrollbar down past 30 rows of content — the scrollbar (and the
+    column headers) stay reachable regardless of row count. Hit two real CSS gotchas getting
+    there: `border-collapse:collapse` (the shared `.transactions-table` default) silently
+    breaks `position:sticky` on `<th>` in most browsers, and a sticky element's own `margin-top`
+    gets visually "eaten" once it sticks — both fixed scoped to just this table, not the shared
+    class.
 - [x] **Stock/brokerage holdings (v1.20.0–v1.20.1)** — a separate "Manage Stock Holdings" panel under
   Long-Term Funds (own tables `stock_holdings`/`stock_values`, own API, own UI — not shoehorned
   into `funds`, since the columns don't fit the generic Company/Fund Name shape). Add a holding
