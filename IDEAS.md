@@ -81,6 +81,11 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: column tooltips on All Securities/Overlap (v1.24.2)** — every header (the
+  fixed columns, each dynamic fund column, Direct, and Overlap's Max Single Fund) now has an ℹ
+  tooltip explaining what it means, same `thTooltip()` pattern already used on the Manage Funds
+  table. Each fund column's tooltip names that specific fund so it's unambiguous which one a
+  reader is hovering.
 - [x] **Look-Through: collapse the upload/filings panels by default (v1.24.1)** — once at least
   one filing is imported, the "Import a Holdings Filing" dropzone and "Imported Filings" table
   pushed the actual views (All Securities etc.) far down the page every time the tab opened.

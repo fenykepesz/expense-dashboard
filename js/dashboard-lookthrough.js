@@ -236,10 +236,21 @@ const LOOKTHROUGH_SORT_ACCESSORS = {
     currency: s => s.currency || '',
 };
 
+const LOOKTHROUGH_COLUMN_TOOLTIPS = {
+    holding: "The security's name — or the issuer's name for holdings without a separate security identity (cash, loans, deposits). The issuer shows as a sub-line whenever it adds information beyond the holding name.",
+    my_ils: "Your personal ILS exposure to this holding — direct stock holdings and fund-derived exposure combined. Fund-derived exposure is your own recorded balance in that fund, weighted by this holding's share of the fund's total.",
+    pct: "This holding's share of everything you personally hold here — direct and fund-derived combined.",
+    type: 'The kind of instrument. Derivative/hedging types (options, futures, swaps) are grouped as "Derivatives & Hedging" in the Concentration pie chart, but shown individually here.',
+    country: "Country of economic exposure, as reported by the filing. Blank if the filing never reports it for this instrument type (common for cash) — a ⚠ appears if your funds reported it inconsistently for the same holding.",
+    sector: "Industry sector, as reported by the filing. Blank if never reported for this instrument type — a ⚠ appears if your funds reported it inconsistently for the same holding.",
+    currency: "The holding's currency, as reported by the filing. Blank if never reported, or if it's genuinely a mix (e.g. one bank cash row spanning several currencies) — hover the ⚠ next to the holding name to see what was found.",
+};
+
 function lookthroughTh(col, label, colIndex) {
     const active = col === lookthroughSortCol;
     const arrow = active ? (lookthroughSortDir === 1 ? ' ▲' : ' ▼') : ' ↕';
-    return `<th onclick="sortLookthroughColumn('${col}')" style="cursor:pointer;white-space:nowrap;">${escapeHtml(label)}<span style="opacity:${active ? 1 : 0.35};font-size:0.75em;">${arrow}</span>${resizeHandle(colIndex, col)}</th>`;
+    const tooltip = LOOKTHROUGH_COLUMN_TOOLTIPS[col] ? thTooltip(LOOKTHROUGH_COLUMN_TOOLTIPS[col]) : '';
+    return `<th onclick="sortLookthroughColumn('${col}')" style="cursor:pointer;white-space:nowrap;">${escapeHtml(label)}${tooltip}<span style="opacity:${active ? 1 : 0.35};font-size:0.75em;">${arrow}</span>${resizeHandle(colIndex, col)}</th>`;
 }
 
 function sortLookthroughColumn(col) {
@@ -374,18 +385,21 @@ function renderSecuritiesTable(data, { showOverlapCols = false } = {}) {
     cols.push(`<col style="width:${w.type}px;">`); heads.push(lookthroughTh('type', 'Type', i++));
     funds.forEach(f => {
         cols.push(`<col style="width:${LOOKTHROUGH_FUND_COL_WIDTH}px;">`);
-        heads.push(`<th style="white-space:nowrap;">${fundColumnHeader(f)}${resizeHandle(i++)}</th>`);
+        const fundTooltip = thTooltip(`This holding's value inside ${fundLabel(f)} — your recorded balance in this fund, weighted by the holding's share of the fund's total.`);
+        heads.push(`<th style="white-space:nowrap;">${fundColumnHeader(f)}${fundTooltip}${resizeHandle(i++)}</th>`);
     });
     if (hasDirect) {
         cols.push(`<col style="width:${LOOKTHROUGH_FUND_COL_WIDTH}px;">`);
-        heads.push(`<th style="white-space:nowrap;">Direct${resizeHandle(i++)}</th>`);
+        const directTooltip = thTooltip('This holding\'s value from your directly-held stock positions (Manage Stock Holdings), matched by ISIN.');
+        heads.push(`<th style="white-space:nowrap;">Direct${directTooltip}${resizeHandle(i++)}</th>`);
     }
     cols.push(`<col style="width:${w.country}px;">`); heads.push(lookthroughTh('country', 'Country', i++));
     cols.push(`<col style="width:${w.sector}px;">`); heads.push(lookthroughTh('sector', 'Sector', i++));
     cols.push(`<col style="width:${w.currency}px;">`); heads.push(lookthroughTh('currency', 'Currency', i++));
     if (showOverlapCols) {
         cols.push('<col style="width:120px;">');
-        heads.push(`<th style="white-space:nowrap;">Max Single Fund${resizeHandle(i++)}</th>`);
+        const overlapTooltip = thTooltip("The largest single fund's share of this holding's combined value — how concentrated it is in one place versus spread across your funds.");
+        heads.push(`<th style="white-space:nowrap;">Max Single Fund${overlapTooltip}${resizeHandle(i++)}</th>`);
     }
 
     const bodyRows = rows.map(s => {
