@@ -965,7 +965,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.24.0</span>
+            <span class="version-badge">v1.24.1</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1653,10 +1653,12 @@
         <!-- ===== Look-Through Tab ===== -->
         <div id="tab-lookthrough" class="hidden">
 
-            <!-- Upload panel -->
-            <div class="chart-container" style="margin-bottom:20px;">
-                <h3>📥 Import a Holdings Filing</h3>
-                <p style="color:var(--text-secondary);margin-bottom:18px;font-size:0.9em;">
+            <!-- Upload panel: collapsed by default (same pattern as Monthly Net Cash Flow) -->
+            <details class="chart-container" style="margin-bottom:20px;">
+                <summary style="cursor:pointer;user-select:none;font-size:1.3em;font-weight:bold;color:var(--text-primary);text-align:center;list-style-position:inside;">
+                    📥 Import a Holdings Filing
+                </summary>
+                <p style="color:var(--text-secondary);margin:12px 0 18px;font-size:0.9em;">
                     Upload an institution's quarterly "מצבת נכסים" (Uniform Structure) regulatory filing —
                     one .xlsx per company. Rows are matched to funds you've set a Track # + Institution Reg #
                     on (edit those in the Manage Funds table, Long-Term Funds tab); everything else in the
@@ -1676,12 +1678,14 @@
                 </div>
 
                 <div id="lookthroughPreview" class="hidden" style="margin-top:20px;"></div>
-            </div>
+            </details>
 
-            <!-- Filings list -->
-            <div class="chart-container" style="margin-bottom:20px;">
-                <h3 style="margin-bottom:16px;">📋 Imported Filings</h3>
-                <p style="color:var(--text-secondary);font-size:0.78em;margin:0 0 8px;">
+            <!-- Filings list: collapsed by default -->
+            <details class="chart-container" style="margin-bottom:20px;">
+                <summary style="cursor:pointer;user-select:none;font-size:1.3em;font-weight:bold;color:var(--text-primary);text-align:center;list-style-position:inside;">
+                    📋 Imported Filings
+                </summary>
+                <p style="color:var(--text-secondary);font-size:0.78em;margin:12px 0 8px;">
                     Every view below always uses the most recent filing per institution — an older filing for
                     an institution you've since re-uploaded no longer contributes.
                 </p>
@@ -1695,7 +1699,7 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </details>
 
             <!-- Views -->
             <div class="chart-container">

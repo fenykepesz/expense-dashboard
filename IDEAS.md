@@ -81,6 +81,12 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: collapse the upload/filings panels by default (v1.24.1)** — once at least
+  one filing is imported, the "Import a Holdings Filing" dropzone and "Imported Filings" table
+  pushed the actual views (All Securities etc.) far down the page every time the tab opened.
+  Wrapped both in `<details>`, collapsed by default — same pattern as the Bank Accounts tab's
+  Monthly Net Cash Flow panel (`<summary>` styled to match the existing `.chart-container h3`
+  look, since a native `<summary>` isn't targeted by that selector).
 - [x] **Look-Through: four Concentration pie charts (v1.24.0)** — Type, Country, Sector, and
   By Fund/Position, added above the existing rollup tables on the Concentration tab. Each
   slice's tooltip shows both the ₪ amount and % of total. Real design questions worked through
