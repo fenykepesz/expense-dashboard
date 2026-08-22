@@ -929,24 +929,32 @@ def _latest_filing_ids(conn):
 
 
 def get_security_holdings(db_path=None):
-    """Per-security look-through exposure across every active fund, using
-    the latest filing per institution. Grouped by (issuer_number,
-    security_number) — falling back to (issuer_number, security_name) for
-    rows that structurally lack a security number (cash, loans, deposits),
-    then (instrument_type, issuer_name) as a last resort — never by name
-    alone when an ID exists, per the look-through feature's core matching
-    decision.
+    """Per-security look-through exposure across every active fund's own
+    money, using the latest filing per institution. Grouped by
+    (issuer_number, security_number) — falling back to (issuer_number,
+    security_name) for rows that structurally lack a security number (cash,
+    loans, deposits), then (instrument_type, issuer_name) as a last resort —
+    never by name alone when an ID exists, per the look-through feature's
+    core matching decision.
 
-    Dollar value comes directly from each row's `fair_value_ils` (the
-    filing's own absolute fair-value column, already scoped to that
-    specific track) — NOT from fund_balances × pct_of_track. That formula
-    was tried first and confirmed wrong against a real filing: the
-    "% of track" column actually sums to ~100% WITHIN EACH INSTRUMENT-TYPE
-    SHEET for a track, not across the track's total value, so multiplying
-    it by the fund's whole balance made every instrument category
-    independently claim ~100% of the fund. fair_value_ils has no such
-    problem and doesn't depend on fund_balances being in sync with the
-    filing period at all.
+    Dollar value: `fair_value_ils` on each row is the filing's own absolute
+    fair-value figure for that security — but it's the INSTITUTIONAL total
+    for that whole track (every policyholder invested in it combined), not
+    this user's personal share. Confirmed against real data: summing every
+    row for one fund came to ~1,500x-8,750x the user's own recorded
+    fund_balances for that same fund. To get a personally-meaningful number,
+    each row is converted to a WEIGHT within its own fund's track
+    (`row.fair_value_ils / sum of fair_value_ils across that whole fund`),
+    then that weight is applied to the user's own `fund_balances` entry for
+    that fund. A fund with holdings rows but no recorded balance yet can't
+    have its personal weight computed at all — flagged via
+    `has_unbalanced_fund` and contributes 0, never a guessed number.
+
+    (Earlier attempts, in order: `fund_balance × pct_of_track` — wrong,
+    since "% of track" sums to ~100% within each instrument-category sheet,
+    not across the track. Then raw `fair_value_ils` directly — wrong, since
+    it's the whole track's institutional total, not this user's share. This
+    weighted version is the corrected formula.)
 
     Divergent sector/country/currency across rows grouped as "the same
     security" (independent filers can classify identically-keyed securities
@@ -963,19 +971,34 @@ def get_security_holdings(db_path=None):
             SELECT fh.fund_id, fh.instrument_type, fh.issuer_name, fh.issuer_number,
                    fh.security_name, fh.security_number, fh.pct_of_track,
                    fh.fair_value_ils, fh.country, fh.sector, fh.currency,
-                   f.name AS fund_name, f.fund_type
+                   f.name AS fund_name, f.fund_type, f.track_number,
+                   fb.balance AS fund_balance
             FROM fund_holdings fh
             JOIN funds f ON f.id = fh.fund_id AND f.is_deleted = 0
+            LEFT JOIN fund_balances fb ON fb.id = (
+                SELECT id FROM fund_balances WHERE fund_id = f.id ORDER BY date DESC LIMIT 1
+            )
             WHERE fh.filing_id IN ({placeholders})
             """,
             list(latest_ids),
         ).fetchall()
 
+    # Each fund's track-wide institutional total — the denominator that
+    # turns one row's institutional fair value into this user's personal
+    # weight within that fund.
+    fund_totals = {}
+    for r in holding_rows:
+        fund_totals[r["fund_id"]] = fund_totals.get(r["fund_id"], 0.0) + r["fair_value_ils"]
+
     groups = {}
     active_funds = {}
     for r in holding_rows:
+        # track_number is included since two of the user's own funds can
+        # share an identical display name (confirmed real case: two tracks
+        # under one savings policy) — callers need it to tell them apart.
         active_funds[r["fund_id"]] = {
             "id": r["fund_id"], "name": r["fund_name"], "fund_type": r["fund_type"],
+            "track_number": r["track_number"],
         }
 
         if r["security_number"]:
@@ -989,11 +1012,18 @@ def get_security_holdings(db_path=None):
             "issuer_name": r["issuer_name"], "issuer_number": r["issuer_number"],
             "security_name": r["security_name"] or r["issuer_name"],
             "security_number": r["security_number"], "instrument_type": r["instrument_type"],
-            "combined_value": 0.0, "by_fund": {},
+            "combined_value": 0.0, "by_fund": {}, "has_unbalanced_fund": False,
             "_countries": set(), "_sectors": set(), "_currencies": set(),
         })
 
-        value = r["fair_value_ils"]
+        fund_total = fund_totals.get(r["fund_id"], 0.0)
+        if r["fund_balance"] is None or not fund_total:
+            g["has_unbalanced_fund"] = True
+            value = 0.0
+        else:
+            weight = r["fair_value_ils"] / fund_total
+            value = weight * r["fund_balance"]
+
         g["combined_value"] += value
         g["by_fund"][r["fund_id"]] = g["by_fund"].get(r["fund_id"], 0.0) + value
         if r["country"]:
@@ -1023,10 +1053,129 @@ def get_security_holdings(db_path=None):
     return {"securities": securities, "active_funds": list(active_funds.values())}
 
 
+def get_all_securities(db_path=None):
+    """THE primary Look-Through view: every security the user personally
+    holds, fund-derived (indirect) and directly-held combined into one
+    number per security — e.g. a directly-held MSFT position and MSFT
+    exposure inside a fund both count toward the same row and the same
+    `pct_of_total`. Matched strictly on security_number == stock_holdings.isin
+    (both non-blank) — no name-based fallback, per the feature's ID-only
+    matching decision. A direct holding with no ISIN can't be merged at all
+    and is reported separately in `unmatched_direct`.
+
+    `pct_of_total` is each security's share of the sum of EVERY entry here —
+    the user's whole personally-held-security universe, direct and indirect
+    together (not just the fund-derived subset `get_security_holdings`
+    covers on its own).
+
+    IMPORTANT: a security_number is NOT guaranteed unique across instrument
+    types — confirmed against real data where a written equity option's
+    security_number was the SAME as its underlying stock's ISIN, but with a
+    different issuer_number (the option's counterparty vs. the equity's
+    issuer). get_security_holdings correctly keeps those as separate
+    entries (its own key includes issuer_number). This function must NOT
+    re-key on security_number alone when merging — an earlier version of
+    this code did exactly that and silently overwrote one entry with
+    another, losing real money (confirmed: 8 collisions, ~₪62,000 vanished
+    on the real Fenix data). Every indirect entry keeps its own identity
+    here; a direct holding's ISIN is matched to AT MOST ONE of possibly
+    several same-security_number entries (preferring an equity-shaped
+    instrument_type, since a direct stock holding is never meant to merge
+    into a derivative's exposure) — the rest stay indirect-only, correct
+    but simply not merge targets for that ISIN.
+    """
+    indirect_result = get_security_holdings(db_path)
+    indirect = indirect_result["securities"]
+    direct = get_stock_holdings(db_path)
+
+    by_key = {}
+    isin_candidates = {}  # security_number -> [key, ...], for matching direct holdings
+    for i, s in enumerate(indirect):
+        entry = {
+            "issuer_name": s["issuer_name"], "issuer_number": s["issuer_number"],
+            "security_name": s["security_name"], "security_number": s["security_number"],
+            "instrument_type": s["instrument_type"],
+            "indirect_value": s["combined_value"], "direct_value": 0.0,
+            "by_fund": s["by_fund"], "has_unbalanced_fund": s["has_unbalanced_fund"],
+            "country": s["country"], "sector": s["sector"], "currency": s["currency"],
+            "classification_conflict": s["classification_conflict"],
+            "country_values": s["country_values"], "sector_values": s["sector_values"],
+            "currency_values": s["currency_values"],
+        }
+        # Full identity, mirroring get_security_holdings' own grouping —
+        # never collapse two things it kept separate.
+        key = ("indirect", i)
+        by_key[key] = entry
+        if s["security_number"]:
+            isin_candidates.setdefault(s["security_number"], []).append(key)
+
+    # A direct holding is always an equity-shaped instrument — prefer
+    # merging into an equity-typed candidate over a derivative that happens
+    # to share the same security_number.
+    _EQUITY_LIKE = ("equity_traded", "equity_nontraded", "etf", "mutual_fund")
+
+    def _best_match(isin):
+        candidates = isin_candidates.get(isin)
+        if not candidates:
+            return None
+        for pref in _EQUITY_LIKE:
+            for key in candidates:
+                if by_key[key]["instrument_type"] == pref:
+                    return key
+        return candidates[0]
+
+    unmatched_direct = []
+    for h in direct:
+        direct_value = h["latest_net_value"] if h["latest_net_value"] is not None else (h["latest_total_value"] or 0)
+        if not h["isin"]:
+            unmatched_direct.append({
+                "holding_id": h["id"], "symbol": h["symbol"], "value": round(direct_value, 2),
+            })
+            continue
+        key = _best_match(h["isin"]) or ("direct", h["isin"])
+        entry = by_key.get(key)
+        if entry is None:
+            entry = by_key[key] = {
+                "issuer_name": "", "issuer_number": "",
+                "security_name": h["symbol"], "security_number": h["isin"],
+                "instrument_type": None,
+                "indirect_value": 0.0, "direct_value": 0.0,
+                "by_fund": {}, "has_unbalanced_fund": False,
+                "country": "", "sector": "", "currency": "",
+                "classification_conflict": False,
+                "country_values": [], "sector_values": [], "currency_values": [],
+            }
+        entry["direct_value"] += direct_value
+
+    securities = []
+    grand_total = 0.0
+    for entry in by_key.values():
+        entry["combined_value"] = round(entry["indirect_value"] + entry["direct_value"], 2)
+        entry["indirect_value"] = round(entry["indirect_value"], 2)
+        entry["direct_value"] = round(entry["direct_value"], 2)
+        entry["fund_count"] = len(entry["by_fund"])
+        grand_total += entry["combined_value"]
+        securities.append(entry)
+    for entry in securities:
+        entry["pct_of_total"] = round(entry["combined_value"] / grand_total, 4) if grand_total else 0.0
+
+    securities.sort(key=lambda e: e["combined_value"], reverse=True)
+    return {
+        "securities": securities,
+        "active_funds": indirect_result["active_funds"],
+        "unmatched_direct": unmatched_direct,
+        "total_value": round(grand_total, 2),
+    }
+
+
 def get_overlap_holdings(db_path=None):
-    """Securities held in 2+ of the user's funds, with the largest single
-    fund's share of the combined value as a concentration signal."""
-    result = get_security_holdings(db_path)
+    """Securities held in 2+ of the user's funds (fund-side overlap
+    specifically — a security also held directly is a single direct
+    position by definition, it doesn't add a second "fund"), pulled from
+    the merged All Securities set so every number shown here matches what's
+    shown there. The largest single fund's share of the combined value is
+    a concentration signal."""
+    result = get_all_securities(db_path)
     overlap = []
     for s in result["securities"]:
         if s["fund_count"] < 2:
@@ -1046,8 +1195,13 @@ def get_concentration_rollups(db_path=None):
     silently dilute the categorized breakdown, and can't silently vanish
     from the overall total either. Plus same_issuer_cross_type: exposure to
     the same issuer summed across every instrument type it appears as (e.g.
-    a bank's stock + that bank's bonds = one counterparty exposure)."""
-    securities = get_security_holdings(db_path)["securities"]
+    a bank's stock + that bank's bonds = one counterparty exposure), with a
+    `type_breakdown` showing how much of that issuer's total sits in each
+    type (e.g. מדינת ישראל: 500K total = 100K bonds + 400K loans).
+
+    Runs on the merged All Securities set (direct + fund-derived together),
+    same as Overlap."""
+    securities = get_all_securities(db_path)["securities"]
     total_portfolio = sum(s["combined_value"] for s in securities)
 
     def rollup(field):
@@ -1084,13 +1238,22 @@ def get_concentration_rollups(db_path=None):
 
     issuer_groups = {}
     for s in securities:
-        key = s["issuer_number"] or s["issuer_name"]
+        # Direct-only holdings (no fund match) carry no issuer info at all
+        # — fall back to security_name so each still gets its own bucket
+        # instead of colliding together under one blank "issuer" key.
+        key = s["issuer_number"] or s["issuer_name"] or s["security_name"]
         g = issuer_groups.setdefault(key, {
-            "issuer_name": s["issuer_name"], "issuer_number": s["issuer_number"],
-            "combined_value": 0.0, "instrument_types": set(), "fund_ids": set(),
+            "issuer_name": s["issuer_name"] or s["security_name"], "issuer_number": s["issuer_number"],
+            "combined_value": 0.0, "instrument_types": set(), "type_breakdown": {}, "fund_ids": set(),
         })
         g["combined_value"] += s["combined_value"]
-        g["instrument_types"].add(s["instrument_type"])
+        # instrument_type is None for a direct-only holding with no fund
+        # match — that's not a "type" to cross-reference against, skip it.
+        if s["instrument_type"]:
+            g["instrument_types"].add(s["instrument_type"])
+            g["type_breakdown"][s["instrument_type"]] = (
+                g["type_breakdown"].get(s["instrument_type"], 0.0) + s["combined_value"]
+            )
         g["fund_ids"].update(s["by_fund"].keys())
     same_issuer_cross_type = sorted(
         (
@@ -1098,6 +1261,7 @@ def get_concentration_rollups(db_path=None):
                 "issuer_name": g["issuer_name"], "issuer_number": g["issuer_number"],
                 "combined_value": round(g["combined_value"], 2),
                 "instrument_types": sorted(g["instrument_types"]),
+                "type_breakdown": {k: round(v, 2) for k, v in g["type_breakdown"].items()},
                 "fund_count": len(g["fund_ids"]),
             }
             for g in issuer_groups.values() if len(g["instrument_types"]) > 1
@@ -1114,52 +1278,48 @@ def get_concentration_rollups(db_path=None):
     }
 
 
-def get_merged_direct_indirect(db_path=None):
-    """Merges fund-derived (indirect) look-through exposure with directly
-    held stock_holdings, matched strictly on security_number == isin (both
-    non-blank) — no name-based fallback, per the look-through feature's
-    ID-only matching decision. A direct holding with no ISIN set can't
-    participate in the merge at all and is reported in `unmatched_direct`
-    as needing one; a direct holding WITH an ISIN that simply doesn't match
-    any fund's exposure still appears in `merged` as a direct-only entry
-    (indirect_value 0), since that's a legitimate outcome, not an error."""
-    indirect = get_security_holdings(db_path)["securities"]
+def get_direct_fund_overlap(db_path=None):
+    """The "what do I hold directly, and does it also show up inside my
+    funds" breakdown — anchored on each individual direct stock_holding
+    (not every security overall; that's what get_all_securities covers).
+    For every direct holding: its own value, the matching fund-derived
+    value for the same ISIN (0, not omitted, when there's no fund-side
+    match — a real "no overlap" answer), and which fund(s) contribute that
+    fund-side amount. Matched strictly on security_number == isin (both
+    non-blank) — no name-based fallback. A direct holding with no ISIN
+    can't be matched at all and is reported separately in `unmatched_direct`.
+
+    Two holdings can legitimately share an ISIN (e.g. an RSU grant and a
+    separate ESPP purchase of the same company) — each still gets its own
+    row here, so the same fund-side amount can appear twice; that's
+    intentional (each row explains one direct position's own context), not
+    a double-count to be summed down the indirect_value column."""
+    indirect_result = get_security_holdings(db_path)
+    indirect = indirect_result["securities"]
+    by_isin = {s["security_number"]: s for s in indirect if s["security_number"]}
     direct = get_stock_holdings(db_path)
 
-    by_isin = {}
-    for s in indirect:
-        if s["security_number"]:
-            by_isin[s["security_number"]] = {
-                "security_name": s["security_name"], "security_number": s["security_number"],
-                "indirect_value": s["combined_value"], "direct_value": 0.0,
-                "by_fund": s["by_fund"],
-            }
-
+    breakdown = []
     unmatched_direct = []
     for h in direct:
         direct_value = h["latest_net_value"] if h["latest_net_value"] is not None else (h["latest_total_value"] or 0)
         if not h["isin"]:
             unmatched_direct.append({
-                "holding_id": h["id"], "symbol": h["symbol"], "value": direct_value,
+                "holding_id": h["id"], "symbol": h["symbol"], "value": round(direct_value, 2),
             })
             continue
-        entry = by_isin.get(h["isin"])
-        if entry is None:
-            entry = by_isin[h["isin"]] = {
-                "security_name": h["symbol"], "security_number": h["isin"],
-                "indirect_value": 0.0, "direct_value": 0.0, "by_fund": {},
-            }
-        entry["direct_value"] += direct_value
-
-    merged = []
-    for entry in by_isin.values():
-        entry["combined_value"] = round(entry["indirect_value"] + entry["direct_value"], 2)
-        entry["indirect_value"] = round(entry["indirect_value"], 2)
-        entry["direct_value"] = round(entry["direct_value"], 2)
-        merged.append(entry)
-    merged.sort(key=lambda e: e["combined_value"], reverse=True)
-
-    return {"merged": merged, "unmatched_direct": unmatched_direct}
+        match = by_isin.get(h["isin"])
+        breakdown.append({
+            "holding_id": h["id"], "symbol": h["symbol"], "isin": h["isin"],
+            "direct_value": round(direct_value, 2),
+            "indirect_value": round(match["combined_value"], 2) if match else 0.0,
+            "by_fund": match["by_fund"] if match else {},
+        })
+    breakdown.sort(key=lambda e: e["direct_value"] + e["indirect_value"], reverse=True)
+    return {
+        "breakdown": breakdown, "unmatched_direct": unmatched_direct,
+        "active_funds": indirect_result["active_funds"],
+    }
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────

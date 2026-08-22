@@ -34,16 +34,21 @@ def _make_fund(db_path, fund_type, institution_reg_number, track_number, balance
 
 
 def _basic_row(fund_id, **overrides):
-    # fair_value_ils (not pct_of_track) drives dollar math — pct_of_track is
-    # kept only as an informational field the parser also captures. See
-    # get_security_holdings's docstring for why: the filing's own "% of
-    # track" column is normalized within each instrument-category sheet,
-    # not against the track's total value, so it can't be used for money.
+    # fair_value_ils is the filing's own INSTITUTIONAL fair value for that
+    # security within its track — not personal money by itself. db.py
+    # converts it to a personal weight (this row's fair_value_ils / the sum
+    # of every fair_value_ils row for that same fund) and multiplies that
+    # weight by the fund's own recorded balance. So: when a fund has only
+    # ONE row, its weight is always 1.0, and the resulting combined_value
+    # equals the fund's balance exactly, regardless of the row's specific
+    # fair_value_ils magnitude — most tests below lean on that. pct_of_track
+    # is kept only as an informational field the parser also captures (see
+    # get_security_holdings's docstring for why it can't be used for money).
     row = {
         "fund_id": fund_id, "instrument_type": "equity_traded",
         "issuer_name": "Acme Corp", "issuer_number": "999",
         "security_name": "Acme Ord", "security_number": "IL0001",
-        "pct_of_track": 0.1, "fair_value_ils": 0,
+        "pct_of_track": 0.1, "fair_value_ils": 1000,
         "country": "Israel", "sector": "Tech", "currency": "ILS",
     }
     row.update(overrides)
@@ -151,38 +156,59 @@ def test_delete_nonexistent_holdings_filing_raises(tmp_db):
 # ── DB-level: get_security_holdings ──────────────────────────────────────────
 
 def test_security_holdings_sums_across_different_fund_types(tmp_db):
-    """The core requirement: pension + study_fund combine seamlessly."""
+    """The core requirement: pension + study_fund combine seamlessly. Each
+    fund has only one row, so its weight is 1.0 and its contribution equals
+    its own recorded balance exactly."""
     pension_id = _make_fund(tmp_db, "pension", "1", "5", balance=10000, name="Pension")
     study_id = _make_fund(tmp_db, "study_fund", "1", "6", balance=20000, name="Study")
     db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
-        _basic_row(pension_id, fair_value_ils=1000),
-        _basic_row(study_id, fair_value_ils=1000),
+        _basic_row(pension_id),
+        _basic_row(study_id),
     ], db_path=tmp_db)
 
     result = db.get_security_holdings(tmp_db)
     assert len(result["securities"]) == 1
     sec = result["securities"][0]
-    assert sec["combined_value"] == 2000.0
+    assert sec["combined_value"] == 30000.0  # 10000 + 20000
+    assert sec["by_fund"] == {pension_id: 10000.0, study_id: 20000.0}
     assert sec["fund_count"] == 2
     assert {f["fund_type"] for f in result["active_funds"]} == {"pension", "study_fund"}
+
+
+def test_security_holdings_weights_rows_by_share_of_fund_total(tmp_db):
+    """The core fix: fair_value_ils is the TRACK's institutional total, not
+    personal money — confirmed against a real filing where it was
+    1,500x-8,750x the user's own recorded balance. Each row must be
+    converted to a weight (its own fair_value_ils / the sum of every
+    fair_value_ils row for that fund) and applied to the fund's own
+    balance, not used directly."""
+    fund_id = _make_fund(tmp_db, "pension", "1", "5", balance=8000, name="A")
+    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
+        _basic_row(fund_id, security_number="IL0001", fair_value_ils=6_000_000),  # 75% of track
+        _basic_row(fund_id, security_number="IL0002", fair_value_ils=2_000_000),  # 25% of track
+    ], db_path=tmp_db)
+    securities = {s["security_number"]: s for s in db.get_security_holdings(tmp_db)["securities"]}
+    assert securities["IL0001"]["combined_value"] == pytest.approx(6000.0)   # 75% of 8000
+    assert securities["IL0002"]["combined_value"] == pytest.approx(2000.0)   # 25% of 8000
 
 
 def test_security_holdings_empty_when_no_filings(tmp_db):
     assert db.get_security_holdings(tmp_db) == {"securities": [], "active_funds": []}
 
 
-def test_security_holdings_work_without_a_fund_balance(tmp_db):
-    """fair_value_ils comes straight from the filing, so a fund with
-    holdings rows but no fund_balances entry yet still contributes its full
-    value — unlike the old (wrong) fund_balance * pct_of_track formula,
-    there's no dependency on fund_balances being populated at all."""
+def test_security_holdings_flags_and_zeros_when_fund_has_no_balance(tmp_db):
+    """A fund with holdings rows but no recorded balance yet can't have its
+    personal weight applied to anything — flagged via has_unbalanced_fund
+    and contributes 0, never a guessed number (this is the corrected
+    behavior; an earlier version of this fix wrongly used fair_value_ils
+    directly regardless of whether a balance existed, which is exactly the
+    institutional-vs-personal bug being fixed here)."""
     fund_id = _make_fund(tmp_db, "pension", "1", "5")  # no balance
-    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
-        _basic_row(fund_id, fair_value_ils=1000),
-    ], db_path=tmp_db)
+    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [_basic_row(fund_id)], db_path=tmp_db)
     securities = db.get_security_holdings(tmp_db)["securities"]
     assert len(securities) == 1
-    assert securities[0]["combined_value"] == 1000.0
+    assert securities[0]["combined_value"] == 0.0
+    assert securities[0]["has_unbalanced_fund"] is True
 
 
 def test_security_key_falls_back_to_issuer_and_name_without_a_number(tmp_db):
@@ -249,20 +275,23 @@ def test_overlap_excludes_single_fund_securities(tmp_db):
 
 
 def test_overlap_max_single_fund_share(tmp_db):
-    fund_a = _make_fund(tmp_db, "pension", "1", "5", name="A")
-    fund_b = _make_fund(tmp_db, "pension", "1", "6", name="B")
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=8000, name="A")
+    fund_b = _make_fund(tmp_db, "pension", "1", "6", balance=2000, name="B")
     db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
-        _basic_row(fund_a, fair_value_ils=8000),
-        _basic_row(fund_b, fair_value_ils=2000),
+        _basic_row(fund_a),
+        _basic_row(fund_b),
     ], db_path=tmp_db)
     overlap = db.get_overlap_holdings(tmp_db)["securities"]
-    assert overlap[0]["max_single_fund_share"] == pytest.approx(0.8)
+    assert overlap[0]["max_single_fund_share"] == pytest.approx(0.8)  # 8000 / 10000
 
 
 # ── DB-level: concentration ───────────────────────────────────────────────────
 
 def test_concentration_dual_denominator(tmp_db):
-    fund_a = _make_fund(tmp_db, "pension", "1", "5", name="A")
+    # Fund balance == sum of the fund's fair_value_ils rows, so each row's
+    # weighted personal value equals its own fair_value_ils exactly (5000
+    # and 3000 respectively) — keeps this test's math simple to follow.
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=8000, name="A")
     db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
         _basic_row(fund_a, security_number="IL0001", sector="Tech", fair_value_ils=5000),
         _basic_row(fund_a, security_number="IL0002", sector="", fair_value_ils=3000),  # unclassified
@@ -278,7 +307,7 @@ def test_concentration_dual_denominator(tmp_db):
 
 
 def test_concentration_same_issuer_cross_type(tmp_db):
-    fund_a = _make_fund(tmp_db, "pension", "1", "5", name="A")
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=2000, name="A")
     db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
         _basic_row(fund_a, instrument_type="equity_traded", issuer_number="10-800",
                    issuer_name="Bank Leumi", security_number="IL0001", fair_value_ils=1000),
@@ -291,6 +320,7 @@ def test_concentration_same_issuer_cross_type(tmp_db):
     assert group["issuer_name"] == "Bank Leumi"
     assert set(group["instrument_types"]) == {"equity_traded", "corp_bond"}
     assert group["combined_value"] == 2000.0
+    assert group["type_breakdown"] == {"equity_traded": 1000.0, "corp_bond": 1000.0}
 
 
 def test_concentration_no_same_issuer_group_for_single_instrument_type(tmp_db):
@@ -300,41 +330,131 @@ def test_concentration_no_same_issuer_group_for_single_instrument_type(tmp_db):
     assert rollups["same_issuer_cross_type"] == []
 
 
-# ── DB-level: merged direct/indirect ─────────────────────────────────────────
+# ── DB-level: get_all_securities (merged direct + indirect) ─────────────────
 
-def test_merged_matches_on_isin(tmp_db):
-    fund_a = _make_fund(tmp_db, "pension", "1", "5", name="A")
+def test_all_securities_merges_direct_and_indirect_by_isin(tmp_db):
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=1000, name="A")
     db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
-        _basic_row(fund_a, security_number="US0378331005", fair_value_ils=1000),  # indirect
+        _basic_row(fund_a, security_number="US0378331005"),  # weight 1.0 -> 1000 indirect
     ], db_path=tmp_db)
     holding = db.add_stock_holding("AAPL", isin="US0378331005", cost_basis=0, db_path=tmp_db)[0]
     db.add_stock_value(holding["id"], "2026-01-01", 10, 100, db_path=tmp_db)  # 1000 total, net 750
 
-    merged = db.get_merged_direct_indirect(tmp_db)
-    assert len(merged["merged"]) == 1
-    entry = merged["merged"][0]
+    result = db.get_all_securities(tmp_db)
+    assert len(result["securities"]) == 1
+    entry = result["securities"][0]
     assert entry["indirect_value"] == 1000.0
     assert entry["direct_value"] == 750.0  # net value preferred over total
     assert entry["combined_value"] == 1750.0
-    assert merged["unmatched_direct"] == []
+    assert entry["pct_of_total"] == 1.0  # the only security
+    assert result["unmatched_direct"] == []
 
 
-def test_merged_direct_holding_without_isin_is_unmatched(tmp_db):
+def test_all_securities_direct_holding_without_isin_is_unmatched(tmp_db):
     db.add_stock_holding("AAPL", db_path=tmp_db)  # no isin
-    merged = db.get_merged_direct_indirect(tmp_db)
-    assert merged["merged"] == []
-    assert len(merged["unmatched_direct"]) == 1
-    assert merged["unmatched_direct"][0]["symbol"] == "AAPL"
+    result = db.get_all_securities(tmp_db)
+    assert result["securities"] == []
+    assert len(result["unmatched_direct"]) == 1
+    assert result["unmatched_direct"][0]["symbol"] == "AAPL"
 
 
-def test_merged_direct_holding_with_isin_but_no_indirect_match_still_shown(tmp_db):
+def test_all_securities_direct_holding_with_isin_but_no_indirect_match_still_shown(tmp_db):
     holding = db.add_stock_holding("MSFT", isin="US5949181045", cost_basis=0, db_path=tmp_db)[0]
     db.add_stock_value(holding["id"], "2026-01-01", 5, 400, db_path=tmp_db)  # 2000 total, net 1500
-    merged = db.get_merged_direct_indirect(tmp_db)
-    assert len(merged["merged"]) == 1
-    assert merged["merged"][0]["indirect_value"] == 0.0
-    assert merged["merged"][0]["direct_value"] == 1500.0
-    assert merged["unmatched_direct"] == []
+    result = db.get_all_securities(tmp_db)
+    assert len(result["securities"]) == 1
+    assert result["securities"][0]["indirect_value"] == 0.0
+    assert result["securities"][0]["direct_value"] == 1500.0
+    assert result["unmatched_direct"] == []
+
+
+def test_all_securities_pct_of_total_covers_direct_and_indirect_together(tmp_db):
+    """The point of the merge: a directly-held security counts toward the
+    same percentage denominator as fund-derived ones."""
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=3000, name="A")
+    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
+        _basic_row(fund_a, security_number="IL0001"),  # 3000 indirect
+    ], db_path=tmp_db)
+    holding = db.add_stock_holding("MSFT", isin="US5949181045", cost_basis=0, db_path=tmp_db)[0]
+    db.add_stock_value(holding["id"], "2026-01-01", 10, 100, db_path=tmp_db)  # 1000 total, net 750 (25% tax on the full gain since cost_basis=0)
+
+    securities = {s["security_number"]: s for s in db.get_all_securities(tmp_db)["securities"]}
+    assert securities["IL0001"]["pct_of_total"] == pytest.approx(0.8)          # 3000 / 3750
+    assert securities["US5949181045"]["pct_of_total"] == pytest.approx(0.2)    # 750 / 3750
+
+
+def test_all_securities_does_not_collide_rows_sharing_a_security_number(tmp_db):
+    """Real bug found against actual data: a written equity option's
+    security_number was the SAME as its underlying stock's ISIN, but with a
+    DIFFERENT issuer_number (the option counterparty vs. the equity
+    issuer) — get_security_holdings correctly keeps these as separate
+    entries, but an earlier version of get_all_securities re-keyed on
+    security_number alone for the direct-holding merge and silently
+    overwrote one with the other, losing real money (confirmed ~₪62,000 on
+    real data). Both must survive here with their own values intact, and a
+    direct holding sharing that ISIN must merge into the equity-typed one,
+    not the option."""
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=10000, name="A")
+    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
+        _basic_row(fund_a, instrument_type="equity_traded", issuer_number="EQUITY-ISSUER",
+                   security_number="IL0001", fair_value_ils=7000),
+        _basic_row(fund_a, instrument_type="option", issuer_number="OPTION-COUNTERPARTY",
+                   security_number="IL0001", fair_value_ils=3000),  # same security_number!
+    ], db_path=tmp_db)
+
+    securities = db.get_all_securities(tmp_db)["securities"]
+    matching = [s for s in securities if s["security_number"] == "IL0001"]
+    assert len(matching) == 2  # both survive, not collapsed into one
+    assert {s["instrument_type"] for s in matching} == {"equity_traded", "option"}
+    assert {round(s["indirect_value"], 2) for s in matching} == {7000.0, 3000.0}
+
+    # A direct holding sharing that ISIN merges into the equity, not the option.
+    holding = db.add_stock_holding("ACME", isin="IL0001", cost_basis=0, db_path=tmp_db)[0]
+    db.add_stock_value(holding["id"], "2026-01-01", 1, 500, db_path=tmp_db)  # 500 total, net 375 (25% tax on the full gain since cost_basis=0)
+
+    securities2 = db.get_all_securities(tmp_db)["securities"]
+    equity_entry = next(s for s in securities2 if s["security_number"] == "IL0001" and s["instrument_type"] == "equity_traded")
+    option_entry = next(s for s in securities2 if s["security_number"] == "IL0001" and s["instrument_type"] == "option")
+    assert equity_entry["direct_value"] == 375.0
+    assert option_entry["direct_value"] == 0.0
+
+
+# ── DB-level: get_direct_fund_overlap ────────────────────────────────────────
+
+def test_direct_fund_overlap_shows_fund_side_match(tmp_db):
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=1000, name="A")
+    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
+        _basic_row(fund_a, security_number="US0378331005"),  # weight 1.0 -> 1000 indirect
+    ], db_path=tmp_db)
+    holding = db.add_stock_holding("AAPL", isin="US0378331005", cost_basis=0, db_path=tmp_db)[0]
+    db.add_stock_value(holding["id"], "2026-01-01", 10, 100, db_path=tmp_db)  # 1000 total, net 750
+
+    result = db.get_direct_fund_overlap(tmp_db)
+    assert len(result["breakdown"]) == 1
+    entry = result["breakdown"][0]
+    assert entry["symbol"] == "AAPL"
+    assert entry["direct_value"] == 750.0
+    assert entry["indirect_value"] == 1000.0
+    assert entry["by_fund"] == {fund_a: 1000.0}
+    assert result["unmatched_direct"] == []
+
+
+def test_direct_fund_overlap_shows_zero_not_omitted_when_no_fund_match(tmp_db):
+    holding = db.add_stock_holding("MSFT", isin="US5949181045", cost_basis=0, db_path=tmp_db)[0]
+    db.add_stock_value(holding["id"], "2026-01-01", 5, 400, db_path=tmp_db)  # 2000 total, net 1500
+    result = db.get_direct_fund_overlap(tmp_db)
+    assert len(result["breakdown"]) == 1
+    assert result["breakdown"][0]["direct_value"] == 1500.0
+    assert result["breakdown"][0]["indirect_value"] == 0.0
+    assert result["breakdown"][0]["by_fund"] == {}
+
+
+def test_direct_fund_overlap_holding_without_isin_is_unmatched(tmp_db):
+    db.add_stock_holding("AAPL", db_path=tmp_db)  # no isin
+    result = db.get_direct_fund_overlap(tmp_db)
+    assert result["breakdown"] == []
+    assert len(result["unmatched_direct"]) == 1
+    assert result["unmatched_direct"][0]["symbol"] == "AAPL"
 
 
 # ── DB-level: soft-delete propagation ─────────────────────────────────────────
@@ -400,11 +520,15 @@ def test_lookthrough_import_confirm_and_read_back(client):
         "track_number": "5", "institution_reg_number": "1",
     })
     fund_id = client.get("/api/funds").get_json()[0]["id"]
+    # A recorded balance is required for get_security_holdings to compute a
+    # personal weighted value at all — a fund with no balance is flagged
+    # has_unbalanced_fund and contributes 0, see db.py.
+    client.post(f"/api/funds/{fund_id}/balances", json={"date": "2026-01-01", "balance": 1000})
 
     confirm_resp = client.post("/api/lookthrough/import/confirm", json={
         "institution_reg_number": "1", "institution_name": "Co",
         "period_year": 2026, "period_quarter": 1,
-        "rows": [_basic_row(fund_id, fair_value_ils=1000)],
+        "rows": [_basic_row(fund_id)],  # single row -> weight 1.0 -> combined_value == balance
     })
     assert confirm_resp.status_code == 201
 
@@ -414,6 +538,7 @@ def test_lookthrough_import_confirm_and_read_back(client):
     securities = client.get("/api/lookthrough/securities").get_json()
     assert len(securities["securities"]) == 1
     assert securities["securities"][0]["combined_value"] == 1000.0
+    assert securities["securities"][0]["pct_of_total"] == 1.0
 
 
 def test_lookthrough_import_confirm_missing_rows_returns_400(client):
@@ -443,4 +568,4 @@ def test_lookthrough_overlap_concentration_merged_routes_empty_by_default(client
     concentration = client.get("/api/lookthrough/concentration").get_json()
     assert concentration["total_portfolio"] == 0
     merged = client.get("/api/lookthrough/merged").get_json()
-    assert merged == {"merged": [], "unmatched_direct": []}
+    assert merged == {"breakdown": [], "unmatched_direct": [], "active_funds": []}

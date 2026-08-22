@@ -81,6 +81,62 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: personal-value fix, merged All Securities view, real redesign (v1.23.0)**
+  — first real usage against the actual Fenix data surfaced a second, more serious value bug on
+  top of the v1.22.0 one, plus a set of requested UX changes; all landed together.
+  - **The real bug**: `fair_value_ils` (the value the v1.22.0 fix switched to) turned out to be
+    the filing's INSTITUTIONAL total for that security across the WHOLE TRACK — every
+    policyholder invested in it combined — not this user's personal share. Confirmed by
+    comparing the sum of everything imported for each fund against the user's own recorded
+    balance: off by 1,500x and 8,750x (a personal savings policy showing ₪657M of bank cash was
+    the tell). Fixed by converting each row to a WEIGHT within its own fund
+    (`row.fair_value_ils / sum of fair_value_ils across that whole fund`) and applying that
+    weight to the user's own `fund_balances` entry for that fund — `has_unbalanced_fund` is back
+    (a fund with holdings rows but no recorded balance can't have a weight applied at all, so it
+    contributes 0 and is flagged, never guessed).
+  - **A second real bug found fixing the first one**: merging fund-derived exposure with direct
+    stock holdings by `security_number` alone silently collapsed different securities that
+    happen to share an ISIN-like code — confirmed on real data where a written equity option's
+    `security_number` matched its underlying stock's ISIN exactly, but with a different
+    `issuer_number` (the option counterparty vs. the equity issuer). The two were correctly kept
+    separate by the existing fund-only aggregation but collided in the merge, silently
+    overwriting one with the other (~₪62,000 vanished on the real Fenix data). Fixed by giving
+    every fund-derived entry its own stable identity and only using security_number to find a
+    directly-held holding's best merge candidate (preferring an equity-shaped instrument type
+    over a derivative sharing the same code) — nothing is ever collapsed away.
+  - **All Securities is now the merged view** (`get_all_securities`, replacing the old
+    fund-only `get_security_holdings` as the tab's data source): direct stock holdings and
+    fund-derived exposure combine into one row and one `% of Invested` — a directly-held MSFT
+    position now counts toward the same denominator as fund exposure to MSFT. Overlap and
+    Concentration now run on this same merged set. The old "Direct + Indirect" tab is kept as a
+    separate, differently-scoped view — "Direct vs. Funds Breakdown" — anchored on each
+    individual direct holding specifically (not every security), showing its fund-side
+    counterpart's value (0, not omitted, when there isn't one) and which fund(s) contribute it.
+  - **Column redesign**: Security and Issuer collapsed into one "Holding" column (issuer shown
+    as a muted sub-line only when it differs from the security name — decided in favor of
+    keeping the more specific security name primary, since two different bonds from the same
+    issuer would otherwise look identical) — the per-fund columns (which grew with every fund
+    added) became one compact "Funds/Positions" column with a hover tooltip for the breakdown.
+    New order: Holding, My ILS (Invested), % of Invested, Type, Funds/Positions, Country,
+    Sector, Currency. The whole table is now resizable, sortable, and filterable (search text +
+    Type + Fund/Direct dropdowns), same drag-handle/click-header pattern as the Manage Funds
+    table — hit the same CSS gotcha as that table's sticky header: `.col-resize-handle` is
+    `position:absolute; height:100%` and needs its own `<th>` as the positioning anchor; without
+    a scoped `position:relative` rule it escaped to a distant ancestor and stretched to the
+    entire page's height instead of just one header cell.
+  - **Concentration's same-issuer cross-type rollup gained a `type_breakdown`** — e.g. "מדינת
+    ישראל: ₪500K total = ₪100K bonds + ₪400K loans" instead of just a value and a list of type
+    names — plus a `security_name` fallback for direct-only holdings with no issuer info, so
+    they no longer collide into one shared blank-issuer bucket.
+  - Fund names shown anywhere in this tab now include the Track # when set
+    (`fundLabel()`) — needed the moment two of the user's own funds turned out to share an
+    identical display name (see [[architecture]]'s Track # picker note), otherwise the
+    Funds/Positions column would show the same name twice with no way to tell them apart.
+  - Still pending: some sheet types in the Fenix (savings policy) filing aren't recognized by
+    `SHEET_NAME_TO_INSTRUMENT_TYPE` yet and land under `instrument_type='other'` — sampled the
+    largest ones and they're clearly FX forward contracts (issuer names are bank SWIFT/BIC codes
+    like CITIUS33/CHASUS33, "security" is a currency pair). Needs the actual sheet name(s) from
+    the source file to map properly rather than guessing from row content.
 - [x] **Remove Official Fund #, Track # picker level (v1.22.1)** — while adding real Fenix
   savings-policy funds and putting Look-Through's Institution Reg #/Track # fields to real use,
   two follow-ups: (1) **Official Fund #** (added v1.21.0) was removed entirely — column, API

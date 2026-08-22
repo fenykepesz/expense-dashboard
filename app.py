@@ -579,8 +579,8 @@ def remove_holdings_filing(filing_id):
 
 
 @app.route('/api/lookthrough/securities')
-def get_security_holdings():
-    return jsonify(db.get_security_holdings())
+def get_all_securities():
+    return jsonify(db.get_all_securities())
 
 
 @app.route('/api/lookthrough/overlap')
@@ -594,8 +594,8 @@ def get_concentration_rollups():
 
 
 @app.route('/api/lookthrough/merged')
-def get_merged_direct_indirect():
-    return jsonify(db.get_merged_direct_indirect())
+def get_direct_fund_overlap():
+    return jsonify(db.get_direct_fund_overlap())
 
 
 # --- Bank Accounts ---

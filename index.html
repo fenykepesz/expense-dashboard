@@ -695,6 +695,16 @@
             top: 0;
             z-index: 2;
         }
+        /* .col-resize-handle below is position:absolute + height:100%, which
+           needs its own <th> as the containing block — without this, it
+           escapes to the nearest OTHER positioned ancestor up the tree and
+           stretches to that ancestor's full height instead (confirmed: it
+           grew to the whole page's height, ~800+ rows tall, with no such
+           rule). The funds table gets this for free via its own sticky-header
+           rule above; this table isn't bounded/sticky, so it needs its own. */
+        #lookthroughSecuritiesTableWrap thead th {
+            position: relative;
+        }
 
         .col-resize-handle {
             position: absolute;
@@ -955,7 +965,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.22.1</span>
+            <span class="version-badge">v1.23.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1695,7 +1705,7 @@
                         <button type="button" class="year-btn active" data-view="securities" onclick="setLookthroughView('securities')">All Securities</button>
                         <button type="button" class="year-btn" data-view="overlap" onclick="setLookthroughView('overlap')">Overlap</button>
                         <button type="button" class="year-btn" data-view="concentration" onclick="setLookthroughView('concentration')">Concentration</button>
-                        <button type="button" class="year-btn" data-view="merged" onclick="setLookthroughView('merged')">Direct + Indirect</button>
+                        <button type="button" class="year-btn" data-view="merged" onclick="setLookthroughView('merged')">Direct vs. Funds Breakdown</button>
                     </div>
                 </div>
                 <div id="lookthroughViewBody">
