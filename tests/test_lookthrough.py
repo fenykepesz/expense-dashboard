@@ -306,6 +306,30 @@ def test_concentration_dual_denominator(tmp_db):
     assert unclassified["pct_of_named"] is None
 
 
+def test_concentration_rollup_includes_per_fund_and_direct_breakdown(tmp_db):
+    """Each rollup row needs its own by_fund/direct split — "how much of
+    this sector sits in THIS fund" — not just a portfolio-wide total, so a
+    caller can show a per-fund % (e.g. "Energy is 15% of your Menora fund")."""
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=5000, name="A")
+    fund_b = _make_fund(tmp_db, "pension", "1", "6", balance=2000, name="B")
+    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
+        _basic_row(fund_a, security_number="IL0001", sector="Tech"),  # 5000
+        _basic_row(fund_b, security_number="IL0002", sector="Tech"),  # 2000
+    ], db_path=tmp_db)
+    holding = db.add_stock_holding("MSFT", isin="US5949181045", cost_basis=0, db_path=tmp_db)[0]
+    db.add_stock_value(holding["id"], "2026-01-01", 10, 100, db_path=tmp_db)  # 1000 total, net 750, no sector
+
+    rollups = db.get_concentration_rollups(tmp_db)
+    tech = next(r for r in rollups["by_sector"] if r["label"] == "Tech")
+    assert tech["by_fund"] == {fund_a: 5000.0, fund_b: 2000.0}
+    assert tech["direct"] == 0.0
+    unclassified = next(r for r in rollups["by_sector"] if r["label"] == "Unclassified")
+    assert unclassified["direct"] == 750.0
+    assert rollups["fund_totals"] == {fund_a: 5000.0, fund_b: 2000.0}
+    assert rollups["direct_total"] == 750.0
+    assert {f["id"] for f in rollups["active_funds"]} == {fund_a, fund_b}
+
+
 def test_concentration_same_issuer_cross_type(tmp_db):
     fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=2000, name="A")
     db.replace_fund_holdings_filing("1", "Co", 2026, 1, [

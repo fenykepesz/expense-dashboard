@@ -81,6 +81,22 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: per-fund breakdown in the By Sector concentration table (v1.25.0)** — the
+  user found the existing dual-denominator table (% of Portfolio / % of Named) confusing once
+  they had real data in front of it, and asked for a redesign modeled on a reference sheet they'd
+  built earlier (their own Claude Desktop report from the original brainstorm): Category | Your
+  ILS | Total % | one column per fund showing THAT fund's ₪ amount and % of its OWN total (not
+  the whole portfolio) in this category, e.g. "₪200 (15% of fund)". Explicitly scoped to By
+  Sector first, to nail the design before repeating it for Country/Currency. `rollup()` in
+  db.py now tracks a `by_fund`/`direct` breakdown per bucket (not just a portfolio-wide total),
+  and `get_concentration_rollups` exposes `active_funds`/`fund_totals`/`direct_total` so the
+  frontend can turn "₪X in this fund" into "₪X, Y% of that fund's own total." Rows sorted by
+  value including Unclassified/Conflicting in their natural rank (matching the reference sheet)
+  rather than pinned at the end. Top 10 shown by default with a "Show all N" toggle — nothing
+  summed into an "Other" bucket the way the pie charts do, every category stays individually
+  inspectable. Real finding surfaced by the new table: Unclassified (33%) + Conflicting (27%) =
+  over 60% of the portfolio has no usable sector data — the actual reason the old table felt
+  unclear, not the column design itself.
 - [x] **Look-Through: column tooltips on All Securities/Overlap (v1.24.2)** — every header (the
   fixed columns, each dynamic fund column, Direct, and Overlap's Max Single Fund) now has an ℹ
   tooltip explaining what it means, same `thTooltip()` pattern already used on the Manage Funds

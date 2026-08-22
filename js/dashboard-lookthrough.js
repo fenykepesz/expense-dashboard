@@ -451,6 +451,87 @@ function renderSecuritiesTable(data, { showOverlapCols = false } = {}) {
     `;
 }
 
+// Per-section top-10/show-all state — a plain object keyed by rollup field,
+// re-rendered (not toggled via CSS) on click same as every other filter in
+// this file, so it survives a full renderLookthroughView() refresh.
+let lookthroughCategoryExpanded = { sector: false, country: false, currency: false };
+
+function toggleCategoryExpand(key) {
+    lookthroughCategoryExpanded[key] = !lookthroughCategoryExpanded[key];
+    renderLookthroughView();
+}
+
+// Category | Your ILS | Total % | one column per fund (₪ + % of THAT fund's
+// own total in this category) | Direct — replaces the old dual-denominator
+// (% of Portfolio / % of Named) table, which the user found confusing once
+// they actually had real data to look at. Top 10 rows shown by default
+// (rows are already sorted by value server-side), with a toggle to see
+// the rest — nothing is summed away into an "Other" bucket the way the
+// pie charts do, every category stays individually inspectable.
+function renderCategoryTable(key, title, rows, data) {
+    if (!rows.length) return '';
+    const funds = data.active_funds || [];
+    const fundTotals = data.fund_totals || {};
+    const directTotal = data.direct_total || 0;
+    const hasDirect = directTotal > 0;
+
+    const TOP_N = 10;
+    const expanded = lookthroughCategoryExpanded[key];
+    const visibleRows = expanded ? rows : rows.slice(0, TOP_N);
+
+    const fundHeaders = funds.map(f => `<th style="white-space:nowrap;">${fundColumnHeader(f)}</th>`).join('');
+    const directHeader = hasDirect ? '<th>Direct</th>' : '';
+
+    const body = visibleRows.map(r => {
+        const fundCells = funds.map(f => {
+            const amt = (r.by_fund && r.by_fund[f.id]) || 0;
+            if (!amt) return '<td class="amount-cell">—</td>';
+            const total = fundTotals[f.id];
+            const pct = total ? (amt / total * 100).toFixed(1) : '0.0';
+            return `<td class="amount-cell">${formatCurrency(amt)}<br><span style="font-size:0.78em;color:var(--text-secondary);">${pct}% of fund</span></td>`;
+        }).join('');
+        const directCell = hasDirect
+            ? (r.direct
+                ? `<td class="amount-cell">${formatCurrency(r.direct)}<br><span style="font-size:0.78em;color:var(--text-secondary);">${(r.direct / directTotal * 100).toFixed(1)}% of direct</span></td>`
+                : '<td class="amount-cell">—</td>')
+            : '';
+        return `
+            <tr>
+                <td>${escapeHtml(r.label)}</td>
+                <td class="amount-cell">${formatCurrency(r.value)}</td>
+                <td class="amount-cell">${(r.pct_of_portfolio * 100).toFixed(1)}%</td>
+                ${fundCells}
+                ${directCell}
+            </tr>
+        `;
+    }).join('');
+
+    const toggle = rows.length > TOP_N
+        ? `<button class="btn-excl" style="margin-top:8px;" onclick="toggleCategoryExpand('${key}')">${expanded ? `Show top ${TOP_N} only` : `Show all ${rows.length}`}</button>`
+        : '';
+
+    return `
+        <h4 style="margin:20px 0 4px;">${escapeHtml(title)}</h4>
+        <p style="color:var(--text-secondary);font-size:0.78em;margin:0 0 8px;">
+            Your ILS / Total % are your personal value and its share of your whole portfolio.
+            Each fund column shows that fund's ₪ amount here and what % of THAT fund's own total
+            it represents — e.g. "₪200 (15% of fund)" means Energy is 15% of that one fund, not
+            of everything you own.
+        </p>
+        <div style="overflow-x:auto;">
+            <table class="transactions-table">
+                <thead><tr>
+                    <th>Category</th><th>Your ILS</th><th>Total %</th>
+                    ${fundHeaders}
+                    ${directHeader}
+                </tr></thead>
+                <tbody>${body}</tbody>
+            </table>
+        </div>
+        ${toggle}
+    `;
+}
+
 function renderRollupTable(title, rows) {
     if (!rows.length) return '';
     const body = rows.map(r => `
@@ -573,7 +654,7 @@ function renderConcentrationView(data) {
     return `
         <p style="color:var(--text-secondary);font-size:0.9em;margin:0 0 8px;">Total look-through value: ${formatCurrency(data.total_portfolio)}</p>
         ${chartsGrid}
-        ${renderRollupTable('By Sector', data.by_sector)}
+        ${renderCategoryTable('sector', 'By Sector', data.by_sector, data)}
         ${renderRollupTable('By Country', data.by_country)}
         ${renderRollupTable('By Currency', data.by_currency)}
         ${crossType}

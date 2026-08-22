@@ -1223,31 +1223,40 @@ def get_concentration_rollups(db_path=None):
             s["combined_value"] for s in securities
             if s[field] and not s["classification_conflict"]
         )
+        # Each bucket also tracks a per-fund and direct breakdown — how much
+        # of e.g. "Energy" sits inside each specific fund, not just the
+        # portfolio-wide total — so callers can show "₪X of your Y ILS in
+        # this fund" per category, not just an aggregate number.
         buckets = {}
-        unclassified = 0.0
-        conflicting = 0.0
+
+        def _bucket(label):
+            return buckets.setdefault(label, {"value": 0.0, "by_fund": {}, "direct": 0.0})
+
         for s in securities:
             if s["classification_conflict"]:
-                conflicting += s["combined_value"]
+                label = "Conflicting"
             elif not s[field]:
-                unclassified += s["combined_value"]
+                label = "Unclassified"
             else:
-                buckets[s[field]] = buckets.get(s[field], 0.0) + s["combined_value"]
+                label = s[field]
+            b = _bucket(label)
+            b["value"] += s["combined_value"]
+            for fid, v in s["by_fund"].items():
+                b["by_fund"][fid] = b["by_fund"].get(fid, 0.0) + v
+            b["direct"] += s["direct_value"]
+
         rows = [
             {
-                "label": label, "value": round(value, 2),
-                "pct_of_portfolio": round(value / total_portfolio, 4) if total_portfolio else 0,
-                "pct_of_named": round(value / named_total, 4) if named_total else 0,
+                "label": label, "value": round(b["value"], 2),
+                "pct_of_portfolio": round(b["value"] / total_portfolio, 4) if total_portfolio else 0,
+                "pct_of_named": (
+                    round(b["value"] / named_total, 4) if named_total and label not in ("Unclassified", "Conflicting") else None
+                ),
+                "by_fund": {k: round(v, 2) for k, v in b["by_fund"].items()},
+                "direct": round(b["direct"], 2),
             }
-            for label, value in sorted(buckets.items(), key=lambda kv: kv[1], reverse=True)
+            for label, b in sorted(buckets.items(), key=lambda kv: kv[1]["value"], reverse=True)
         ]
-        for label, value in (("Unclassified", unclassified), ("Conflicting", conflicting)):
-            if value:
-                rows.append({
-                    "label": label, "value": round(value, 2),
-                    "pct_of_portfolio": round(value / total_portfolio, 4) if total_portfolio else 0,
-                    "pct_of_named": None,
-                })
         return rows
 
     issuer_groups = {}
@@ -1341,6 +1350,13 @@ def get_concentration_rollups(db_path=None):
         "by_fund": by_fund,
         "same_issuer_cross_type": same_issuer_cross_type,
         "total_portfolio": round(total_portfolio, 2),
+        # For turning each rollup row's per-fund breakdown (by_sector[i]["by_fund"]
+        # etc.) into "X% of THIS fund", not just "X% of your whole portfolio" —
+        # active_funds names/labels the fund_ids, fund_totals/direct_total are
+        # each fund's (and direct's) own grand total to divide by.
+        "active_funds": all_securities_result["active_funds"],
+        "fund_totals": {fid: round(v, 2) for fid, v in fund_totals.items()},
+        "direct_total": round(direct_total, 2),
     }
 
 
