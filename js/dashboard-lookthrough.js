@@ -10,9 +10,12 @@ let lookthroughPendingResult = null;   // the parsed-but-not-yet-confirmed previ
 let lookthroughSelectedFile = null;
 let lookthroughView = 'securities';
 
-// Concentration pie charts — one Chart.js instance per canvas, destroyed
-// and recreated on every render (same pattern as cardChart/bankAccountChart).
-let lookthroughTypeChart, lookthroughCountryChart, lookthroughSectorChart, lookthroughFundChart;
+// Last-fetched payload per view, keyed by view name — lets sort/filter/
+// expand-collapse re-render instantly from what's already on the page
+// instead of re-fetching and flashing "Loading…" on every click. Only
+// actions that actually change server-side data (import, delete a filing)
+// should clear this and force a real refetch.
+let lookthroughViewCache = {};
 
 // Two of the user's own funds can share an identical display name (a real
 // case: two tracks under one savings policy, same Fund Name/Fund #) — this
@@ -152,6 +155,7 @@ async function deleteHoldingsFiling(filingId, institutionName) {
     const result = await resp.json();
     if (!resp.ok) { alert(result.error || 'Failed to delete filing'); return; }
     renderHoldingsFilings(result);
+    lookthroughViewCache = {};  // deleted filing can change every view's numbers
     await renderLookthroughView();
 }
 
@@ -260,7 +264,7 @@ function sortLookthroughColumn(col) {
         lookthroughSortCol = col;
         lookthroughSortDir = col === 'holding' ? 1 : -1;
     }
-    renderLookthroughView();
+    rerenderLookthroughView();
 }
 
 function sortSecuritiesRows(rows) {
@@ -304,26 +308,52 @@ function setLookthroughView(view) {
     renderLookthroughView();
 }
 
+const LOOKTHROUGH_VIEW_ENDPOINTS = {
+    securities: '/api/lookthrough/securities',
+    overlap: '/api/lookthrough/overlap',
+    concentration: '/api/lookthrough/concentration',
+    merged: '/api/lookthrough/merged',
+};
+
+// Fetches the current view's data fresh from the server, caches it, then
+// renders. Use this after anything that actually changes server-side data
+// (import, delete a filing) or on first load / view switch — NOT for pure
+// UI-state changes (sort, filter, expand/collapse), which should call
+// rerenderLookthroughView() instead so they don't refetch or flash "Loading…".
 async function renderLookthroughView() {
     const body = document.getElementById('lookthroughViewBody');
     body.innerHTML = '<p class="no-data">Loading…</p>';
+    const data = await fetch(LOOKTHROUGH_VIEW_ENDPOINTS[lookthroughView]).then(r => r.json());
+    lookthroughViewCache[lookthroughView] = data;
+    renderLookthroughViewFromCache();
+}
+
+// Re-renders the current view from whatever's already cached — no network
+// round-trip, no "Loading…" flash. Falls back to a real fetch only if
+// nothing has been loaded for this view yet.
+function rerenderLookthroughView() {
+    if (!lookthroughViewCache[lookthroughView]) {
+        renderLookthroughView();
+        return;
+    }
+    renderLookthroughViewFromCache();
+}
+
+function renderLookthroughViewFromCache() {
+    const body = document.getElementById('lookthroughViewBody');
+    const data = lookthroughViewCache[lookthroughView];
 
     if (lookthroughView === 'securities') {
-        const data = await fetch('/api/lookthrough/securities').then(r => r.json());
         body.innerHTML = renderSecuritiesTable(data);
         initLookthroughResize();
     } else if (lookthroughView === 'overlap') {
-        const data = await fetch('/api/lookthrough/overlap').then(r => r.json());
         body.innerHTML = data.securities.length
             ? renderSecuritiesTable(data, { showOverlapCols: true })
             : '<p class="no-data">No security is currently held in more than one fund.</p>';
         initLookthroughResize();
     } else if (lookthroughView === 'concentration') {
-        const data = await fetch('/api/lookthrough/concentration').then(r => r.json());
         body.innerHTML = renderConcentrationView(data);
-        renderConcentrationCharts(data);
     } else if (lookthroughView === 'merged') {
-        const data = await fetch('/api/lookthrough/merged').then(r => r.json());
         body.innerHTML = renderDirectBreakdownView(data);
     }
 }
@@ -340,15 +370,15 @@ function renderSecuritiesTable(data, { showOverlapCols = false } = {}) {
     const filterBar = `
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
             <input type="text" id="lookthroughSearchInput" placeholder="Search issuer/security…" value="${escapeHtml(lookthroughFilter.search)}"
-                oninput="lookthroughFilter.search=this.value; renderLookthroughView();"
+                oninput="lookthroughFilter.search=this.value; rerenderLookthroughView();"
                 style="height:32px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.85em;width:200px;">
-            <select onchange="lookthroughFilter.type=this.value; renderLookthroughView();"
+            <select onchange="lookthroughFilter.type=this.value; rerenderLookthroughView();"
                 style="height:32px;padding:0 8px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.85em;">
                 <option value="all">All Types</option>
                 ${typeOptions.map(t => `<option value="${t}" ${lookthroughFilter.type === t ? 'selected' : ''}>${escapeHtml(INSTRUMENT_TYPE_LABELS[t] || t)}</option>`).join('')}
             </select>
             <span style="font-size:0.85em;color:var(--text-secondary);">Held in:</span>
-            <select onchange="lookthroughFilter.fund=this.value; renderLookthroughView();"
+            <select onchange="lookthroughFilter.fund=this.value; rerenderLookthroughView();"
                 style="height:32px;padding:0 8px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.85em;">
                 <option value="all">Any fund/position</option>
                 ${funds.map(f => `<option value="${f.id}" ${lookthroughFilter.fund === String(f.id) ? 'selected' : ''}>${escapeHtml(fundLabel(f))}</option>`).join('')}
@@ -458,7 +488,26 @@ let lookthroughCategoryExpanded = { type: false, sector: false, country: false, 
 
 function toggleCategoryExpand(key) {
     lookthroughCategoryExpanded[key] = !lookthroughCategoryExpanded[key];
-    renderLookthroughView();
+    rerenderLookthroughView();
+}
+
+// Whole-section collapse (Type/Sector/Country/Currency/cross-type table down to
+// just its header) — separate from the top-10 toggle above, tracked as a Set
+// since most sections start expanded and only a few get collapsed.
+let lookthroughSectionCollapsed = new Set();
+
+function toggleSection(key) {
+    if (lookthroughSectionCollapsed.has(key)) lookthroughSectionCollapsed.delete(key);
+    else lookthroughSectionCollapsed.add(key);
+    rerenderLookthroughView();
+}
+
+function renderSectionHeader(key, title) {
+    const collapsed = lookthroughSectionCollapsed.has(key);
+    const icon = collapsed ? '▸' : '▾';
+    return `<h4 style="margin:20px 0 4px;cursor:pointer;user-select:none;" onclick="toggleSection('${key}')">
+        <span style="display:inline-block;width:1em;color:var(--text-secondary);">${icon}</span>${escapeHtml(title)}
+    </h4>`;
 }
 
 // Which merged rows (Equity Exposure, Fixed Income Exposure, Derivatives &
@@ -469,7 +518,7 @@ let lookthroughBreakdownExpanded = new Set();
 function toggleTypeBreakdown(id) {
     if (lookthroughBreakdownExpanded.has(id)) lookthroughBreakdownExpanded.delete(id);
     else lookthroughBreakdownExpanded.add(id);
-    renderLookthroughView();
+    rerenderLookthroughView();
 }
 
 // Fund cells + Direct cell for one row (parent or sub-row) — shared so a
@@ -502,6 +551,7 @@ function renderCategoryCells(entry, funds, fundTotals, directTotal, hasDirect) {
 // — collapsed by default so the table isn't cluttered until asked for.
 function renderCategoryTable(key, title, rows, data) {
     if (!rows.length) return '';
+    if (lookthroughSectionCollapsed.has(key)) return renderSectionHeader(key, title);
     const funds = data.active_funds || [];
     const fundTotals = data.fund_totals || {};
     const directTotal = data.direct_total || 0;
@@ -560,7 +610,7 @@ function renderCategoryTable(key, title, rows, data) {
         : '';
 
     return `
-        <h4 style="margin:20px 0 4px;">${escapeHtml(title)}</h4>
+        ${renderSectionHeader(key, title)}
         <p style="color:var(--text-secondary);font-size:0.78em;margin:0 0 8px;">
             Your ILS / Total % are your personal value and its share of your whole portfolio.
             Each fund column shows that fund's ₪ amount here and what % of THAT fund's own total
@@ -581,104 +631,16 @@ function renderCategoryTable(key, title, rows, data) {
     `;
 }
 
-function renderRollupTable(title, rows) {
-    if (!rows.length) return '';
-    const body = rows.map(r => `
-        <tr>
-            <td>${escapeHtml(r.label)}</td>
-            <td class="amount-cell">${formatCurrency(r.value)}</td>
-            <td class="amount-cell">${(r.pct_of_portfolio * 100).toFixed(1)}%</td>
-            <td class="amount-cell">${r.pct_of_named !== null ? (r.pct_of_named * 100).toFixed(1) + '%' : '—'}</td>
-        </tr>
-    `).join('');
-    return `
-        <h4 style="margin:20px 0 8px;">${escapeHtml(title)}</h4>
-        <div style="overflow-x:auto;">
-            <table class="transactions-table">
-                <thead><tr><th>Category</th><th>Value</th><th>% of Portfolio</th><th>% of Named</th></tr></thead>
-                <tbody>${body}</tbody>
-            </table>
-        </div>
-    `;
-}
-
-// Country/Sector can have dozens of tiny slices — keep the top N by value,
-// sum the rest into one "Other" slice. "Unclassified"/"Conflicting" are
-// kept as their own honest slices regardless of rank (decided with the
-// user rather than hiding what the data doesn't know), never folded into
-// "Other" or dropped.
-function topNPlusOther(rows, n) {
-    const special = rows.filter(r => r.label === 'Unclassified' || r.label === 'Conflicting');
-    const normal = rows.filter(r => r.label !== 'Unclassified' && r.label !== 'Conflicting');
-    const top = normal.slice(0, n);
-    const rest = normal.slice(n);
-    const otherValue = rest.reduce((sum, r) => sum + r.value, 0);
-    const result = [...top];
-    if (otherValue) result.push({ label: 'Other', value: otherValue });
-    result.push(...special);
-    return result;
-}
-
-function buildLookthroughPieChart(canvasId, existingChart, rows, totalPortfolio) {
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return existingChart;
-    if (existingChart) existingChart.destroy();
-    if (!rows.length) return null;
-    const labels = rows.map(r => r.label);
-    return new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels,
-            datasets: [{
-                data: rows.map(r => r.value),
-                backgroundColor: labels.map((_, i) => CHART_PALETTE[i % CHART_PALETTE.length]),
-            }],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { color: getThemeColors().textColor, font: { size: 11 } } },
-                tooltip: {
-                    callbacks: {
-                        label: c => {
-                            const pct = totalPortfolio ? (c.raw / totalPortfolio * 100).toFixed(1) : '0.0';
-                            return `${c.label}: ${formatCurrency(c.raw)} (${pct}%)`;
-                        },
-                    },
-                },
-            },
-        },
-    });
-}
-
-function renderConcentrationCharts(data) {
-    if (!data.total_portfolio) return;
-    const total = data.total_portfolio;
-    lookthroughTypeChart = buildLookthroughPieChart('lookthroughTypeChart', lookthroughTypeChart,
-        data.by_type.map(r => ({ label: INSTRUMENT_TYPE_LABELS[r.label] || r.label, value: r.value })), total);
-    lookthroughCountryChart = buildLookthroughPieChart('lookthroughCountryChart', lookthroughCountryChart,
-        topNPlusOther(data.by_country, 10), total);
-    lookthroughSectorChart = buildLookthroughPieChart('lookthroughSectorChart', lookthroughSectorChart,
-        topNPlusOther(data.by_sector, 10), total);
-    lookthroughFundChart = buildLookthroughPieChart('lookthroughFundChart', lookthroughFundChart,
-        data.by_fund, total);
-}
-
 function renderConcentrationView(data) {
     if (!data.total_portfolio) {
         return '<p class="no-data">No look-through holdings yet — import a filing above.</p>';
     }
-    const chartsGrid = `
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px;">
-            <div class="chart-container"><h4 style="margin:0 0 8px;">By Type</h4><div class="chart" style="height:260px;"><canvas id="lookthroughTypeChart"></canvas></div></div>
-            <div class="chart-container"><h4 style="margin:0 0 8px;">By Fund/Position</h4><div class="chart" style="height:260px;"><canvas id="lookthroughFundChart"></canvas></div></div>
-            <div class="chart-container"><h4 style="margin:0 0 8px;">By Country</h4><div class="chart" style="height:260px;"><canvas id="lookthroughCountryChart"></canvas></div></div>
-            <div class="chart-container"><h4 style="margin:0 0 8px;">By Sector</h4><div class="chart" style="height:260px;"><canvas id="lookthroughSectorChart"></canvas></div></div>
-        </div>
-    `;
-    const crossType = data.same_issuer_cross_type.length ? `
-        <h4 style="margin:20px 0 8px;">Same Issuer, Multiple Instrument Types</h4>
+    const crossTypeCollapsed = lookthroughSectionCollapsed.has('crossType');
+    const crossType = data.same_issuer_cross_type.length ? (
+        crossTypeCollapsed
+            ? renderSectionHeader('crossType', 'Same Issuer, Multiple Instrument Types')
+            : `
+        ${renderSectionHeader('crossType', 'Same Issuer, Multiple Instrument Types')}
         <p style="color:var(--text-secondary);font-size:0.85em;margin:0 0 8px;">
             Exposure to the same issuer summed across instrument types — e.g. a bank's stock plus that
             bank's bonds, counted as one counterparty exposure, broken down by how much sits in each type.
@@ -698,15 +660,15 @@ function renderConcentrationView(data) {
                     </tr>
                 `).join('')}</tbody>
             </table>
-        </div>` : '';
+        </div>`
+    ) : '';
 
     return `
         <p style="color:var(--text-secondary);font-size:0.9em;margin:0 0 8px;">Total look-through value: ${formatCurrency(data.total_portfolio)}</p>
-        ${chartsGrid}
         ${renderCategoryTable('type', 'By Type', data.by_type.map(r => ({ ...r, label: INSTRUMENT_TYPE_LABELS[r.label] || r.label })), data)}
         ${renderCategoryTable('sector', 'By Sector', data.by_sector, data)}
-        ${renderRollupTable('By Country', data.by_country)}
-        ${renderRollupTable('By Currency', data.by_currency)}
+        ${renderCategoryTable('country', 'By Country', data.by_country, data)}
+        ${renderCategoryTable('currency', 'By Currency', data.by_currency, data)}
         ${crossType}
     `;
 }
@@ -765,6 +727,7 @@ function renderDirectBreakdownView(data) {
 // ── Entry point ──────────────────────────────────────────────────────────
 
 async function loadLookThroughPanel() {
+    lookthroughViewCache = {};  // tab (re)opened or a filing was just imported — nothing cached is trustworthy
     await loadHoldingsFilings();
     await renderLookthroughView();
 }

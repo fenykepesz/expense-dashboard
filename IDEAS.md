@@ -81,6 +81,27 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: click-to-render caching, pie charts removed, per-fund tables everywhere
+  (v1.27.0)** — three fixes from one round of feedback. (1) Every toggle in the Concentration
+  view (top-10/show-all, sub-type +/−, and the new section collapse below) was re-fetching from
+  the network and rebuilding the whole panel, which visibly flashed/reloaded on every click.
+  Split `renderLookthroughView()` into a fetch-and-cache step and a cache-only
+  `rerenderLookthroughView()` that every toggle now calls instead — confirmed via Playwright that
+  a collapse/expand click now fires zero network requests. Only real data-changing actions
+  (import confirm, delete filing) still clear `lookthroughViewCache` and re-fetch. (2) Removed
+  the Type/Country/Sector/Fund pie charts added in v1.24.0 — user verdict: "no value" once the
+  per-fund breakdown tables existed alongside them as redundant. Deleted `topNPlusOther`,
+  `buildLookthroughPieChart`, `renderConcentrationCharts`, the chart canvases, and the Chart.js
+  instance variables. (3) Applied the same per-fund breakdown table (`renderCategoryTable`,
+  previously only used for By Type/By Sector) to By Country and By Currency, replacing the older
+  plain `renderRollupTable`; each rollup section (Type/Sector/Country/Currency/Same-Issuer) is
+  now independently collapsible to just its header via a new `lookthroughSectionCollapsed` Set
+  and `toggleSection()`, mirroring the existing top-10 and sub-type-breakdown state patterns so
+  it survives re-renders without a DOM round-trip. Separately clarified for the user: "cash" in
+  the by-type breakdown is money sitting uninvested inside a fund (not an investment vehicle
+  itself), and ETF appears under BOTH Equity and Fixed Income Exposure because different ETFs
+  hold different things — a Bank Index/S&P 500 ETF is equity, a Tel Bond tracker ETF is fixed
+  income; the filing's own `סיווג הקרן` field (added in v1.26.0) is what tells them apart.
 - [x] **Look-Through: expandable sub-type rows for merged By Type buckets (v1.26.1)** — the
   v1.26.0 merge showed a plain text summary line ("Stock: ₪X, ETF: ₪Y...") under a merged
   bucket's name; the user wanted a real expandable tree instead — a clickable +/− next to
