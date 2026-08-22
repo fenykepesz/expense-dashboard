@@ -81,6 +81,18 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: expandable sub-type rows for merged By Type buckets (v1.26.1)** — the
+  v1.26.0 merge showed a plain text summary line ("Stock: ₪X, ETF: ₪Y...") under a merged
+  bucket's name; the user wanted a real expandable tree instead — a clickable +/− next to
+  Equity Exposure/Fixed Income Exposure/Derivatives & Hedging, collapsed by default, revealing
+  indented sub-rows (Stock, ETF, Mutual Fund, ...) that each carry their OWN full breakdown
+  (Your ILS, Total %, and every fund's own amount + % of that fund), not just a value. Needed a
+  real backend shape change: `by_type`'s `type_breakdown` went from `{instrument_type: value}`
+  to `{instrument_type: {value, pct_of_portfolio, by_fund, direct}}` — a full sub-bucket, same
+  shape as the parent row, built by the same accumulation helper (`_accumulate`) so parent and
+  child rows are computed identically, not two different code paths that could drift apart.
+  Frontend: `renderCategoryCells()` factored out of the row-rendering loop so a sub-row renders
+  with the exact same per-fund cell logic as its parent, just fed a different (smaller) bucket.
 - [x] **Look-Through: real Equity/Fixed Income Exposure merge, not a name-based guess (v1.26.0)**
   — user asked whether ETF should count as Stock, since Stock (35%) + ETF (12%) as separate lines
   understated their real equity exposure. Almost merged blindly on `instrument_type='etf'`, but

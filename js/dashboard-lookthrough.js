@@ -461,13 +461,45 @@ function toggleCategoryExpand(key) {
     renderLookthroughView();
 }
 
+// Which merged rows (Equity Exposure, Fixed Income Exposure, Derivatives &
+// Hedging) currently have their sub-type breakdown expanded — keyed by
+// "tableKey:label" so Sector/Type/etc. never collide with each other.
+let lookthroughBreakdownExpanded = new Set();
+
+function toggleTypeBreakdown(id) {
+    if (lookthroughBreakdownExpanded.has(id)) lookthroughBreakdownExpanded.delete(id);
+    else lookthroughBreakdownExpanded.add(id);
+    renderLookthroughView();
+}
+
+// Fund cells + Direct cell for one row (parent or sub-row) — shared so a
+// sub-type's own row reads exactly like its parent's, just for its own slice.
+function renderCategoryCells(entry, funds, fundTotals, directTotal, hasDirect) {
+    const fundCells = funds.map(f => {
+        const amt = (entry.by_fund && entry.by_fund[f.id]) || 0;
+        if (!amt) return '<td class="amount-cell">—</td>';
+        const total = fundTotals[f.id];
+        const pct = total ? (amt / total * 100).toFixed(1) : '0.0';
+        return `<td class="amount-cell">${formatCurrency(amt)}<br><span style="font-size:0.78em;color:var(--text-secondary);">${pct}% of fund</span></td>`;
+    }).join('');
+    const directCell = hasDirect
+        ? (entry.direct
+            ? `<td class="amount-cell">${formatCurrency(entry.direct)}<br><span style="font-size:0.78em;color:var(--text-secondary);">${(entry.direct / directTotal * 100).toFixed(1)}% of direct</span></td>`
+            : '<td class="amount-cell">—</td>')
+        : '';
+    return { fundCells, directCell };
+}
+
 // Category | Your ILS | Total % | one column per fund (₪ + % of THAT fund's
 // own total in this category) | Direct — replaces the old dual-denominator
 // (% of Portfolio / % of Named) table, which the user found confusing once
 // they actually had real data to look at. Top 10 rows shown by default
 // (rows are already sorted by value server-side), with a toggle to see
 // the rest — nothing is summed away into an "Other" bucket the way the
-// pie charts do, every category stays individually inspectable.
+// pie charts do, every category stays individually inspectable. A merged
+// row (Equity Exposure etc.) gets a clickable +/- to expand into its own
+// sub-type rows (Stock/ETF/Mutual Fund), each with its own full breakdown
+// — collapsed by default so the table isn't cluttered until asked for.
 function renderCategoryTable(key, title, rows, data) {
     if (!rows.length) return '';
     const funds = data.active_funds || [];
@@ -483,38 +515,44 @@ function renderCategoryTable(key, title, rows, data) {
     const directHeader = hasDirect ? '<th>Direct</th>' : '';
 
     const body = visibleRows.map(r => {
-        const fundCells = funds.map(f => {
-            const amt = (r.by_fund && r.by_fund[f.id]) || 0;
-            if (!amt) return '<td class="amount-cell">—</td>';
-            const total = fundTotals[f.id];
-            const pct = total ? (amt / total * 100).toFixed(1) : '0.0';
-            return `<td class="amount-cell">${formatCurrency(amt)}<br><span style="font-size:0.78em;color:var(--text-secondary);">${pct}% of fund</span></td>`;
-        }).join('');
-        const directCell = hasDirect
-            ? (r.direct
-                ? `<td class="amount-cell">${formatCurrency(r.direct)}<br><span style="font-size:0.78em;color:var(--text-secondary);">${(r.direct / directTotal * 100).toFixed(1)}% of direct</span></td>`
-                : '<td class="amount-cell">—</td>')
-            : '';
-        // Merged buckets (Equity Exposure, Fixed Income Exposure, Derivatives
-        // & Hedging) combine more than one original instrument_type — show
-        // what they're actually made of as a sub-line, same idea as
-        // Concentration's Same-Issuer table.
+        const { fundCells, directCell } = renderCategoryCells(r, funds, fundTotals, directTotal, hasDirect);
+
         const breakdownEntries = r.type_breakdown ? Object.entries(r.type_breakdown) : [];
-        const composition = breakdownEntries.length > 1
-            ? `<br><span style="font-size:0.78em;color:var(--text-secondary);">${breakdownEntries
-                .sort((a, b) => b[1] - a[1])
-                .map(([t, v]) => `${escapeHtml(INSTRUMENT_TYPE_LABELS[t] || t)}: ${formatCurrency(v)}`)
-                .join(', ')}</span>`
-            : '';
-        return `
+        const hasBreakdown = breakdownEntries.length > 1;
+        const breakdownId = `${key}:${r.label}`;
+        const isBreakdownOpen = hasBreakdown && lookthroughBreakdownExpanded.has(breakdownId);
+        const toggleIcon = hasBreakdown
+            ? `<span onclick="toggleTypeBreakdown('${breakdownId.replace(/'/g, "\\'")}')" style="cursor:pointer;display:inline-block;width:1.1em;color:var(--text-secondary);user-select:none;">${isBreakdownOpen ? '−' : '+'}</span> `
+            : '<span style="display:inline-block;width:1.1em;"></span> ';
+
+        const parentRow = `
             <tr>
-                <td>${escapeHtml(r.label)}${composition}</td>
+                <td>${toggleIcon}${escapeHtml(r.label)}</td>
                 <td class="amount-cell">${formatCurrency(r.value)}</td>
                 <td class="amount-cell">${(r.pct_of_portfolio * 100).toFixed(1)}%</td>
                 ${fundCells}
                 ${directCell}
             </tr>
         `;
+
+        const subRows = isBreakdownOpen
+            ? breakdownEntries
+                .sort((a, b) => b[1].value - a[1].value)
+                .map(([t, sub]) => {
+                    const cells = renderCategoryCells(sub, funds, fundTotals, directTotal, hasDirect);
+                    return `
+                        <tr style="background:var(--table-header-bg);">
+                            <td style="padding-left:2.2em;color:var(--text-secondary);">${escapeHtml(INSTRUMENT_TYPE_LABELS[t] || t)}</td>
+                            <td class="amount-cell">${formatCurrency(sub.value)}</td>
+                            <td class="amount-cell">${(sub.pct_of_portfolio * 100).toFixed(1)}%</td>
+                            ${cells.fundCells}
+                            ${cells.directCell}
+                        </tr>
+                    `;
+                }).join('')
+            : '';
+
+        return parentRow + subRows;
     }).join('');
 
     const toggle = rows.length > TOP_N

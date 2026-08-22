@@ -1356,30 +1356,53 @@ def get_concentration_rollups(db_path=None):
     # sort-by-value-including-Unclassified behavior (not pinned at the end).
     type_buckets = {}
 
+    def _empty_bucket():
+        return {"value": 0.0, "by_fund": {}, "direct": 0.0}
+
     def _type_bucket(label):
-        return type_buckets.setdefault(label, {"value": 0.0, "by_fund": {}, "direct": 0.0, "type_breakdown": {}})
+        b = type_buckets.setdefault(label, _empty_bucket())
+        b.setdefault("type_breakdown", {})
+        return b
+
+    def _accumulate(bucket, s):
+        bucket["value"] += s["combined_value"]
+        for fid, v in s["by_fund"].items():
+            bucket["by_fund"][fid] = bucket["by_fund"].get(fid, 0.0) + v
+        bucket["direct"] += s["direct_value"]
 
     for s in securities:
         label = _equity_bond_aware_type_label(s["instrument_type"], s["asset_class"])
         b = _type_bucket(label)
-        b["value"] += s["combined_value"]
-        for fid, v in s["by_fund"].items():
-            b["by_fund"][fid] = b["by_fund"].get(fid, 0.0) + v
-        b["direct"] += s["direct_value"]
-        # Composition of this bucket by ORIGINAL instrument_type — mostly
-        # relevant for the merged buckets (Equity Exposure = Stock + ETF +
-        # Mutual Fund; Fixed Income Exposure = Bonds + bond-classified ETF/
-        # Mutual Fund), but tracked for every bucket for a consistent shape.
+        _accumulate(b, s)
+        # Composition of this bucket by ORIGINAL instrument_type — a full
+        # sub-bucket (value/by_fund/direct), not just a value, so the
+        # frontend can expand "Equity Exposure" into Stock/ETF/Mutual Fund
+        # rows that each show their own per-fund breakdown, not just a
+        # summary number. Mostly relevant for the merged buckets (Equity
+        # Exposure, Fixed Income Exposure, Derivatives & Hedging), but
+        # tracked for every bucket for a consistent shape.
         orig = s["instrument_type"] or "Unclassified"
-        b["type_breakdown"][orig] = b["type_breakdown"].get(orig, 0.0) + s["combined_value"]
+        sub = b["type_breakdown"].setdefault(orig, _empty_bucket())
+        _accumulate(sub, s)
 
-    by_type = [
-        {
-            "label": label, "value": round(b["value"], 2),
+    def _finalize_bucket(b, label=None):
+        out = {
+            "value": round(b["value"], 2),
             "pct_of_portfolio": round(b["value"] / total_portfolio, 4) if total_portfolio else 0,
             "by_fund": {k: round(v, 2) for k, v in b["by_fund"].items()},
             "direct": round(b["direct"], 2),
-            "type_breakdown": {k: round(v, 2) for k, v in b["type_breakdown"].items()},
+        }
+        if label is not None:
+            out["label"] = label
+        return out
+
+    by_type = [
+        {
+            **_finalize_bucket(b, label),
+            "type_breakdown": {
+                orig: _finalize_bucket(sub)
+                for orig, sub in sorted(b["type_breakdown"].items(), key=lambda kv: kv[1]["value"], reverse=True)
+            },
         }
         for label, b in sorted(type_buckets.items(), key=lambda kv: kv[1]["value"], reverse=True)
     ]

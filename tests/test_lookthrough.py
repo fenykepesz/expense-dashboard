@@ -413,9 +413,17 @@ def test_concentration_by_type_merges_equity_and_bond_exposure(tmp_db):
     ], db_path=tmp_db)
     by_type = {r["label"]: r for r in db.get_concentration_rollups(tmp_db)["by_type"]}
     assert by_type["Equity Exposure"]["value"] == 500.0   # 300 stock + 200 equity ETF
-    assert by_type["Equity Exposure"]["type_breakdown"] == {"equity_traded": 300.0, "etf": 200.0}
+    # type_breakdown entries are full sub-buckets (value/by_fund/direct), not
+    # just a value — so the frontend can expand "Equity Exposure" into its
+    # own Stock/ETF/Mutual Fund rows, each with their own per-fund breakdown.
+    equity_breakdown = by_type["Equity Exposure"]["type_breakdown"]
+    assert equity_breakdown["equity_traded"]["value"] == 300.0
+    assert equity_breakdown["equity_traded"]["by_fund"] == {fund_a: 300.0}
+    assert equity_breakdown["etf"]["value"] == 200.0
     assert by_type["Fixed Income Exposure"]["value"] == 400.0  # 250 govt bond + 150 bond ETF
-    assert by_type["Fixed Income Exposure"]["type_breakdown"] == {"govt_bond": 250.0, "etf": 150.0}
+    bond_breakdown = by_type["Fixed Income Exposure"]["type_breakdown"]
+    assert bond_breakdown["govt_bond"]["value"] == 250.0
+    assert bond_breakdown["etf"]["value"] == 150.0
     assert by_type["etf"]["value"] == 100.0  # unresolved ETF stays its own bucket, not guessed either way
 
 
