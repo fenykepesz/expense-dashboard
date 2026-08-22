@@ -164,7 +164,8 @@ CREATE TABLE IF NOT EXISTS fund_holdings (
     fair_value_ils  REAL    NOT NULL DEFAULT 0,
     country         TEXT    NOT NULL DEFAULT '',
     sector          TEXT    NOT NULL DEFAULT '',
-    currency        TEXT    NOT NULL DEFAULT ''
+    currency        TEXT    NOT NULL DEFAULT '',
+    asset_class     TEXT    NOT NULL DEFAULT ''
 );
 """
 
@@ -199,6 +200,48 @@ DERIVATIVE_INSTRUMENT_TYPES = {
     "warrant", "option", "future", "structured_product",
     "fx_swap", "interest_rate_swap", "equity_swap", "inflation_swap",
 }
+
+# Structurally unambiguous — these instrument_types ARE their asset class,
+# no need to consult the filing's Fund Classification field.
+_EQUITY_INSTRUMENT_TYPES = {"equity_traded", "equity_nontraded"}
+_BOND_INSTRUMENT_TYPES = {"govt_bond", "corp_bond"}
+# Structurally ambiguous — an ETF or mutual fund's real exposure depends on
+# what's inside it (confirmed on real data: found an actual Tel Bond index
+# ETF sitting in the ETF sheet, not equity) — only asset_class (derived from
+# the filing's own Fund Classification column,
+# _asset_class_from_classification in the parser) can tell equity from bond
+# ones; unresolved stays under its own instrument_type rather than guessing.
+_FUND_LIKE_INSTRUMENT_TYPES = {"etf", "mutual_fund"}
+
+
+def _equity_bond_aware_type_label(instrument_type, asset_class):
+    """The By Type concentration label for one security: merges structurally
+    equity (stocks) and equity-classified ETF/mutual-fund rows into one
+    "Equity Exposure" bucket, and the bond equivalent into "Fixed Income
+    Exposure" — so e.g. an S&P 500 ETF counts as equity exposure alongside
+    direct stock holdings, not as a separate, easy-to-miss "ETF" line that
+    understates how much of the portfolio is really in the stock market.
+
+    asset_class is checked FIRST, ahead of instrument_type — a directly-held
+    stock has instrument_type=None (no fund match) but is always equity, so
+    checking instrument_type first would wrongly bucket it as Unclassified
+    even though we're certain what it is. asset_class is blank ("") for
+    every structurally-unambiguous row (the parser only ever resolves it for
+    ETF/mutual-fund/direct rows), so this never overrides a real
+    instrument_type-based classification below."""
+    if asset_class == "equity":
+        return "Equity Exposure"
+    if asset_class == "bond":
+        return "Fixed Income Exposure"
+    if not instrument_type:
+        return "Unclassified"
+    if instrument_type in DERIVATIVE_INSTRUMENT_TYPES:
+        return "Derivatives & Hedging"
+    if instrument_type in _EQUITY_INSTRUMENT_TYPES:
+        return "Equity Exposure"
+    if instrument_type in _BOND_INSTRUMENT_TYPES:
+        return "Fixed Income Exposure"
+    return instrument_type  # includes unresolved ETF/Mutual Fund rows — never guessed
 
 # Label only — never branches the tax math. Cost basis already captures what
 # differs between them (purchase price for stock/ESPP, vesting-date fair
@@ -282,6 +325,7 @@ def init_db(db_path=None):
         # Migrate old fund_holdings columns
         for col, definition in [
             ("fair_value_ils", "REAL NOT NULL DEFAULT 0"),
+            ("asset_class",    "TEXT NOT NULL DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE fund_holdings ADD COLUMN {col} {definition}")
@@ -853,7 +897,7 @@ def replace_fund_holdings_filing(institution_reg_number, institution_name, perio
     """Upsert one institution-quarter filing and replace all of its holdings
     rows. `rows` is a list of dicts: fund_id, instrument_type, issuer_name,
     issuer_number, security_name, security_number, pct_of_track,
-    fair_value_ils, country, sector, currency. Re-uploading the SAME
+    fair_value_ils, country, sector, currency, asset_class. Re-uploading the SAME
     (institution, year, quarter) is a
     full replace, not an append — a filing is a point-in-time snapshot, and
     companies do file corrected re-submissions. Uploading a genuinely new
@@ -886,15 +930,15 @@ def replace_fund_holdings_filing(institution_reg_number, institution_name, perio
             INSERT INTO fund_holdings
                 (filing_id, fund_id, instrument_type, issuer_name, issuer_number,
                  security_name, security_number, pct_of_track, fair_value_ils,
-                 country, sector, currency)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 country, sector, currency, asset_class)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (filing_id, r["fund_id"], r["instrument_type"], r.get("issuer_name", ""),
                  r.get("issuer_number", ""), r.get("security_name", ""),
                  r.get("security_number", ""), r.get("pct_of_track", 0),
                  r.get("fair_value_ils", 0), r.get("country", ""),
-                 r.get("sector", ""), r.get("currency", ""))
+                 r.get("sector", ""), r.get("currency", ""), r.get("asset_class", ""))
                 for r in rows
             ],
         )
@@ -983,7 +1027,7 @@ def get_security_holdings(db_path=None):
             f"""
             SELECT fh.fund_id, fh.instrument_type, fh.issuer_name, fh.issuer_number,
                    fh.security_name, fh.security_number, fh.pct_of_track,
-                   fh.fair_value_ils, fh.country, fh.sector, fh.currency,
+                   fh.fair_value_ils, fh.country, fh.sector, fh.currency, fh.asset_class,
                    f.name AS fund_name, f.fund_type, f.track_number, f.company_name,
                    fb.balance AS fund_balance
             FROM fund_holdings fh
@@ -1025,9 +1069,16 @@ def get_security_holdings(db_path=None):
             "issuer_name": r["issuer_name"], "issuer_number": r["issuer_number"],
             "security_name": r["security_name"] or r["issuer_name"],
             "security_number": r["security_number"], "instrument_type": r["instrument_type"],
+            "asset_class": r["asset_class"] or "",
             "combined_value": 0.0, "by_fund": {}, "has_unbalanced_fund": False,
             "_countries": set(), "_sectors": set(), "_currencies": set(),
         })
+        # Same security, so its asset_class should already be consistent —
+        # this only fills a gap if an earlier row for this group happened to
+        # be blank (e.g. an unresolved classification on one lot) while a
+        # later one wasn't, never overwrites a value that's already set.
+        if not g["asset_class"] and r["asset_class"]:
+            g["asset_class"] = r["asset_class"]
 
         fund_total = fund_totals.get(r["fund_id"], 0.0)
         if r["fund_balance"] is None or not fund_total:
@@ -1107,7 +1158,7 @@ def get_all_securities(db_path=None):
         entry = {
             "issuer_name": s["issuer_name"], "issuer_number": s["issuer_number"],
             "security_name": s["security_name"], "security_number": s["security_number"],
-            "instrument_type": s["instrument_type"],
+            "instrument_type": s["instrument_type"], "asset_class": s["asset_class"],
             "indirect_value": s["combined_value"], "direct_value": 0.0,
             "by_fund": s["by_fund"], "has_unbalanced_fund": s["has_unbalanced_fund"],
             "country": s["country"], "sector": s["sector"], "currency": s["currency"],
@@ -1152,6 +1203,10 @@ def get_all_securities(db_path=None):
                 "issuer_name": "", "issuer_number": "",
                 "security_name": h["symbol"], "security_number": h["isin"],
                 "instrument_type": None,
+                # A direct holding is always a Stock/ESPP/RSU position (the
+                # only kinds Manage Stock Holdings supports) — always equity,
+                # not something to infer or leave blank.
+                "asset_class": "equity",
                 "indirect_value": 0.0, "direct_value": 0.0,
                 "by_fund": {}, "has_unbalanced_fund": False,
                 "country": "", "sector": "", "currency": "",
@@ -1302,18 +1357,21 @@ def get_concentration_rollups(db_path=None):
     type_buckets = {}
 
     def _type_bucket(label):
-        return type_buckets.setdefault(label, {"value": 0.0, "by_fund": {}, "direct": 0.0})
+        return type_buckets.setdefault(label, {"value": 0.0, "by_fund": {}, "direct": 0.0, "type_breakdown": {}})
 
     for s in securities:
-        t = s["instrument_type"]
-        label = "Unclassified" if not t else (
-            "Derivatives & Hedging" if t in DERIVATIVE_INSTRUMENT_TYPES else t
-        )
+        label = _equity_bond_aware_type_label(s["instrument_type"], s["asset_class"])
         b = _type_bucket(label)
         b["value"] += s["combined_value"]
         for fid, v in s["by_fund"].items():
             b["by_fund"][fid] = b["by_fund"].get(fid, 0.0) + v
         b["direct"] += s["direct_value"]
+        # Composition of this bucket by ORIGINAL instrument_type — mostly
+        # relevant for the merged buckets (Equity Exposure = Stock + ETF +
+        # Mutual Fund; Fixed Income Exposure = Bonds + bond-classified ETF/
+        # Mutual Fund), but tracked for every bucket for a consistent shape.
+        orig = s["instrument_type"] or "Unclassified"
+        b["type_breakdown"][orig] = b["type_breakdown"].get(orig, 0.0) + s["combined_value"]
 
     by_type = [
         {
@@ -1321,6 +1379,7 @@ def get_concentration_rollups(db_path=None):
             "pct_of_portfolio": round(b["value"] / total_portfolio, 4) if total_portfolio else 0,
             "by_fund": {k: round(v, 2) for k, v in b["by_fund"].items()},
             "direct": round(b["direct"], 2),
+            "type_breakdown": {k: round(v, 2) for k, v in b["type_breakdown"].items()},
         }
         for label, b in sorted(type_buckets.items(), key=lambda kv: kv[1]["value"], reverse=True)
     ]

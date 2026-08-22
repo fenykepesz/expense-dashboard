@@ -81,6 +81,29 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: real Equity/Fixed Income Exposure merge, not a name-based guess (v1.26.0)**
+  — user asked whether ETF should count as Stock, since Stock (35%) + ETF (12%) as separate lines
+  understated their real equity exposure. Almost merged blindly on `instrument_type='etf'`, but
+  checked the filing first — found a real Tel Bond (bond-index) ETF sitting in the ETF sheet,
+  proving ETF isn't reliably equity. The filing has its own `סיווג הקרן` (Fund Classification)
+  field on the ETF and Mutual Fund sheets, with values like "מניות בחו\"ל..." (equity) or
+  "אג\"ח בארץ..." (bond) — parsed into a new `asset_class` per row
+  (`_asset_class_from_classification` in the parser, new `fund_holdings.asset_class` column).
+  Needed two follow-up fixes once tested against real data: (1) some ETF rows prefix the label
+  with an index name ("35 מניות בארץ...") which a strict prefix match missed — switched to
+  substring matching; (2) mutual funds sometimes use plain English ("Equity Funds", "Bond/Fixed
+  Income Funds") instead of the Hebrew taxonomy — added those too. A THIRD institution's file
+  (Menora) showed some rows using a genuinely generic "Index Funds" label that says nothing
+  about equity vs. bond — correctly stays unclassified rather than guessed, confirming the
+  never-guess design holds even against a filing this hasn't been tested on before.
+  `db.py`'s By Type rollup now merges structurally-equity (Stock) + equity-classified ETF/Mutual
+  Fund into "Equity Exposure", and the bond equivalent into "Fixed Income Exposure", each with a
+  `type_breakdown` composition line (reusing the same pattern as Concentration's same-issuer
+  table) — a directly-held stock (no fund match, `instrument_type=None`) is always equity too,
+  and had to be checked BEFORE the "no instrument_type -> Unclassified" fallback, not after, or
+  it would have wrongly landed in Unclassified despite being certain equity. Real result on the
+  user's data: Equity Exposure jumped to 44.8% of the portfolio (vs. 35.4% for Stock alone) once
+  ETF and Mutual Fund equity exposure was correctly folded in.
 - [x] **Look-Through: same per-fund breakdown for By Type (v1.25.1)** — extended the v1.25.0
   table design to Type, confirming the backend (`rollup()`-style per-bucket `by_fund`/`direct`
   tracking) generalizes cleanly: `by_type`'s bucket construction in db.py got the identical

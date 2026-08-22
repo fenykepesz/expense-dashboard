@@ -130,7 +130,37 @@ CANONICAL_FIELDS = {
     # (FX, interest rate, equity, inflation) under one sheet name, and this
     # is the filing's own column distinguishing which is which per row.
     "asset_type":      ["סוג הנכס"],
+    # ETF/mutual-fund sheets: what's actually INSIDE the fund, not just that
+    # it's a fund. Confirmed on real data this matters — an ETF/mutual fund
+    # is NOT reliably equity just because it trades like a stock (found a
+    # real Tel Bond index ETF sitting in the ETF sheet). This field's real
+    # values are compound Hebrew category strings (e.g. "מניות בחו\"ל -
+    # מניות בחו\"ל משולבת" or "אג\"ח בארץ - חברות...") — only the LEADING
+    # word (מניות=equity, אג"ח=bond) is used, see _asset_class_from_classification.
+    "fund_classification": ["סיווג הקרן"],
 }
+
+def _asset_class_from_classification(text):
+    """מניות.../אג"ח.../"Equity Funds"/"Bond/Fixed Income Funds" -> equity/bond,
+    straight from the filing's own Fund Classification field — never guessed
+    from the security's name or ticker. Confirmed on real data this field
+    isn't consistently formatted: domestic ETFs prefix the label with an
+    index name ("35 מניות בארץ...", "125 מניות בארץ...", "All Cap מניות
+    בארץ..." — NOT a plain "מניות..." prefix), and mutual funds use English
+    generic labels ("Equity Funds", "Bond/Fixed Income Funds") instead of
+    Hebrew for some holdings — substring matching handles both, prefix
+    matching alone missed the ETF index-prefixed rows. Blank/unrecognized
+    stays "" (not "other"): a caller should treat that as "we don't know,"
+    not "confirmed neither.\""""
+    text = (text or "").strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    if 'אג"ח' in text or "bond" in lowered or "fixed income" in lowered:
+        return "bond"
+    if "מניות" in text or "equity" in lowered:
+        return "equity"
+    return ""
 
 # Fields that must all resolve for a sheet to be treated as holdings-shaped.
 # fair_value_ils drives the dollar math; pct_of_track is informational only
@@ -241,7 +271,7 @@ def parse_holdings_filing(path, funds):
           'period_year', 'period_quarter',
           'rows': [ {fund_id, instrument_type, issuer_name, issuer_number,
                      security_name, security_number, pct_of_track,
-                     fair_value_ils, country, sector, currency}, ... ],
+                     fair_value_ils, country, sector, currency, asset_class}, ... ],
           'unmatched_track_count': int,
           'unrecognized_sheets': [ {'sheet_name', 'reason'}, ... ],
           'sheets_parsed': [str, ...],
@@ -350,6 +380,8 @@ def parse_holdings_filing(path, funds):
                     asset_type = str(get(row, "asset_type") or "").strip()
                     row_instrument_type = ASSET_TYPE_TO_INSTRUMENT_TYPE.get(asset_type, instrument_type)
 
+                asset_class = _asset_class_from_classification(get(row, "fund_classification"))
+
                 rows.append({
                     "fund_id": fund_id,
                     "instrument_type": row_instrument_type,
@@ -362,6 +394,7 @@ def parse_holdings_filing(path, funds):
                     "country": str(get(row, "country") or "").strip(),
                     "sector": str(get(row, "sector") or "").strip(),
                     "currency": str(get(row, "currency") or "").strip(),
+                    "asset_class": asset_class,
                 })
 
         if not sheets_parsed:

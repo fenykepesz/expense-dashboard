@@ -50,6 +50,7 @@ def _basic_row(fund_id, **overrides):
         "security_name": "Acme Ord", "security_number": "IL0001",
         "pct_of_track": 0.1, "fair_value_ils": 1000,
         "country": "Israel", "sector": "Tech", "currency": "ILS",
+        "asset_class": "",
     }
     row.update(overrides)
     return row
@@ -360,12 +361,15 @@ def test_concentration_by_type_merges_derivatives(tmp_db):
     excluding or threshold-filtering them individually."""
     fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=1000, name="A")
     db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
-        _basic_row(fund_a, instrument_type="equity_traded", security_number="EQ1", fair_value_ils=600),
+        # "loan" isn't touched by the separate equity/bond exposure merge
+        # (test_concentration_by_type_merges_equity_and_bond_exposure covers
+        # that one), so this test stays focused purely on the derivatives merge.
+        _basic_row(fund_a, instrument_type="loan", security_number="EQ1", fair_value_ils=600),
         _basic_row(fund_a, instrument_type="option", security_number="OPT1", fair_value_ils=250),
         _basic_row(fund_a, instrument_type="future", security_number="FUT1", fair_value_ils=150),
     ], db_path=tmp_db)
     by_type = {r["label"]: r["value"] for r in db.get_concentration_rollups(tmp_db)["by_type"]}
-    assert by_type["equity_traded"] == 600.0
+    assert by_type["loan"] == 600.0
     assert by_type["Derivatives & Hedging"] == 400.0  # option 250 + future 150, one bucket
     assert "option" not in by_type
     assert "future" not in by_type
@@ -374,16 +378,45 @@ def test_concentration_by_type_merges_derivatives(tmp_db):
 def test_concentration_by_type_includes_per_fund_and_direct_breakdown(tmp_db):
     fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=600, name="A")
     db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
-        _basic_row(fund_a, instrument_type="equity_traded", security_number="EQ1"),  # 600
+        _basic_row(fund_a, instrument_type="loan", security_number="LOAN1"),  # 600, not equity-merged
     ], db_path=tmp_db)
     holding = db.add_stock_holding("MSFT", isin="US5949181045", cost_basis=0, db_path=tmp_db)[0]
-    db.add_stock_value(holding["id"], "2026-01-01", 10, 100, db_path=tmp_db)  # 1000 total, net 750, no fund match -> instrument_type None
+    db.add_stock_value(holding["id"], "2026-01-01", 10, 100, db_path=tmp_db)  # 1000 total, net 750, no fund match
 
     by_type = {r["label"]: r for r in db.get_concentration_rollups(tmp_db)["by_type"]}
-    assert by_type["equity_traded"]["by_fund"] == {fund_a: 600.0}
-    assert by_type["equity_traded"]["direct"] == 0.0
-    assert by_type["Unclassified"]["direct"] == 750.0
-    assert by_type["Unclassified"]["by_fund"] == {}
+    assert by_type["loan"]["by_fund"] == {fund_a: 600.0}
+    assert by_type["loan"]["direct"] == 0.0
+    # A direct holding is always equity (Manage Stock Holdings only tracks
+    # Stock/ESPP/RSU) — it counts as Equity Exposure, not Unclassified, even
+    # though it has no fund-derived instrument_type.
+    assert by_type["Equity Exposure"]["direct"] == 750.0
+    assert by_type["Equity Exposure"]["by_fund"] == {}
+    assert "Unclassified" not in by_type
+
+
+def test_concentration_by_type_merges_equity_and_bond_exposure(tmp_db):
+    """Real finding: an ETF's economic exposure depends on what's inside it
+    — found an actual Tel Bond (bond index) ETF sitting in the ETF sheet on
+    real data, not equity. asset_class (from the filing's own Fund
+    Classification field, never guessed from the ticker/name) is what
+    correctly routes an equity-tracking ETF into Equity Exposure alongside
+    direct stocks, and a bond-tracking one into Fixed Income Exposure
+    alongside government/corporate bonds — an unresolved one stays under
+    its own ETF/Mutual Fund bucket rather than being guessed either way."""
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=1000, name="A")
+    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
+        _basic_row(fund_a, instrument_type="equity_traded", security_number="EQ1", fair_value_ils=300),
+        _basic_row(fund_a, instrument_type="etf", security_number="ETF1", fair_value_ils=200, asset_class="equity"),
+        _basic_row(fund_a, instrument_type="govt_bond", security_number="GB1", fair_value_ils=250),
+        _basic_row(fund_a, instrument_type="etf", security_number="ETF2", fair_value_ils=150, asset_class="bond"),
+        _basic_row(fund_a, instrument_type="etf", security_number="ETF3", fair_value_ils=100),  # asset_class unresolved
+    ], db_path=tmp_db)
+    by_type = {r["label"]: r for r in db.get_concentration_rollups(tmp_db)["by_type"]}
+    assert by_type["Equity Exposure"]["value"] == 500.0   # 300 stock + 200 equity ETF
+    assert by_type["Equity Exposure"]["type_breakdown"] == {"equity_traded": 300.0, "etf": 200.0}
+    assert by_type["Fixed Income Exposure"]["value"] == 400.0  # 250 govt bond + 150 bond ETF
+    assert by_type["Fixed Income Exposure"]["type_breakdown"] == {"govt_bond": 250.0, "etf": 150.0}
+    assert by_type["etf"]["value"] == 100.0  # unresolved ETF stays its own bucket, not guessed either way
 
 
 def test_concentration_by_fund_partitions_total_including_direct(tmp_db):

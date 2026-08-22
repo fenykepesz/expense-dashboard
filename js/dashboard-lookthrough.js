@@ -495,9 +495,20 @@ function renderCategoryTable(key, title, rows, data) {
                 ? `<td class="amount-cell">${formatCurrency(r.direct)}<br><span style="font-size:0.78em;color:var(--text-secondary);">${(r.direct / directTotal * 100).toFixed(1)}% of direct</span></td>`
                 : '<td class="amount-cell">—</td>')
             : '';
+        // Merged buckets (Equity Exposure, Fixed Income Exposure, Derivatives
+        // & Hedging) combine more than one original instrument_type — show
+        // what they're actually made of as a sub-line, same idea as
+        // Concentration's Same-Issuer table.
+        const breakdownEntries = r.type_breakdown ? Object.entries(r.type_breakdown) : [];
+        const composition = breakdownEntries.length > 1
+            ? `<br><span style="font-size:0.78em;color:var(--text-secondary);">${breakdownEntries
+                .sort((a, b) => b[1] - a[1])
+                .map(([t, v]) => `${escapeHtml(INSTRUMENT_TYPE_LABELS[t] || t)}: ${formatCurrency(v)}`)
+                .join(', ')}</span>`
+            : '';
         return `
             <tr>
-                <td>${escapeHtml(r.label)}</td>
+                <td>${escapeHtml(r.label)}${composition}</td>
                 <td class="amount-cell">${formatCurrency(r.value)}</td>
                 <td class="amount-cell">${(r.pct_of_portfolio * 100).toFixed(1)}%</td>
                 ${fundCells}
