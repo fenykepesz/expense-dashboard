@@ -371,6 +371,21 @@ def test_concentration_by_type_merges_derivatives(tmp_db):
     assert "future" not in by_type
 
 
+def test_concentration_by_type_includes_per_fund_and_direct_breakdown(tmp_db):
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=600, name="A")
+    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
+        _basic_row(fund_a, instrument_type="equity_traded", security_number="EQ1"),  # 600
+    ], db_path=tmp_db)
+    holding = db.add_stock_holding("MSFT", isin="US5949181045", cost_basis=0, db_path=tmp_db)[0]
+    db.add_stock_value(holding["id"], "2026-01-01", 10, 100, db_path=tmp_db)  # 1000 total, net 750, no fund match -> instrument_type None
+
+    by_type = {r["label"]: r for r in db.get_concentration_rollups(tmp_db)["by_type"]}
+    assert by_type["equity_traded"]["by_fund"] == {fund_a: 600.0}
+    assert by_type["equity_traded"]["direct"] == 0.0
+    assert by_type["Unclassified"]["direct"] == 750.0
+    assert by_type["Unclassified"]["by_fund"] == {}
+
+
 def test_concentration_by_fund_partitions_total_including_direct(tmp_db):
     fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=3000, name="A")
     db.replace_fund_holdings_filing("1", "Co", 2026, 1, [

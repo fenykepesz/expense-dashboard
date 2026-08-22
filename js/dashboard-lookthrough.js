@@ -454,7 +454,7 @@ function renderSecuritiesTable(data, { showOverlapCols = false } = {}) {
 // Per-section top-10/show-all state — a plain object keyed by rollup field,
 // re-rendered (not toggled via CSS) on click same as every other filter in
 // this file, so it survives a full renderLookthroughView() refresh.
-let lookthroughCategoryExpanded = { sector: false, country: false, currency: false };
+let lookthroughCategoryExpanded = { type: false, sector: false, country: false, currency: false };
 
 function toggleCategoryExpand(key) {
     lookthroughCategoryExpanded[key] = !lookthroughCategoryExpanded[key];
@@ -654,6 +654,7 @@ function renderConcentrationView(data) {
     return `
         <p style="color:var(--text-secondary);font-size:0.9em;margin:0 0 8px;">Total look-through value: ${formatCurrency(data.total_portfolio)}</p>
         ${chartsGrid}
+        ${renderCategoryTable('type', 'By Type', data.by_type.map(r => ({ ...r, label: INSTRUMENT_TYPE_LABELS[r.label] || r.label })), data)}
         ${renderCategoryTable('sector', 'By Sector', data.by_sector, data)}
         ${renderRollupTable('By Country', data.by_country)}
         ${renderRollupTable('By Currency', data.by_currency)}

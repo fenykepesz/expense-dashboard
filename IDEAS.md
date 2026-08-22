@@ -81,6 +81,16 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: same per-fund breakdown for By Type (v1.25.1)** — extended the v1.25.0
+  table design to Type, confirming the backend (`rollup()`-style per-bucket `by_fund`/`direct`
+  tracking) generalizes cleanly: `by_type`'s bucket construction in db.py got the identical
+  `by_fund`/`direct` treatment as `rollup()`, sorted by value including Unclassified in its
+  natural rank. Frontend maps each row's raw instrument-type key through
+  `INSTRUMENT_TYPE_LABELS` before handing it to the shared `renderCategoryTable()` — no new
+  rendering code needed. Real signal surfaced immediately: on the user's data, one fund (Fenix
+  12882) sits at 47% cash while another (Menora) is far more diversified — exactly the kind of
+  per-fund comparison this redesign was for. Country/Currency still pending, per the user's
+  explicit "let's do type first" sequencing.
 - [x] **Look-Through: per-fund breakdown in the By Sector concentration table (v1.25.0)** — the
   user found the existing dual-denominator table (% of Portfolio / % of Named) confusing once
   they had real data in front of it, and asked for a redesign modeled on a reference sheet they'd

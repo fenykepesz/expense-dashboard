@@ -1296,26 +1296,34 @@ def get_concentration_rollups(db_path=None):
     # DERIVATIVE_INSTRUMENT_TYPES); a direct-only holding with no fund match
     # has instrument_type=None, bucketed as "Unclassified" same as the other
     # rollups. No pct_of_named split here — unlike sector/country/currency,
-    # type is never a "conflict" (a security has exactly one type).
+    # type is never a "conflict" (a security has exactly one type). Same
+    # per-bucket by_fund/direct breakdown as rollup() above, and same
+    # sort-by-value-including-Unclassified behavior (not pinned at the end).
     type_buckets = {}
-    type_unclassified = 0.0
+
+    def _type_bucket(label):
+        return type_buckets.setdefault(label, {"value": 0.0, "by_fund": {}, "direct": 0.0})
+
     for s in securities:
         t = s["instrument_type"]
-        if not t:
-            type_unclassified += s["combined_value"]
-            continue
-        label = "Derivatives & Hedging" if t in DERIVATIVE_INSTRUMENT_TYPES else t
-        type_buckets[label] = type_buckets.get(label, 0.0) + s["combined_value"]
+        label = "Unclassified" if not t else (
+            "Derivatives & Hedging" if t in DERIVATIVE_INSTRUMENT_TYPES else t
+        )
+        b = _type_bucket(label)
+        b["value"] += s["combined_value"]
+        for fid, v in s["by_fund"].items():
+            b["by_fund"][fid] = b["by_fund"].get(fid, 0.0) + v
+        b["direct"] += s["direct_value"]
+
     by_type = [
-        {"label": label, "value": round(value, 2),
-         "pct_of_portfolio": round(value / total_portfolio, 4) if total_portfolio else 0}
-        for label, value in sorted(type_buckets.items(), key=lambda kv: kv[1], reverse=True)
+        {
+            "label": label, "value": round(b["value"], 2),
+            "pct_of_portfolio": round(b["value"] / total_portfolio, 4) if total_portfolio else 0,
+            "by_fund": {k: round(v, 2) for k, v in b["by_fund"].items()},
+            "direct": round(b["direct"], 2),
+        }
+        for label, b in sorted(type_buckets.items(), key=lambda kv: kv[1]["value"], reverse=True)
     ]
-    if type_unclassified:
-        by_type.append({
-            "label": "Unclassified", "value": round(type_unclassified, 2),
-            "pct_of_portfolio": round(type_unclassified / total_portfolio, 4) if total_portfolio else 0,
-        })
 
     # By fund/position: each active fund's total contribution plus one
     # "Direct" bucket for everything held outside a fund — a full partition
