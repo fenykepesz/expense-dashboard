@@ -330,6 +330,37 @@ def test_concentration_no_same_issuer_group_for_single_instrument_type(tmp_db):
     assert rollups["same_issuer_cross_type"] == []
 
 
+def test_concentration_by_type_merges_derivatives(tmp_db):
+    """A pie slice can't represent a negative value — decided with the user
+    to merge all derivative/hedging types into one bucket rather than
+    excluding or threshold-filtering them individually."""
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=1000, name="A")
+    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
+        _basic_row(fund_a, instrument_type="equity_traded", security_number="EQ1", fair_value_ils=600),
+        _basic_row(fund_a, instrument_type="option", security_number="OPT1", fair_value_ils=250),
+        _basic_row(fund_a, instrument_type="future", security_number="FUT1", fair_value_ils=150),
+    ], db_path=tmp_db)
+    by_type = {r["label"]: r["value"] for r in db.get_concentration_rollups(tmp_db)["by_type"]}
+    assert by_type["equity_traded"] == 600.0
+    assert by_type["Derivatives & Hedging"] == 400.0  # option 250 + future 150, one bucket
+    assert "option" not in by_type
+    assert "future" not in by_type
+
+
+def test_concentration_by_fund_partitions_total_including_direct(tmp_db):
+    fund_a = _make_fund(tmp_db, "pension", "1", "5", balance=3000, name="A")
+    db.replace_fund_holdings_filing("1", "Co", 2026, 1, [
+        _basic_row(fund_a, security_number="IL0001"),  # weight 1.0 -> 3000 indirect
+    ], db_path=tmp_db)
+    holding = db.add_stock_holding("MSFT", isin="US5949181045", cost_basis=0, db_path=tmp_db)[0]
+    db.add_stock_value(holding["id"], "2026-01-01", 10, 100, db_path=tmp_db)  # 1000 total, net 750
+
+    by_fund = {r["label"]: r["value"] for r in db.get_concentration_rollups(tmp_db)["by_fund"]}
+    assert by_fund["A (5)"] == 3000.0  # fund name + track number, since names can collide
+    assert by_fund["Direct"] == 750.0
+    assert sum(by_fund.values()) == pytest.approx(3750.0)
+
+
 # ── DB-level: get_all_securities (merged direct + indirect) ─────────────────
 
 def test_all_securities_merges_direct_and_indirect_by_isin(tmp_db):

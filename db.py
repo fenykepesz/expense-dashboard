@@ -189,6 +189,17 @@ INSTRUMENT_TYPES = [
     "other",
 ]
 
+# For the Type concentration pie: these can individually be net-negative
+# (a written option, a short FX position) — a pie slice can't represent a
+# negative value, and each is usually too small on its own to be worth a
+# slice anyway. Merged into one "Derivatives & Hedging" bucket, whose net
+# is far more likely to stay positive. Decided with the user rather than
+# silently picking a threshold.
+DERIVATIVE_INSTRUMENT_TYPES = {
+    "warrant", "option", "future", "structured_product",
+    "fx_swap", "interest_rate_swap", "equity_swap", "inflation_swap",
+}
+
 # Label only — never branches the tax math. Cost basis already captures what
 # differs between them (purchase price for stock/ESPP, vesting-date fair
 # market value for RSU); see the "Stock/brokerage holdings" IDEAS.md entry.
@@ -1203,7 +1214,8 @@ def get_concentration_rollups(db_path=None):
 
     Runs on the merged All Securities set (direct + fund-derived together),
     same as Overlap."""
-    securities = get_all_securities(db_path)["securities"]
+    all_securities_result = get_all_securities(db_path)
+    securities = all_securities_result["securities"]
     total_portfolio = sum(s["combined_value"] for s in securities)
 
     def rollup(field):
@@ -1271,10 +1283,62 @@ def get_concentration_rollups(db_path=None):
         key=lambda g: g["combined_value"], reverse=True,
     )
 
+    # Type: derivative/hedging types merged into one bucket (see
+    # DERIVATIVE_INSTRUMENT_TYPES); a direct-only holding with no fund match
+    # has instrument_type=None, bucketed as "Unclassified" same as the other
+    # rollups. No pct_of_named split here — unlike sector/country/currency,
+    # type is never a "conflict" (a security has exactly one type).
+    type_buckets = {}
+    type_unclassified = 0.0
+    for s in securities:
+        t = s["instrument_type"]
+        if not t:
+            type_unclassified += s["combined_value"]
+            continue
+        label = "Derivatives & Hedging" if t in DERIVATIVE_INSTRUMENT_TYPES else t
+        type_buckets[label] = type_buckets.get(label, 0.0) + s["combined_value"]
+    by_type = [
+        {"label": label, "value": round(value, 2),
+         "pct_of_portfolio": round(value / total_portfolio, 4) if total_portfolio else 0}
+        for label, value in sorted(type_buckets.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+    if type_unclassified:
+        by_type.append({
+            "label": "Unclassified", "value": round(type_unclassified, 2),
+            "pct_of_portfolio": round(type_unclassified / total_portfolio, 4) if total_portfolio else 0,
+        })
+
+    # By fund/position: each active fund's total contribution plus one
+    # "Direct" bucket for everything held outside a fund — a full partition
+    # of total_portfolio, unlike the other rollups which can have gaps.
+    fund_name_by_id = {f["id"]: f for f in all_securities_result["active_funds"]}
+    fund_totals = {}
+    direct_total = 0.0
+    for s in securities:
+        for fid, v in s["by_fund"].items():
+            fund_totals[fid] = fund_totals.get(fid, 0.0) + v
+        direct_total += s["direct_value"]
+    by_fund = [
+        {
+            "label": f'{fund_name_by_id[fid]["name"]} ({fund_name_by_id[fid]["track_number"]})'
+                     if fund_name_by_id[fid]["track_number"] else fund_name_by_id[fid]["name"],
+            "value": round(value, 2),
+            "pct_of_portfolio": round(value / total_portfolio, 4) if total_portfolio else 0,
+        }
+        for fid, value in sorted(fund_totals.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+    if direct_total:
+        by_fund.append({
+            "label": "Direct", "value": round(direct_total, 2),
+            "pct_of_portfolio": round(direct_total / total_portfolio, 4) if total_portfolio else 0,
+        })
+
     return {
         "by_sector": rollup("sector"),
         "by_country": rollup("country"),
         "by_currency": rollup("currency"),
+        "by_type": by_type,
+        "by_fund": by_fund,
         "same_issuer_cross_type": same_issuer_cross_type,
         "total_portfolio": round(total_portfolio, 2),
     }

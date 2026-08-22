@@ -81,6 +81,34 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: four Concentration pie charts (v1.24.0)** — Type, Country, Sector, and
+  By Fund/Position, added above the existing rollup tables on the Concentration tab. Each
+  slice's tooltip shows both the ₪ amount and % of total. Real design questions worked through
+  with the user first (they explicitly asked to be asked rather than guessed at, given two real
+  money bugs already found earlier this session):
+  - **Type** has no rollup function before this (Concentration only ever covered
+    sector/country/currency) — added one. 3 of the 20 real instrument types are net-negative
+    (interest_rate_swap, future, inflation_swap — written/short derivative positions), and a
+    pie slice can't represent a negative value. Decided with the user to merge all
+    derivative/hedging types (option, future, fx_swap, equity_swap, interest_rate_swap,
+    inflation_swap, warrant, structured_product) into one "Derivatives & Hedging" bucket —
+    confirmed its net stays positive on real data (~₪38K) and also cleans up 8 near-zero types
+    that would've cluttered the pie individually. `DERIVATIVE_INSTRUMENT_TYPES` in db.py.
+  - **Country (42 real values) / Sector (103 real values)** both have long tails — grouped to
+    top 10 + "Other" (frontend-only truncation, `topNPlusOther()`, since `get_concentration_rollups`
+    already returns the full sorted list for the existing tables). "Unclassified"/"Conflicting"
+    are kept as their OWN honest slices regardless of rank, never folded into "Other" — Currency's
+    Conflicting bucket alone is 27% of the portfolio on real data (turned out to be almost
+    entirely multi-currency bank cash accounts getting grouped under one row per bank, not an
+    actual data quality problem — explained to the user with a concrete example before they
+    confirmed keeping it visible).
+  - **By Fund/Position** — new `by_fund` rollup: each active fund's total contribution (name +
+    Track #, since names can collide) plus one "Direct" bucket for anything held outside a fund
+    — a full partition of `total_portfolio`, unlike the other rollups which can have gaps.
+  - Reused the app's existing pie-chart pattern exactly (`CHART_PALETTE` from shared.js,
+    destroy-before-recreate, `getThemeColors()` for dark-mode-aware legend text) — this is the
+    first pie chart pattern extended to include a percentage in the tooltip alongside the
+    amount, which no existing chart in the app did before.
 - [x] **Look-Through: clarify the fund filter's scope (v1.23.3)** — the fund/position filter
   above All Securities narrows which ROWS show (only securities that fund holds) but was easy
   to misread as narrowing the NUMBERS too — the user selected one fund and circled the fact

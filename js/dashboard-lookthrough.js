@@ -10,6 +10,10 @@ let lookthroughPendingResult = null;   // the parsed-but-not-yet-confirmed previ
 let lookthroughSelectedFile = null;
 let lookthroughView = 'securities';
 
+// Concentration pie charts — one Chart.js instance per canvas, destroyed
+// and recreated on every render (same pattern as cardChart/bankAccountChart).
+let lookthroughTypeChart, lookthroughCountryChart, lookthroughSectorChart, lookthroughFundChart;
+
 // Two of the user's own funds can share an identical display name (a real
 // case: two tracks under one savings policy, same Fund Name/Fund #) — this
 // keeps every place a fund is named in this file distinguishable.
@@ -306,6 +310,7 @@ async function renderLookthroughView() {
     } else if (lookthroughView === 'concentration') {
         const data = await fetch('/api/lookthrough/concentration').then(r => r.json());
         body.innerHTML = renderConcentrationView(data);
+        renderConcentrationCharts(data);
     } else if (lookthroughView === 'merged') {
         const data = await fetch('/api/lookthrough/merged').then(r => r.json());
         body.innerHTML = renderDirectBreakdownView(data);
@@ -453,10 +458,81 @@ function renderRollupTable(title, rows) {
     `;
 }
 
+// Country/Sector can have dozens of tiny slices — keep the top N by value,
+// sum the rest into one "Other" slice. "Unclassified"/"Conflicting" are
+// kept as their own honest slices regardless of rank (decided with the
+// user rather than hiding what the data doesn't know), never folded into
+// "Other" or dropped.
+function topNPlusOther(rows, n) {
+    const special = rows.filter(r => r.label === 'Unclassified' || r.label === 'Conflicting');
+    const normal = rows.filter(r => r.label !== 'Unclassified' && r.label !== 'Conflicting');
+    const top = normal.slice(0, n);
+    const rest = normal.slice(n);
+    const otherValue = rest.reduce((sum, r) => sum + r.value, 0);
+    const result = [...top];
+    if (otherValue) result.push({ label: 'Other', value: otherValue });
+    result.push(...special);
+    return result;
+}
+
+function buildLookthroughPieChart(canvasId, existingChart, rows, totalPortfolio) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return existingChart;
+    if (existingChart) existingChart.destroy();
+    if (!rows.length) return null;
+    const labels = rows.map(r => r.label);
+    return new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels,
+            datasets: [{
+                data: rows.map(r => r.value),
+                backgroundColor: labels.map((_, i) => CHART_PALETTE[i % CHART_PALETTE.length]),
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: getThemeColors().textColor, font: { size: 11 } } },
+                tooltip: {
+                    callbacks: {
+                        label: c => {
+                            const pct = totalPortfolio ? (c.raw / totalPortfolio * 100).toFixed(1) : '0.0';
+                            return `${c.label}: ${formatCurrency(c.raw)} (${pct}%)`;
+                        },
+                    },
+                },
+            },
+        },
+    });
+}
+
+function renderConcentrationCharts(data) {
+    if (!data.total_portfolio) return;
+    const total = data.total_portfolio;
+    lookthroughTypeChart = buildLookthroughPieChart('lookthroughTypeChart', lookthroughTypeChart,
+        data.by_type.map(r => ({ label: INSTRUMENT_TYPE_LABELS[r.label] || r.label, value: r.value })), total);
+    lookthroughCountryChart = buildLookthroughPieChart('lookthroughCountryChart', lookthroughCountryChart,
+        topNPlusOther(data.by_country, 10), total);
+    lookthroughSectorChart = buildLookthroughPieChart('lookthroughSectorChart', lookthroughSectorChart,
+        topNPlusOther(data.by_sector, 10), total);
+    lookthroughFundChart = buildLookthroughPieChart('lookthroughFundChart', lookthroughFundChart,
+        data.by_fund, total);
+}
+
 function renderConcentrationView(data) {
     if (!data.total_portfolio) {
         return '<p class="no-data">No look-through holdings yet — import a filing above.</p>';
     }
+    const chartsGrid = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px;">
+            <div class="chart-container"><h4 style="margin:0 0 8px;">By Type</h4><div class="chart" style="height:260px;"><canvas id="lookthroughTypeChart"></canvas></div></div>
+            <div class="chart-container"><h4 style="margin:0 0 8px;">By Fund/Position</h4><div class="chart" style="height:260px;"><canvas id="lookthroughFundChart"></canvas></div></div>
+            <div class="chart-container"><h4 style="margin:0 0 8px;">By Country</h4><div class="chart" style="height:260px;"><canvas id="lookthroughCountryChart"></canvas></div></div>
+            <div class="chart-container"><h4 style="margin:0 0 8px;">By Sector</h4><div class="chart" style="height:260px;"><canvas id="lookthroughSectorChart"></canvas></div></div>
+        </div>
+    `;
     const crossType = data.same_issuer_cross_type.length ? `
         <h4 style="margin:20px 0 8px;">Same Issuer, Multiple Instrument Types</h4>
         <p style="color:var(--text-secondary);font-size:0.85em;margin:0 0 8px;">
@@ -482,6 +558,7 @@ function renderConcentrationView(data) {
 
     return `
         <p style="color:var(--text-secondary);font-size:0.9em;margin:0 0 8px;">Total look-through value: ${formatCurrency(data.total_portfolio)}</p>
+        ${chartsGrid}
         ${renderRollupTable('By Sector', data.by_sector)}
         ${renderRollupTable('By Country', data.by_country)}
         ${renderRollupTable('By Currency', data.by_currency)}
