@@ -68,7 +68,6 @@ CREATE TABLE IF NOT EXISTS funds (
     is_liquid              INTEGER NOT NULL DEFAULT 0,
     risk_level             INTEGER NOT NULL DEFAULT 0,
     risk_note              TEXT    NOT NULL DEFAULT '',
-    official_fund_number   TEXT    NOT NULL DEFAULT '',
     track_number           TEXT    NOT NULL DEFAULT '',
     institution_reg_number TEXT    NOT NULL DEFAULT ''
 );
@@ -236,12 +235,17 @@ def init_db(db_path=None):
             ("is_liquid",               "INTEGER NOT NULL DEFAULT 0"),
             ("risk_level",              "INTEGER NOT NULL DEFAULT 0"),
             ("risk_note",               "TEXT NOT NULL DEFAULT ''"),
-            ("official_fund_number",    "TEXT NOT NULL DEFAULT ''"),
             ("track_number",            "TEXT NOT NULL DEFAULT ''"),
             ("institution_reg_number",  "TEXT NOT NULL DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE funds ADD COLUMN {col} {definition}")
+            except sqlite3.OperationalError:
+                pass
+        # Drop removed fund columns
+        for col in ["official_fund_number"]:
+            try:
+                conn.execute(f"ALTER TABLE funds DROP COLUMN {col}")
             except sqlite3.OperationalError:
                 pass
         # Migrate old bank_accounts columns
@@ -443,7 +447,7 @@ def get_funds(db_path=None):
     with _connect(db_path) as conn:
         rows = conn.execute(
             """
-            SELECT f.id, f.name, f.company_name, f.fund_number, f.official_fund_number,
+            SELECT f.id, f.name, f.company_name, f.fund_number,
                    f.track_number, f.institution_reg_number,
                    f.fund_type, f.owner_id,
                    f.excluded_from_net_worth, f.is_liquid, f.risk_level, f.risk_note,
@@ -504,7 +508,7 @@ def _validate_unique_track_key(conn, institution_reg_number, track_number, exclu
 
 
 def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="",
-             is_liquid=False, risk_level=0, risk_note="", official_fund_number="",
+             is_liquid=False, risk_level=0, risk_note="",
              track_number="", institution_reg_number="", db_path=None):
     """Add a new fund. Returns updated list."""
     if fund_type not in FUND_TYPES:
@@ -513,10 +517,10 @@ def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="",
     with _connect(db_path) as conn:
         _validate_unique_track_key(conn, institution_reg_number, track_number)
         conn.execute(
-            "INSERT INTO funds (name, company_name, fund_number, official_fund_number, "
+            "INSERT INTO funds (name, company_name, fund_number, "
             "track_number, institution_reg_number, fund_type, owner_id, is_liquid, "
-            "risk_level, risk_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (name, company_name, fund_number, official_fund_number, track_number,
+            "risk_level, risk_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, company_name, fund_number, track_number,
              institution_reg_number, fund_type, owner_id, 1 if is_liquid else 0,
              risk_level, risk_note),
         )
@@ -524,7 +528,7 @@ def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="",
 
 
 FUND_EDITABLE_FIELDS = {
-    "name", "company_name", "fund_number", "official_fund_number", "track_number",
+    "name", "company_name", "fund_number", "track_number",
     "institution_reg_number", "fund_type", "owner_id",
     "excluded_from_net_worth", "is_liquid", "risk_level", "risk_note",
 }

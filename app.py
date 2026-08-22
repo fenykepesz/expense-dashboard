@@ -303,7 +303,6 @@ def create_fund():
     company_name = (data.get('company_name') or '').strip()
     fund_type = data.get('fund_type')
     fund_number = (data.get('fund_number') or '').strip()
-    official_fund_number = (data.get('official_fund_number') or '').strip()
     track_number = (data.get('track_number') or '').strip()
     institution_reg_number = (data.get('institution_reg_number') or '').strip()
     owner_id = data.get('owner_id')
@@ -314,7 +313,7 @@ def create_fund():
         return jsonify({'error': 'name, company_name, and fund_type are required'}), 400
     try:
         updated = db.add_fund(name, fund_type, company_name, owner_id, fund_number,
-                               is_liquid, risk_level, risk_note, official_fund_number,
+                               is_liquid, risk_level, risk_note,
                                track_number, institution_reg_number)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
@@ -339,8 +338,6 @@ def patch_fund(fund_id):
         fields['company_name'] = company_name
     if 'fund_number' in data:
         fields['fund_number'] = (data.get('fund_number') or '').strip()
-    if 'official_fund_number' in data:
-        fields['official_fund_number'] = (data.get('official_fund_number') or '').strip()
     if 'track_number' in data:
         fields['track_number'] = (data.get('track_number') or '').strip()
     if 'institution_reg_number' in data:

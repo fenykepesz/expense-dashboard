@@ -22,7 +22,6 @@ const FUND_COLUMN_TOOLTIPS = {
     company_name: 'The financial institution or insurer managing this fund.',
     name: 'The name of this specific fund or track.',
     fund_number: 'Your personal account/policy number for this fund, as shown on your own statements.',
-    official_fund_number: "The fund/track's official industry-wide identifier — the same for everyone invested in it, not specific to your account.",
     track_number: "This fund's investment track number, as it appears in the institution's regulatory holdings filing (מספר מסלול) — set this and Institution Reg # to include it in Look-Through aggregation.",
     institution_reg_number: "The managing institution's registration number (ח.פ.), as shown on its regulatory holdings filing's cover sheet — used to match this fund to an uploaded Look-Through filing.",
     is_liquid: 'Marks cash-equivalent funds you could withdraw quickly, as opposed to locked long-term savings.',
@@ -96,7 +95,7 @@ function sortFunds(list) {
 // transaction table's initTxResize (dashboard-credit-card.js) ─────────────
 const FUNDS_COL_DEFAULTS = {
     fund_type: 130, company_name: 110, name: 160, fund_number: 90,
-    official_fund_number: 100, track_number: 90, institution_reg_number: 110,
+    track_number: 90, institution_reg_number: 110,
     is_liquid: 60, risk_level: 150, fees: 170,
     owner_name: 110, excluded_from_net_worth: 90, latest_balance: 120, action: 70,
 };
@@ -163,9 +162,9 @@ function renderFundsList() {
 
     let bodyHtml;
     if (!currentFunds.length) {
-        bodyHtml = '<tr><td colspan="14" class="no-data">No funds yet — add one above.</td></tr>';
+        bodyHtml = '<tr><td colspan="13" class="no-data">No funds yet — add one above.</td></tr>';
     } else if (!visibleFunds.length) {
-        bodyHtml = '<tr><td colspan="14" class="no-data">No funds match this filter.</td></tr>';
+        bodyHtml = '<tr><td colspan="13" class="no-data">No funds match this filter.</td></tr>';
     } else {
         bodyHtml = sortFunds(visibleFunds).map(renderFundRow).join('');
     }
@@ -178,7 +177,6 @@ function renderFundsList() {
                 <col style="width:${w.company_name}px;">
                 <col style="width:${w.name}px;">
                 <col style="width:${w.fund_number}px;">
-                <col style="width:${w.official_fund_number}px;">
                 <col style="width:${w.track_number}px;">
                 <col style="width:${w.institution_reg_number}px;">
                 <col style="width:${w.is_liquid}px;">
@@ -194,7 +192,6 @@ function renderFundsList() {
                 ${fundsTh('company_name', 'Company', thTooltip(FUND_COLUMN_TOOLTIPS.company_name))}
                 ${fundsTh('name', 'Fund Name', thTooltip(FUND_COLUMN_TOOLTIPS.name))}
                 ${fundsTh('fund_number', 'Fund #', thTooltip(FUND_COLUMN_TOOLTIPS.fund_number))}
-                ${fundsTh('official_fund_number', 'Official Fund #', thTooltip(FUND_COLUMN_TOOLTIPS.official_fund_number))}
                 ${fundsTh('track_number', 'Track #', thTooltip(FUND_COLUMN_TOOLTIPS.track_number))}
                 ${fundsTh('institution_reg_number', 'Institution Reg #', thTooltip(FUND_COLUMN_TOOLTIPS.institution_reg_number))}
                 ${fundsTh('is_liquid', 'Liquid', thTooltip(FUND_COLUMN_TOOLTIPS.is_liquid))}
@@ -239,7 +236,6 @@ function renderFundRow(f) {
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.company_name || '')}" placeholder="Company…" onblur="saveFundTextField(${f.id}, 'company_name', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.name)}" placeholder="Fund name…" onblur="saveFundTextField(${f.id}, 'name', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.fund_number || '')}" placeholder="Fund #…" onblur="saveFundTextField(${f.id}, 'fund_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
-            <td><input type="text" class="tx-note-input" value="${escapeHtml(f.official_fund_number || '')}" placeholder="Official #…" onblur="saveFundTextField(${f.id}, 'official_fund_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.track_number || '')}" placeholder="Track #…" onblur="saveFundTextField(${f.id}, 'track_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td><input type="text" class="tx-note-input" value="${escapeHtml(f.institution_reg_number || '')}" placeholder="Institution reg #…" onblur="saveFundTextField(${f.id}, 'institution_reg_number', this)" onkeydown="if(event.key==='Enter')this.blur()"></td>
             <td style="text-align:center;"><input type="checkbox" ${f.is_liquid ? 'checked' : ''} onchange="updateFundField(${f.id}, 'is_liquid', this.checked)"></td>
@@ -348,6 +344,14 @@ function resetFundNumberSelect() {
     sel.innerHTML = '<option value="">Select a fund #…</option>';
     sel.disabled = true;
     sel.style.display = 'none';
+    resetTrackSelect();
+}
+
+function resetTrackSelect() {
+    const sel = document.getElementById('fundBalanceTrackSelect');
+    sel.innerHTML = '<option value="">Select a track…</option>';
+    sel.disabled = true;
+    sel.style.display = 'none';
 }
 
 function onFundBalanceCompanyChange() {
@@ -378,22 +382,32 @@ function onFundBalanceCompanyChange() {
 function onFundBalanceNameChange() {
     const company = document.getElementById('fundBalanceCompanySelect').value;
     const name = document.getElementById('fundBalanceNameSelect').value;
+    resetFundNumberSelect();
     if (!name) {
-        resetFundNumberSelect();
         showSelectedFundInfo(null);
         loadFundBalancesFor(null);
         return;
     }
     const matches = fundsForCompany(company).filter(f => f.name === name);
     if (matches.length === 1) {
-        resetFundNumberSelect();
         showSelectedFundInfo(matches[0]);
         loadFundBalancesFor(matches[0].id);
         return;
     }
+    // Fund # alone can be identical across two funds (e.g. two tracks under
+    // the same policy number) — only show it as a disambiguation step when
+    // it actually narrows things down; otherwise skip straight to Track #,
+    // which is guaranteed distinct per fund (enforced at fund creation).
+    const distinctNumbers = [...new Set(matches.map(f => f.fund_number || ''))];
+    if (distinctNumbers.length === 1) {
+        renderFundBalanceTrackOptions(matches);
+        showSelectedFundInfo(null);
+        loadFundBalancesFor(null);
+        return;
+    }
     const numSelect = document.getElementById('fundBalanceNumberSelect');
     numSelect.innerHTML = '<option value="">Select a fund #…</option>' +
-        matches.map(f => `<option value="${f.id}">${escapeHtml(f.fund_number || '(no number)')}</option>`).join('');
+        distinctNumbers.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n || '(no number)')}</option>`).join('');
     numSelect.disabled = false;
     numSelect.style.display = '';
     showSelectedFundInfo(null);
@@ -401,7 +415,41 @@ function onFundBalanceNameChange() {
 }
 
 function onFundBalanceNumberChange() {
-    const fundId = document.getElementById('fundBalanceNumberSelect').value;
+    const company = document.getElementById('fundBalanceCompanySelect').value;
+    const name = document.getElementById('fundBalanceNameSelect').value;
+    const number = document.getElementById('fundBalanceNumberSelect').value;
+    resetTrackSelect();
+    if (!number) {
+        showSelectedFundInfo(null);
+        loadFundBalancesFor(null);
+        return;
+    }
+    const matches = fundsForCompany(company).filter(f => f.name === name && (f.fund_number || '') === number);
+    if (matches.length === 1) {
+        showSelectedFundInfo(matches[0]);
+        loadFundBalancesFor(matches[0].id);
+        return;
+    }
+    renderFundBalanceTrackOptions(matches);
+    showSelectedFundInfo(null);
+    loadFundBalancesFor(null);
+}
+
+// Same company + name + fund # still doesn't uniquely resolve — e.g. two
+// tracks under one savings policy sharing the same personal policy number.
+// Track # is validated unique per (institution_reg_number, track_number)
+// at fund creation, so it's always the final disambiguator.
+function renderFundBalanceTrackOptions(matches) {
+    const trackSelect = document.getElementById('fundBalanceTrackSelect');
+    const sorted = [...matches].sort((a, b) => (a.track_number || '').localeCompare(b.track_number || ''));
+    trackSelect.innerHTML = '<option value="">Select a track…</option>' +
+        sorted.map(f => `<option value="${f.id}">${escapeHtml(f.track_number || '(no track #)')}</option>`).join('');
+    trackSelect.disabled = false;
+    trackSelect.style.display = '';
+}
+
+function onFundBalanceTrackChange() {
+    const fundId = document.getElementById('fundBalanceTrackSelect').value;
     const fund = currentFunds.find(f => String(f.id) === fundId);
     showSelectedFundInfo(fund || null);
     loadFundBalancesFor(fundId || null);
@@ -424,6 +472,7 @@ function showSelectedFundInfo(fund) {
     if (!fund) { el.textContent = ''; return; }
     const parts = [fund.company_name || '(No company)', fund.name];
     if (fund.fund_number) parts.push(`#${fund.fund_number}`);
+    if (fund.track_number) parts.push(`Track ${fund.track_number}`);
     el.textContent = `Selected: ${parts.join(' — ')}`;
 }
 
@@ -444,7 +493,6 @@ async function addNewFund() {
     const companyName = document.getElementById('newFundCompanyInput').value.trim();
     const name = document.getElementById('newFundNameInput').value.trim();
     const fundNumber = document.getElementById('newFundNumberInput').value.trim();
-    const officialFundNumber = document.getElementById('newFundOfficialNumberInput').value.trim();
     const fundType = document.getElementById('newFundTypeInput').value;
     const ownerId = document.getElementById('newFundOwnerInput').value || null;
     const isLiquid = document.getElementById('newFundLiquidInput').checked;
@@ -454,7 +502,6 @@ async function addNewFund() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             name, company_name: companyName, fund_number: fundNumber,
-            official_fund_number: officialFundNumber,
             fund_type: fundType, owner_id: ownerId, is_liquid: isLiquid,
         }),
     });
@@ -463,7 +510,6 @@ async function addNewFund() {
     document.getElementById('newFundCompanyInput').value = '';
     document.getElementById('newFundNameInput').value = '';
     document.getElementById('newFundNumberInput').value = '';
-    document.getElementById('newFundOfficialNumberInput').value = '';
     document.getElementById('newFundLiquidInput').checked = false;
     currentFunds = result.funds;
     renderFundsList();

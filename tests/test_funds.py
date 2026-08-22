@@ -31,7 +31,6 @@ def test_init_db_migrates_old_funds_table(tmp_path):
     assert funds[0]["is_liquid"] == 0
     assert funds[0]["risk_level"] == 0
     assert funds[0]["risk_note"] == ""
-    assert funds[0]["official_fund_number"] == ""
     assert funds[0]["fees"] == []
 
 
@@ -144,21 +143,22 @@ def test_add_fund_company_and_number_default_empty(tmp_db):
     assert funds[0]["fund_number"] == ""
 
 
-def test_add_fund_with_official_fund_number(tmp_db):
-    funds = db.add_fund("Pension Fund", "pension", official_fund_number="OFF-999", db_path=tmp_db)
-    assert funds[0]["official_fund_number"] == "OFF-999"
+def test_init_db_drops_removed_official_fund_number_column(tmp_path):
+    """official_fund_number was removed (v1.22.1) as unused clutter — a
+    database that still has it from before must have it dropped cleanly on
+    re-init, not error out or leave it lingering."""
+    path = tmp_path / "old_with_official_number.db"
+    db.init_db(path)
+    conn = sqlite3.connect(str(path))
+    conn.execute("ALTER TABLE funds ADD COLUMN official_fund_number TEXT NOT NULL DEFAULT ''")
+    conn.commit()
+    conn.close()
 
-
-def test_add_fund_official_fund_number_defaults_empty(tmp_db):
-    funds = db.add_fund("Pension Fund", "pension", db_path=tmp_db)
-    assert funds[0]["official_fund_number"] == ""
-
-
-def test_update_fund_official_fund_number(tmp_db):
-    funds = db.add_fund("Fund A", "pension", db_path=tmp_db)
-    fund_id = funds[0]["id"]
-    updated = db.update_fund(fund_id, {"official_fund_number": "OFF-1"}, db_path=tmp_db)
-    assert updated[0]["official_fund_number"] == "OFF-1"
+    db.init_db(path)  # should not raise, should drop the column
+    conn = sqlite3.connect(str(path))
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(funds)").fetchall()]
+    conn.close()
+    assert "official_fund_number" not in cols
 
 
 def test_update_fund_renames(tmp_db):
@@ -662,26 +662,6 @@ def test_update_fund_route_clears_owner(client):
     assert resp.status_code == 200
     fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
     assert fund["owner_id"] is None
-
-
-# ── Route-level: official fund number ────────────────────────────────────────
-
-def test_create_fund_route_with_official_fund_number(client):
-    resp = client.post("/api/funds", json={
-        "name": "Fund", "fund_type": "pension", "company_name": "Harel",
-        "official_fund_number": "OFF-42",
-    })
-    assert resp.status_code == 201
-    assert resp.get_json()["funds"][0]["official_fund_number"] == "OFF-42"
-
-
-def test_patch_fund_route_updates_official_fund_number(client):
-    create_resp = client.post("/api/funds", json={"name": "Fund", "fund_type": "pension", "company_name": "Harel"})
-    fund_id = create_resp.get_json()["funds"][0]["id"]
-    resp = client.patch(f"/api/funds/{fund_id}", json={"official_fund_number": "OFF-7"})
-    assert resp.status_code == 200
-    fund = next(f for f in resp.get_json()["funds"] if f["id"] == fund_id)
-    assert fund["official_fund_number"] == "OFF-7"
 
 
 # ── Route-level: fund fees ───────────────────────────────────────────────────

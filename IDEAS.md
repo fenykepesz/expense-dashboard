@@ -81,6 +81,24 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Remove Official Fund #, Track # picker level (v1.22.1)** — while adding real Fenix
+  savings-policy funds and putting Look-Through's Institution Reg #/Track # fields to real use,
+  two follow-ups: (1) **Official Fund #** (added v1.21.0) was removed entirely — column, API
+  field, table column, add-form input, all gone — since it never ended up wired to anything
+  (not even Look-Through matching, which uses `institution_reg_number` + `track_number`, not
+  this field) and the user flagged it as pure clutter. `funds.official_fund_number` is dropped
+  via `ALTER TABLE ... DROP COLUMN` in the standard migration loop, same idempotent
+  try/ALTER/except pattern used for every column addition elsewhere — no data was lost, since no
+  fund had ever had a value in it. (2) **Fund Balances picker gained a 4th escalation level**:
+  the real Fenix data surfaced a case the cascading Company → Fund Name → Fund # picker (v1.17.0)
+  couldn't handle — two tracks under one savings policy share the exact same Fund # (it's the
+  policy number, not a per-track identifier), so the picker had nowhere left to escalate. Added
+  Track # as a further level: if Fund # doesn't disambiguate (all candidates share one value),
+  it's skipped entirely and a Track # dropdown appears immediately after Fund Name instead;
+  if Fund # *does* narrow things down but ties remain, Track # appears after that. Verified live
+  against the real two-track Fenix policy (tracks 9579/12882, identical Fund # 3456318082) via
+  Playwright — the dropdown appeared, listed both tracks, and resolved to the correct fund with
+  its own balance history each time.
 - [x] **Look-Through security-level holdings (v1.22.0)** — new top-level "🔎 Look-Through" tab:
   imports the quarterly "מצבת נכסים" (Uniform Structure asset statement) regulatory filing that
   Israeli insurance companies and pension/provident fund managers publish, and aggregates

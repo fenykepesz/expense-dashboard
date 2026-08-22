@@ -955,7 +955,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.22.0</span>
+            <span class="version-badge">v1.22.1</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1229,8 +1229,6 @@
                             style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:170px;">
                         <input type="text" id="newFundNumberInput" placeholder="Fund number (optional)"
                             style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:160px;">
-                        <input type="text" id="newFundOfficialNumberInput" placeholder="Official fund # (optional)"
-                            style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:160px;">
                         <select id="newFundTypeInput" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
                             <option value="pension">Pension</option>
                             <option value="study_fund">Study Fund</option>
@@ -1292,6 +1290,9 @@
                     </select>
                     <select id="fundBalanceNumberSelect" disabled style="display:none;height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onFundBalanceNumberChange()">
                         <option value="">Select a fund #…</option>
+                    </select>
+                    <select id="fundBalanceTrackSelect" disabled style="display:none;height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onFundBalanceTrackChange()">
+                        <option value="">Select a track…</option>
                     </select>
                     <input type="date" id="newFundBalanceDate" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
                     <input type="number" id="newFundBalanceAmount" placeholder="Balance" step="0.01"
