@@ -131,6 +131,35 @@ def test_unmapped_but_holdings_shaped_sheet_imports_as_other(tmp_path):
     assert any(u["sheet_name"] == "A Brand New Sheet Type" for u in result["unrecognized_sheets"])
 
 
+def test_other_derivatives_sheet_classified_per_row_by_asset_type(tmp_path):
+    """Confirmed real-world case: לא סחיר נגזרים אחרים bundles several
+    genuinely different OTC derivative types (FX, interest rate, equity,
+    inflation) under one sheet name — a flat sheet-name mapping can't tell
+    them apart, but the sheet's own סוג הנכס (Asset Type) column can."""
+    from holdings_filing_to_json import OTHER_DERIVATIVES_SHEET_NAME
+
+    wb = openpyxl.Workbook()
+    _build_cover_sheet(wb, institution_reg_number="1")
+    ws = wb.create_sheet(OTHER_DERIVATIVES_SHEET_NAME)
+    ws.append(["מספר מסלול", "צד נגדי - Counterparty", "טיקר", "סוג הנכס",
+               "שיעור מנכסי אפיק ההשקעה", "שווי הוגן (באלפי ש\"ח)"])
+    ws.append(["1", "CITIUS33", "USDILS", 'מט"ח', 0.1, 10])
+    ws.append(["1", "POALILIT", "M1IN INDEX", "מניות לרבות מדדי מניות", 0.1, 5])
+    ws.append(["1", "LUMIILIT", "IRS-1", "ריבית ואג\"ח", 0.1, 3])
+    ws.append(["1", "GSILGB2X", "CPI-1", "מדד המחירים לצרכן", 0.1, 1])
+    ws.append(["1", "UNKNOWN33", "MYSTERY-1", "משהו לא מוכר", 0.1, 2])  # unmapped asset type
+    path = _save(wb, tmp_path)
+
+    funds = [{"id": 1, "institution_reg_number": "1", "track_number": "1"}]
+    result = parse_holdings_filing(path, funds)
+    by_ticker = {r["security_name"]: r["instrument_type"] for r in result["rows"]}
+    assert by_ticker["USDILS"] == "fx_swap"
+    assert by_ticker["M1IN INDEX"] == "equity_swap"
+    assert by_ticker["IRS-1"] == "interest_rate_swap"
+    assert by_ticker["CPI-1"] == "inflation_swap"
+    assert by_ticker["MYSTERY-1"] == "other"  # unmapped asset type falls back, not dropped
+
+
 def test_non_holdings_sheet_is_skipped_not_misparsed(tmp_path):
     wb = openpyxl.Workbook()
     _build_cover_sheet(wb, institution_reg_number="1")

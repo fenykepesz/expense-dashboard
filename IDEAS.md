@@ -81,6 +81,25 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: classify the "Other Derivatives" sheet by its own Asset Type column
+  (v1.23.1)** — v1.23.0 left ~792 real rows tagged generic `instrument_type='other'` with a
+  note that they looked like FX forward contracts by content (bank SWIFT/BIC issuer codes,
+  currency-pair "securities") but needed the actual source file to confirm properly rather than
+  guessing from content. User sent the file; inspecting it directly found the true cause: all
+  792 rows come from ONE sheet (`לא סחיר נגזרים אחרים`, "non-tradable other derivatives") that
+  itself bundles four genuinely different OTC derivative types — confirmed via the sheet's own
+  `סוג הנכס` (Asset Type) column, a filing-defined field with exactly 4 real values: מט"ח (FX,
+  5,970 rows company-wide) → new `fx_swap`, ריבית ואג"ח (interest rate) → new
+  `interest_rate_swap`, מניות לרבות מדדי מניות (equity/index) → new `equity_swap`, מדד המחירים
+  לצרכן (CPI/inflation) → new `inflation_swap`. Since this is a first-class column the filing
+  itself provides (not a guess from issuer-name shape), classifying by it doesn't break the
+  parser's "match by header/sheet name, not row content" design — it's the SAME kind of lookup
+  CANONICAL_FIELDS already does for every other field, just applied per-row instead of per-sheet
+  for this one sheet specifically (`OTHER_DERIVATIVES_SHEET_NAME`,
+  `ASSET_TYPE_TO_INSTRUMENT_TYPE`). Re-parsing the user's real file dropped `other` from 792 rows
+  to 5 (genuinely miscellaneous items from a different, correctly-generic "Other Assets" sheet —
+  repo tax positions, receivables/payables). Re-importing the same filing picks up the corrected
+  labels for already-stored data (replace-on-reimport, no schema migration needed).
 - [x] **Look-Through: personal-value fix, merged All Securities view, real redesign (v1.23.0)**
   — first real usage against the actual Fenix data surfaced a second, more serious value bug on
   top of the v1.22.0 one, plus a set of requested UX changes; all landed together.

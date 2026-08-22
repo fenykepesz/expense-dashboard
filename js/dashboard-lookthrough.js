@@ -23,7 +23,10 @@ const INSTRUMENT_TYPE_LABELS = {
     etf: 'ETF', mutual_fund: 'Mutual Fund', warrant: 'Warrant', option: 'Option',
     future: 'Future', structured_product: 'Structured Product',
     investment_fund: 'Investment Fund', loan: 'Loan', deposit: 'Deposit',
-    real_estate: 'Real Estate', other: 'Other',
+    real_estate: 'Real Estate',
+    fx_swap: 'FX Forward/Swap', interest_rate_swap: 'Interest Rate Swap',
+    equity_swap: 'Equity/Index Swap', inflation_swap: 'Inflation (CPI) Swap',
+    other: 'Other',
 };
 
 // ── Upload panel ─────────────────────────────────────────────────────────

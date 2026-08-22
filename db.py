@@ -184,7 +184,9 @@ FEE_BASIS_OPTIONS = ["deposits", "earnings", "total"]
 INSTRUMENT_TYPES = [
     "cash", "govt_bond", "corp_bond", "equity_traded", "equity_nontraded",
     "etf", "mutual_fund", "warrant", "option", "future", "structured_product",
-    "investment_fund", "loan", "deposit", "real_estate", "other",
+    "investment_fund", "loan", "deposit", "real_estate",
+    "fx_swap", "interest_rate_swap", "equity_swap", "inflation_swap",
+    "other",
 ]
 
 # Label only — never branches the tax math. Cost basis already captures what

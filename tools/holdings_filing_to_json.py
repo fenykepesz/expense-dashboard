@@ -125,6 +125,11 @@ CANONICAL_FIELDS = {
     # is the actual dollar-value source; converted to real ILS (×1000) at
     # parse time.
     "fair_value_ils":  ["שווי הוגן (באלפי ש\"ח)", "שווי הוגן (נטו באלפי ש\"ח)"],
+    # Only meaningful on the OTHER_DERIVATIVES_SHEET_NAME sheet (see below) —
+    # that one sheet bundles several genuinely different derivative types
+    # (FX, interest rate, equity, inflation) under one sheet name, and this
+    # is the filing's own column distinguishing which is which per row.
+    "asset_type":      ["סוג הנכס"],
 }
 
 # Fields that must all resolve for a sheet to be treated as holdings-shaped.
@@ -157,7 +162,7 @@ SHEET_NAME_TO_INSTRUMENT_TYPE = {
     "קרנות השקעה": "investment_fund",
     "לא סחיר כתבי אופציה": "warrant",
     "לא סחיר אופציות": "option",
-    "לא סחיר נגזרים אחרים": "other",
+    "לא סחיר נגזרים אחרים": "other",  # overridden per-row below, see OTHER_DERIVATIVES_SHEET_NAME
     "הלוואות": "loan",
     "לא סחיר מוצרים מובנים": "structured_product",
     "פיקדונות מעל 3 חודשים": "deposit",
@@ -168,6 +173,22 @@ SHEET_NAME_TO_INSTRUMENT_TYPE = {
 
 SKIPPED_SHEETS = {COVER_SHEET_NAME, SUMMARY_SHEET_NAME, LEGEND_SHEET_NAME, "File Name Info",
                   "אפשרויות בחירה", "מסגרות אשראי", "יתרות התחייבות להשקעה"}
+
+# This one sheet genuinely bundles several different OTC derivative types
+# under a single sheet name (confirmed via real data: 5,970 FX rows, 714
+# interest-rate rows, 440 equity/index rows, 36 inflation rows, all in the
+# same sheet) — a sheet-name-level mapping can't tell them apart, but the
+# sheet carries its own "סוג הנכס" (Asset Type) column that reliably can.
+# This is the one place classification reads row content rather than just
+# sheet/header names — deliberately narrow (one sheet, one filing-defined
+# column with a small closed set of real values), not a general heuristic.
+OTHER_DERIVATIVES_SHEET_NAME = "לא סחיר נגזרים אחרים"
+ASSET_TYPE_TO_INSTRUMENT_TYPE = {
+    'מט"ח': "fx_swap",
+    "ריבית ואג\"ח": "interest_rate_swap",
+    "מניות לרבות מדדי מניות": "equity_swap",
+    "מדד המחירים לצרכן": "inflation_swap",
+}
 
 
 def _resolve_header(header_row):
@@ -324,9 +345,14 @@ def parse_holdings_filing(path, funds):
                 ):
                     continue
 
+                row_instrument_type = instrument_type
+                if sheet_name == OTHER_DERIVATIVES_SHEET_NAME:
+                    asset_type = str(get(row, "asset_type") or "").strip()
+                    row_instrument_type = ASSET_TYPE_TO_INSTRUMENT_TYPE.get(asset_type, instrument_type)
+
                 rows.append({
                     "fund_id": fund_id,
-                    "instrument_type": instrument_type,
+                    "instrument_type": row_instrument_type,
                     "issuer_name": issuer_name,
                     "issuer_number": issuer_number,
                     "security_name": security_name,
