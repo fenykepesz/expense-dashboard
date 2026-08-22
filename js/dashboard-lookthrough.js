@@ -17,6 +17,15 @@ function fundLabel(f) {
     return f.track_number ? `${f.name} (Track ${f.track_number})` : f.name;
 }
 
+// Two-line column header for the per-fund breakdown columns — company name
+// (short, e.g. "Menora"/"Phoenix") on top, Track # underneath, since two of
+// the user's own funds can share an identical Fund Name but never a Track #.
+function fundColumnHeader(f) {
+    const company = f.company_name || f.name;
+    const track = f.track_number ? `<br><span style="font-weight:400;font-size:0.78em;color:var(--text-secondary);">${escapeHtml(f.track_number)}</span>` : '';
+    return `${escapeHtml(company)}${track}`;
+}
+
 const INSTRUMENT_TYPE_LABELS = {
     cash: 'Cash', govt_bond: 'Government Bond', corp_bond: 'Corporate Bond',
     equity_traded: 'Stock', equity_nontraded: 'Stock (non-tradable)',
@@ -145,10 +154,14 @@ async function deleteHoldingsFiling(filingId, institutionName) {
 // ── Securities table: resizable + sortable + filterable, same pattern as
 // the Manage Funds table (dashboard-funds.js) ──────────────────────────────
 
+// Per-fund/Direct columns are dynamic (their count depends on how many
+// funds are active) and rendered with a fixed width, not tracked here or
+// individually resizable — only these fixed columns persist a resized width.
 const LOOKTHROUGH_COL_DEFAULTS = {
-    holding: 220, my_ils: 130, pct: 100, type: 140, funds: 190,
+    holding: 220, my_ils: 130, pct: 100, type: 140,
     country: 100, sector: 140, currency: 80,
 };
+const LOOKTHROUGH_FUND_COL_WIDTH = 120;
 
 function getLookthroughColWidths() {
     try { return Object.assign({}, LOOKTHROUGH_COL_DEFAULTS, JSON.parse(localStorage.getItem('lookthroughColWidths'))); }
@@ -157,15 +170,26 @@ function getLookthroughColWidths() {
 
 function saveLookthroughColWidths(w) { localStorage.setItem('lookthroughColWidths', JSON.stringify(w)); }
 
+// Fund/Direct columns sit BETWEEN the fixed ones (Type and Country) and
+// their count varies by how many funds are active, so a handle's position
+// among all handles no longer lines up with its <col>'s position among all
+// <col>s. Each handle instead carries its own target col-index (data-col-
+// index) and, for fixed columns only, which LOOKTHROUGH_COL_DEFAULTS key to
+// persist under (data-col-key) — dynamic columns get a handle with no key,
+// so they resize within the session but aren't saved (their set changes
+// too often across imports to make a saved width meaningful).
 function initLookthroughResize() {
     const table = document.querySelector('#lookthroughSecuritiesTableWrap table');
     if (!table) return;
+    const cols = table.querySelectorAll('col');
     const handles = table.querySelectorAll('.col-resize-handle');
-    handles.forEach((handle, i) => {
+    handles.forEach(handle => {
+        const idx = parseInt(handle.dataset.colIndex, 10);
+        const key = handle.dataset.colKey || null;
         handle.addEventListener('mousedown', e => {
             e.preventDefault();
             e.stopPropagation();
-            const col = table.querySelectorAll('col')[i];
+            const col = cols[idx];
             const startX = e.clientX;
             const startW = parseInt(col.style.width);
             handle.classList.add('resizing');
@@ -177,11 +201,11 @@ function initLookthroughResize() {
                 handle.classList.remove('resizing');
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup', onUp);
-                const keys = Object.keys(LOOKTHROUGH_COL_DEFAULTS);
-                const cols = table.querySelectorAll('col');
-                const saved = {};
-                keys.forEach((k, j) => { saved[k] = parseInt(cols[j].style.width); });
-                saveLookthroughColWidths(saved);
+                if (key) {
+                    const widths = getLookthroughColWidths();
+                    widths[key] = parseInt(col.style.width);
+                    saveLookthroughColWidths(widths);
+                }
             };
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);
@@ -189,7 +213,10 @@ function initLookthroughResize() {
     });
 }
 
-const LOOKTHROUGH_RESIZE_HANDLE = '<div class="col-resize-handle" onclick="event.stopPropagation()"></div>';
+function resizeHandle(colIndex, colKey = '') {
+    const keyAttr = colKey ? ` data-col-key="${colKey}"` : '';
+    return `<div class="col-resize-handle" data-col-index="${colIndex}"${keyAttr} onclick="event.stopPropagation()"></div>`;
+}
 
 let lookthroughSortCol = 'my_ils';
 let lookthroughSortDir = -1;
@@ -205,10 +232,10 @@ const LOOKTHROUGH_SORT_ACCESSORS = {
     currency: s => s.currency || '',
 };
 
-function lookthroughTh(col, label) {
+function lookthroughTh(col, label, colIndex) {
     const active = col === lookthroughSortCol;
     const arrow = active ? (lookthroughSortDir === 1 ? ' ▲' : ' ▼') : ' ↕';
-    return `<th onclick="sortLookthroughColumn('${col}')" style="cursor:pointer;white-space:nowrap;">${escapeHtml(label)}<span style="opacity:${active ? 1 : 0.35};font-size:0.75em;">${arrow}</span>${LOOKTHROUGH_RESIZE_HANDLE}</th>`;
+    return `<th onclick="sortLookthroughColumn('${col}')" style="cursor:pointer;white-space:nowrap;">${escapeHtml(label)}<span style="opacity:${active ? 1 : 0.35};font-size:0.75em;">${arrow}</span>${resizeHandle(colIndex, col)}</th>`;
 }
 
 function sortLookthroughColumn(col) {
@@ -319,9 +346,40 @@ function renderSecuritiesTable(data, { showOverlapCols = false } = {}) {
         return filterBar + '<p class="no-data">No securities match this filter.</p>';
     }
 
+    // Direct is its own column only when at least one row actually has a
+    // direct value — checked against the full unfiltered set so the column
+    // doesn't appear/disappear as filters change.
+    const hasDirect = allRows.some(s => s.direct_value);
+
     const w = getLookthroughColWidths();
-    const overlapCol = showOverlapCols ? '<col style="width:120px;">' : '';
-    const overlapTh = showOverlapCols ? `<th style="white-space:nowrap;">Max Single Fund${LOOKTHROUGH_RESIZE_HANDLE}</th>` : '';
+
+    // Column layout, in render order, so col-index bookkeeping (needed for
+    // resize) stays correct regardless of how many funds are active:
+    // Holding, My ILS, % of Invested, Type, [one column per fund],
+    // [Direct, if any], Country, Sector, Currency, [Max Single Fund].
+    let i = 0;
+    const cols = [];
+    const heads = [];
+
+    cols.push(`<col style="width:${w.holding}px;">`); heads.push(lookthroughTh('holding', 'Holding', i++));
+    cols.push(`<col style="width:${w.my_ils}px;">`); heads.push(lookthroughTh('my_ils', 'My ILS (Invested)', i++));
+    cols.push(`<col style="width:${w.pct}px;">`); heads.push(lookthroughTh('pct', '% of Invested', i++));
+    cols.push(`<col style="width:${w.type}px;">`); heads.push(lookthroughTh('type', 'Type', i++));
+    funds.forEach(f => {
+        cols.push(`<col style="width:${LOOKTHROUGH_FUND_COL_WIDTH}px;">`);
+        heads.push(`<th style="white-space:nowrap;">${fundColumnHeader(f)}${resizeHandle(i++)}</th>`);
+    });
+    if (hasDirect) {
+        cols.push(`<col style="width:${LOOKTHROUGH_FUND_COL_WIDTH}px;">`);
+        heads.push(`<th style="white-space:nowrap;">Direct${resizeHandle(i++)}</th>`);
+    }
+    cols.push(`<col style="width:${w.country}px;">`); heads.push(lookthroughTh('country', 'Country', i++));
+    cols.push(`<col style="width:${w.sector}px;">`); heads.push(lookthroughTh('sector', 'Sector', i++));
+    cols.push(`<col style="width:${w.currency}px;">`); heads.push(lookthroughTh('currency', 'Currency', i++));
+    if (showOverlapCols) {
+        cols.push('<col style="width:120px;">');
+        heads.push(`<th style="white-space:nowrap;">Max Single Fund${resizeHandle(i++)}</th>`);
+    }
 
     const bodyRows = rows.map(s => {
         const holdingName = s.security_name || s.issuer_name || '—';
@@ -334,18 +392,12 @@ function renderSecuritiesTable(data, { showOverlapCols = false } = {}) {
             ? ' <span class="stock-warn" title="At least one contributing fund has no recorded balance yet — its share is counted as 0 until you add one.">⚠</span>'
             : '';
 
-        const contributorNames = [];
-        const contributorDetails = [];
-        funds.forEach(f => {
-            if (s.by_fund && s.by_fund[f.id]) {
-                contributorNames.push(fundLabel(f));
-                contributorDetails.push(`${fundLabel(f)}: ${formatCurrency(s.by_fund[f.id])}`);
-            }
-        });
-        if (s.direct_value) {
-            contributorNames.push('Direct');
-            contributorDetails.push(`Direct: ${formatCurrency(s.direct_value)}`);
-        }
+        const fundCells = funds.map(f => {
+            const v = s.by_fund && s.by_fund[f.id];
+            return `<td class="amount-cell">${v ? formatCurrency(v) : '—'}</td>`;
+        }).join('');
+        const directCell = hasDirect
+            ? `<td class="amount-cell">${s.direct_value ? formatCurrency(s.direct_value) : '—'}</td>` : '';
 
         const overlapCell = showOverlapCols
             ? `<td class="amount-cell">${s.max_single_fund_share !== null && s.max_single_fund_share !== undefined ? (s.max_single_fund_share * 100).toFixed(1) + '%' : '—'}</td>`
@@ -357,7 +409,8 @@ function renderSecuritiesTable(data, { showOverlapCols = false } = {}) {
                 <td class="amount-cell">${formatCurrency(s.combined_value)}${unbalancedWarn}</td>
                 <td class="amount-cell">${(s.pct_of_total * 100).toFixed(2)}%</td>
                 <td>${s.instrument_type ? escapeHtml(INSTRUMENT_TYPE_LABELS[s.instrument_type] || s.instrument_type) : '—'}</td>
-                <td title="${escapeHtml(contributorDetails.join('; '))}">${escapeHtml(contributorNames.join(', ') || '—')}</td>
+                ${fundCells}
+                ${directCell}
                 <td>${escapeHtml(s.country || '—')}</td>
                 <td>${escapeHtml(s.sector || '—')}</td>
                 <td>${escapeHtml(s.currency || '—')}</td>
@@ -369,28 +422,8 @@ function renderSecuritiesTable(data, { showOverlapCols = false } = {}) {
     return filterBar + `
         <div id="lookthroughSecuritiesTableWrap" style="overflow-x:auto;">
             <table class="transactions-table" style="table-layout:fixed;width:100%;">
-                <colgroup>
-                    <col style="width:${w.holding}px;">
-                    <col style="width:${w.my_ils}px;">
-                    <col style="width:${w.pct}px;">
-                    <col style="width:${w.type}px;">
-                    <col style="width:${w.funds}px;">
-                    <col style="width:${w.country}px;">
-                    <col style="width:${w.sector}px;">
-                    <col style="width:${w.currency}px;">
-                    ${overlapCol}
-                </colgroup>
-                <thead><tr>
-                    ${lookthroughTh('holding', 'Holding')}
-                    ${lookthroughTh('my_ils', 'My ILS (Invested)')}
-                    ${lookthroughTh('pct', '% of Invested')}
-                    ${lookthroughTh('type', 'Type')}
-                    <th style="white-space:nowrap;">Funds/Positions${LOOKTHROUGH_RESIZE_HANDLE}</th>
-                    ${lookthroughTh('country', 'Country')}
-                    ${lookthroughTh('sector', 'Sector')}
-                    ${lookthroughTh('currency', 'Currency')}
-                    ${overlapTh}
-                </tr></thead>
+                <colgroup>${cols.join('')}</colgroup>
+                <thead><tr>${heads.join('')}</tr></thead>
                 <tbody>${bodyRows}</tbody>
             </table>
         </div>

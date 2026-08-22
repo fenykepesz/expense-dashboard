@@ -973,7 +973,7 @@ def get_security_holdings(db_path=None):
             SELECT fh.fund_id, fh.instrument_type, fh.issuer_name, fh.issuer_number,
                    fh.security_name, fh.security_number, fh.pct_of_track,
                    fh.fair_value_ils, fh.country, fh.sector, fh.currency,
-                   f.name AS fund_name, f.fund_type, f.track_number,
+                   f.name AS fund_name, f.fund_type, f.track_number, f.company_name,
                    fb.balance AS fund_balance
             FROM fund_holdings fh
             JOIN funds f ON f.id = fh.fund_id AND f.is_deleted = 0
@@ -1000,7 +1000,7 @@ def get_security_holdings(db_path=None):
         # under one savings policy) — callers need it to tell them apart.
         active_funds[r["fund_id"]] = {
             "id": r["fund_id"], "name": r["fund_name"], "fund_type": r["fund_type"],
-            "track_number": r["track_number"],
+            "track_number": r["track_number"], "company_name": r["company_name"],
         }
 
         if r["security_number"]:

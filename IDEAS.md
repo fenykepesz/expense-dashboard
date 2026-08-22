@@ -81,6 +81,21 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: per-fund breakdown columns restored, back-to-front (v1.23.2)** — v1.23.0
+  collapsed the old per-fund columns into one compact "Funds/Positions" text column with a
+  hover tooltip, to avoid the column count growing unbounded as funds are added. Live use
+  showed a clear preference for the opposite: the user wanted each fund broken out as its own
+  named column with the specific ILS amount, e.g. "Menora / 18013" and "Phoenix / 9579" as
+  two-line headers (company name + Track #, since a fund's own display Name can be identical
+  across funds — see the v1.22.1 picker fix). Restored dynamic per-fund columns (one per active
+  fund, inserted between Type and Country) plus an optional Direct column that only appears
+  when at least one security actually has a direct value. Column-resize bookkeeping had to
+  change to support this: a fixed column count could rely on positional index matching between
+  resize handles and `<col>` elements, but a variable fund count breaks that, so each resize
+  handle now carries its own `data-col-index` (which `<col>` to resize) and, for the fixed
+  columns only, `data-col-key` (which width to persist) — fund/Direct columns resize within the
+  session but aren't saved to `localStorage`, since which funds are active changes with every
+  import.
 - [x] **Look-Through: classify the "Other Derivatives" sheet by its own Asset Type column
   (v1.23.1)** — v1.23.0 left ~792 real rows tagged generic `instrument_type='other'` with a
   note that they looked like FX forward contracts by content (bank SWIFT/BIC issuer codes,
