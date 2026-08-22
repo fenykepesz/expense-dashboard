@@ -331,12 +331,14 @@ function renderSecuritiesTable(data, { showOverlapCols = false } = {}) {
                 <option value="all">All Types</option>
                 ${typeOptions.map(t => `<option value="${t}" ${lookthroughFilter.type === t ? 'selected' : ''}>${escapeHtml(INSTRUMENT_TYPE_LABELS[t] || t)}</option>`).join('')}
             </select>
+            <span style="font-size:0.85em;color:var(--text-secondary);">Held in:</span>
             <select onchange="lookthroughFilter.fund=this.value; renderLookthroughView();"
                 style="height:32px;padding:0 8px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.85em;">
-                <option value="all">All Funds/Direct</option>
+                <option value="all">Any fund/position</option>
                 ${funds.map(f => `<option value="${f.id}" ${lookthroughFilter.fund === String(f.id) ? 'selected' : ''}>${escapeHtml(fundLabel(f))}</option>`).join('')}
-                <option value="direct" ${lookthroughFilter.fund === 'direct' ? 'selected' : ''}>Direct only</option>
+                <option value="direct" ${lookthroughFilter.fund === 'direct' ? 'selected' : ''}>Direct holding</option>
             </select>
+            ${thTooltip('This only narrows which rows are shown, to ones this fund/position holds. It doesn\'t change the numbers — My ILS, %, and every fund column still reflect everything you own, not just this selection.')}
         </div>
     `;
 

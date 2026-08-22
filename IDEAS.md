@@ -81,6 +81,15 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: clarify the fund filter's scope (v1.23.3)** — the fund/position filter
+  above All Securities narrows which ROWS show (only securities that fund holds) but was easy
+  to misread as narrowing the NUMBERS too — the user selected one fund and circled the fact
+  that other funds' columns and My ILS/% still showed everything, expecting an isolated
+  single-fund view. Confirmed with the user this filter should stay an inclusion filter (My
+  ILS/%/every column always reflect everything you own, regardless of this selection) and just
+  needed to say so — added a "Held in:" label, renamed the options ("Any fund/position" /
+  "Direct holding" instead of the more ambiguous "All Funds/Direct"), and an ℹ tooltip spelling
+  out that it only filters which rows are shown.
 - [x] **Look-Through: per-fund breakdown columns restored, back-to-front (v1.23.2)** — v1.23.0
   collapsed the old per-fund columns into one compact "Funds/Positions" text column with a
   hover tooltip, to avoid the column count growing unbounded as funds are added. Live use
