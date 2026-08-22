@@ -81,6 +81,12 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: only By Type starts expanded (v1.27.1)** — with the per-section collapse
+  from v1.27.0 shipped, defaulted every section OTHER than By Type (Sector/Country/Currency/
+  Same-Issuer) to start collapsed, so the Concentration view opens on one focused table instead
+  of five stacked ones. `lookthroughSectionCollapsed` now initializes as
+  `new Set(['sector', 'country', 'currency', 'crossType'])` instead of empty — the toggle
+  mechanics themselves were unchanged, just the starting state.
 - [x] **Look-Through: click-to-render caching, pie charts removed, per-fund tables everywhere
   (v1.27.0)** — three fixes from one round of feedback. (1) Every toggle in the Concentration
   view (top-10/show-all, sub-type +/−, and the new section collapse below) was re-fetching from

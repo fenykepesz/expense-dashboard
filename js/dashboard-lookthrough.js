@@ -494,7 +494,7 @@ function toggleCategoryExpand(key) {
 // Whole-section collapse (Type/Sector/Country/Currency/cross-type table down to
 // just its header) — separate from the top-10 toggle above, tracked as a Set
 // since most sections start expanded and only a few get collapsed.
-let lookthroughSectionCollapsed = new Set();
+let lookthroughSectionCollapsed = new Set(['sector', 'country', 'currency', 'crossType']);
 
 function toggleSection(key) {
     if (lookthroughSectionCollapsed.has(key)) lookthroughSectionCollapsed.delete(key);
