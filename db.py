@@ -999,7 +999,7 @@ def get_security_holdings(db_path=None):
                    fh.security_name, fh.security_number, fh.pct_of_track,
                    fh.fair_value_ils, fh.country, fh.sector, fh.currency, fh.asset_class,
                    f.name AS fund_name, f.fund_type, f.track_number, f.company_name,
-                   fb.balance AS fund_balance
+                   f.institution_reg_number, fb.balance AS fund_balance
             FROM fund_holdings fh
             JOIN funds f ON f.id = fh.fund_id AND f.is_deleted = 0
             LEFT JOIN fund_balances fb ON fb.id = (
@@ -1026,6 +1026,7 @@ def get_security_holdings(db_path=None):
         active_funds[r["fund_id"]] = {
             "id": r["fund_id"], "name": r["fund_name"], "fund_type": r["fund_type"],
             "track_number": r["track_number"], "company_name": r["company_name"],
+            "institution_reg_number": r["institution_reg_number"],
         }
 
         if r["security_number"]:

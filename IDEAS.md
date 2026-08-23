@@ -81,6 +81,23 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: consolidate Concentration columns for funds sharing a track (v1.28.1)** —
+  direct follow-up to v1.28.0: once the user could actually enter the same Institution Reg # across
+  their 5 Altshuler Shaham study funds, the Concentration tables showed 5 nearly-identical columns
+  side by side, all reading the exact same "% of fund" since a shared track means identical
+  composition by construction. User asked directly whether there was value in that repetition —
+  agreed there wasn't, and consolidated: `groupFundsByTrack()` (new, dashboard-lookthrough.js)
+  groups active_funds sharing BOTH `institution_reg_number` and `track_number` into one combined
+  display column (others render as their own single-fund column, unchanged), summing ₪ across the
+  group's members and re-deriving the % from summed fund totals — provably identical to any one
+  member's own % since every fund in a shared track carries the same underlying weight per
+  category, confirmed both mathematically and against the live grouped render (471,974.3 +
+  189,192.5 + 81,452 + 17,369.1 + 15,369.9 = 775,357.8, both still landing on 70.0% of fund). Header
+  shows "(N funds)" for a real group. `active_funds` gained `institution_reg_number` (db.py) to
+  make the grouping possible — wasn't previously exposed to the frontend. Scoped to the
+  Concentration view's per-fund breakdown tables only (`renderCategoryTable`), not All
+  Securities/Direct-vs-Funds, which weren't part of what was asked and don't have the same
+  guaranteed-identical-composition property per row.
 - [x] **Look-Through: multiple funds can share one investment track (v1.28.0)** — user hit
   "Another fund already uses institution X + track Y" trying to enter their real Institution Reg #
   across several Altshuler Shaham study-fund policies, all confirmed with their own insurance

@@ -27,10 +27,43 @@ function fundLabel(f) {
 // Two-line column header for the per-fund breakdown columns — company name
 // (short, e.g. "Menora"/"Phoenix") on top, Track # underneath, since two of
 // the user's own funds can share an identical Fund Name but never a Track #.
+// Also accepts a grouped column from groupFundsByTrack() (adds a "(N funds)"
+// third line when count > 1) — raw fund objects just have no `count`, so
+// this stays a no-op for every other caller.
 function fundColumnHeader(f) {
     const company = f.company_name || f.name;
     const track = f.track_number ? `<br><span style="font-weight:400;font-size:0.78em;color:var(--text-secondary);">${escapeHtml(f.track_number)}</span>` : '';
-    return `${escapeHtml(company)}${track}`;
+    const countNote = f.count > 1 ? `<br><span style="font-weight:400;font-size:0.72em;color:var(--text-secondary);">(${f.count} funds)</span>` : '';
+    return `${escapeHtml(company)}${track}${countNote}`;
+}
+
+// Multiple of the user's own funds can be pooled into the SAME investment
+// track at one company (e.g. several study-fund policies all sharing one
+// company-wide track — a real, confirmed case). Their per-category
+// composition is then mathematically IDENTICAL by construction (same track
+// = same weights), so showing one column per fund is pure repetition, not
+// new information. Groups funds sharing BOTH institution_reg_number and
+// track_number into one combined display column; everything else renders
+// as its own single-fund column, unchanged. Preserves the funds list's
+// original relative order.
+function groupFundsByTrack(funds) {
+    const seen = new Set();
+    const columns = [];
+    for (const f of funds) {
+        const shareable = f.institution_reg_number && f.track_number;
+        const key = shareable ? `${f.institution_reg_number}::${f.track_number}` : `fund:${f.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const group = shareable
+            ? funds.filter(g => g.institution_reg_number === f.institution_reg_number && g.track_number === f.track_number)
+            : [f];
+        columns.push({
+            fund_ids: group.map(g => g.id),
+            company_name: f.company_name, track_number: f.track_number,
+            name: f.name, count: group.length,
+        });
+    }
+    return columns;
 }
 
 const INSTRUMENT_TYPE_LABELS = {
@@ -523,11 +556,16 @@ function toggleTypeBreakdown(id) {
 
 // Fund cells + Direct cell for one row (parent or sub-row) — shared so a
 // sub-type's own row reads exactly like its parent's, just for its own slice.
+// `funds` here is a list of groupFundsByTrack() columns — each column sums
+// its member fund_ids, so a shared-track group reads as one combined amount
+// and one % (which the underlying rows guarantee is identical across the
+// group's own members, so summing preserves it exactly rather than
+// approximating it).
 function renderCategoryCells(entry, funds, fundTotals, directTotal, hasDirect) {
-    const fundCells = funds.map(f => {
-        const amt = (entry.by_fund && entry.by_fund[f.id]) || 0;
+    const fundCells = funds.map(col => {
+        const amt = col.fund_ids.reduce((sum, fid) => sum + ((entry.by_fund && entry.by_fund[fid]) || 0), 0);
         if (!amt) return '<td class="amount-cell">—</td>';
-        const total = fundTotals[f.id];
+        const total = col.fund_ids.reduce((sum, fid) => sum + (fundTotals[fid] || 0), 0);
         const pct = total ? (amt / total * 100).toFixed(1) : '0.0';
         return `<td class="amount-cell">${formatCurrency(amt)}<br><span style="font-size:0.78em;color:var(--text-secondary);">${pct}% of fund</span></td>`;
     }).join('');
@@ -552,7 +590,7 @@ function renderCategoryCells(entry, funds, fundTotals, directTotal, hasDirect) {
 function renderCategoryTable(key, title, rows, data) {
     if (!rows.length) return '';
     if (lookthroughSectionCollapsed.has(key)) return renderSectionHeader(key, title);
-    const funds = data.active_funds || [];
+    const funds = groupFundsByTrack(data.active_funds || []);
     const fundTotals = data.fund_totals || {};
     const directTotal = data.direct_total || 0;
     const hasDirect = directTotal > 0;
