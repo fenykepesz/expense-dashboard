@@ -437,8 +437,11 @@ function onFundBalanceNumberChange() {
 
 // Same company + name + fund # still doesn't uniquely resolve — e.g. two
 // tracks under one savings policy sharing the same personal policy number.
-// Track # is validated unique per (institution_reg_number, track_number)
-// at fund creation, so it's always the final disambiguator.
+// Track # is the final disambiguator level this picker offers; it is NOT
+// required to be globally unique per (institution_reg_number, track_number)
+// — multiple of the user's own funds can legitimately share a track (e.g.
+// several study-fund policies pooled into the same investment track), a
+// real case confirmed with the user's own insurance agent.
 function renderFundBalanceTrackOptions(matches) {
     const trackSelect = document.getElementById('fundBalanceTrackSelect');
     const sorted = [...matches].sort((a, b) => (a.track_number || '').localeCompare(b.track_number || ''));

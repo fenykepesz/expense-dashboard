@@ -262,8 +262,12 @@ def parse_holdings_filing(path, funds):
     """Parse one institution's uniform-structure filing.
 
     `funds` is the full db.get_funds()-shaped list — used to build the
-    (institution_reg_number, track_number) -> fund_id lookup that scopes
-    every holdings sheet down to only the caller's own matched rows.
+    (institution_reg_number, track_number) -> [fund_id, ...] lookup that
+    scopes every holdings sheet down to only the caller's own matched rows.
+    Several funds can share one (institution, track) pair — e.g. multiple
+    personal policies all pooled into the same investment track — in which
+    case a matching filing row is duplicated once per matching fund_id, so
+    each fund's own weight calculation downstream stays independent.
 
     Returns:
         {
@@ -304,13 +308,20 @@ def parse_holdings_filing(path, funds):
                 "from the cover sheet — the file's layout may not match the expected format."
             )
 
-        # (institution_reg_number, track_number) -> fund_id, scoped to funds
-        # actually belonging to this institution.
-        track_lookup = {
-            (f["institution_reg_number"], f["track_number"]): f["id"]
-            for f in funds
-            if f.get("institution_reg_number") == institution_reg_number and f.get("track_number")
-        }
+        # (institution_reg_number, track_number) -> [fund_id, ...], scoped to
+        # funds actually belonging to this institution. A list, not a single
+        # id: multiple of the user's own accounts (e.g. several study-fund
+        # policies) can be pooled into the SAME investment track at a
+        # company, sharing one composition but each with its own personal
+        # balance — confirmed via real data (Altshuler Shaham study funds
+        # all resolving to track "1093"). Every matching fund gets its own
+        # full copy of that track's rows below, so each fund's own weight
+        # calculation (in get_security_holdings) stays independent.
+        track_lookup = {}
+        for f in funds:
+            if f.get("institution_reg_number") == institution_reg_number and f.get("track_number"):
+                key = (f["institution_reg_number"], f["track_number"])
+                track_lookup.setdefault(key, []).append(f["id"])
 
         rows = []
         unrecognized_sheets = []
@@ -351,8 +362,8 @@ def parse_holdings_filing(path, funds):
 
             for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
                 track_number = str(get(row, "track_number") or "").strip()
-                fund_id = track_lookup.get((institution_reg_number, track_number))
-                if fund_id is None:
+                matched_fund_ids = track_lookup.get((institution_reg_number, track_number))
+                if not matched_fund_ids:
                     if track_number:
                         unmatched_track_count += 1
                     continue
@@ -382,20 +393,21 @@ def parse_holdings_filing(path, funds):
 
                 asset_class = _asset_class_from_classification(get(row, "fund_classification"))
 
-                rows.append({
-                    "fund_id": fund_id,
-                    "instrument_type": row_instrument_type,
-                    "issuer_name": issuer_name,
-                    "issuer_number": issuer_number,
-                    "security_name": security_name,
-                    "security_number": security_number,
-                    "pct_of_track": pct_of_track,
-                    "fair_value_ils": fair_value_ils,
-                    "country": str(get(row, "country") or "").strip(),
-                    "sector": str(get(row, "sector") or "").strip(),
-                    "currency": str(get(row, "currency") or "").strip(),
-                    "asset_class": asset_class,
-                })
+                for fund_id in matched_fund_ids:
+                    rows.append({
+                        "fund_id": fund_id,
+                        "instrument_type": row_instrument_type,
+                        "issuer_name": issuer_name,
+                        "issuer_number": issuer_number,
+                        "security_name": security_name,
+                        "security_number": security_number,
+                        "pct_of_track": pct_of_track,
+                        "fair_value_ils": fair_value_ils,
+                        "country": str(get(row, "country") or "").strip(),
+                        "sector": str(get(row, "sector") or "").strip(),
+                        "currency": str(get(row, "currency") or "").strip(),
+                        "asset_class": asset_class,
+                    })
 
         if not sheets_parsed:
             raise ValueError(

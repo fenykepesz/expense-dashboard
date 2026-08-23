@@ -541,29 +541,6 @@ def _validate_risk_level(fields):
         raise ValueError(f'Invalid risk_level "{fields["risk_level"]}". Must be 0 or one of {list(RISK_LEVELS)}.')
 
 
-def _validate_unique_track_key(conn, institution_reg_number, track_number, exclude_fund_id=None):
-    """A fund's (institution_reg_number, track_number) pair, when both are
-    set, must be unique among active funds — two of the user's own funds
-    resolving to the same look-through filing rows would make aggregation
-    ambiguous (which fund's balance does a matched row actually belong to?).
-    """
-    if not institution_reg_number or not track_number:
-        return
-    query = (
-        "SELECT id FROM funds WHERE is_deleted = 0 "
-        "AND institution_reg_number = ? AND track_number = ?"
-    )
-    params = [institution_reg_number, track_number]
-    if exclude_fund_id is not None:
-        query += " AND id != ?"
-        params.append(exclude_fund_id)
-    if conn.execute(query, params).fetchone():
-        raise ValueError(
-            f'Another fund already uses institution "{institution_reg_number}" '
-            f'+ track "{track_number}".'
-        )
-
-
 def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="",
              is_liquid=False, risk_level=0, risk_note="",
              track_number="", institution_reg_number="", db_path=None):
@@ -572,7 +549,6 @@ def add_fund(name, fund_type, company_name="", owner_id=None, fund_number="",
         raise ValueError(f'Invalid fund_type "{fund_type}". Must be one of {FUND_TYPES}.')
     _validate_risk_level({"risk_level": risk_level})
     with _connect(db_path) as conn:
-        _validate_unique_track_key(conn, institution_reg_number, track_number)
         conn.execute(
             "INSERT INTO funds (name, company_name, fund_number, "
             "track_number, institution_reg_number, fund_type, owner_id, is_liquid, "
@@ -601,15 +577,9 @@ def update_fund(fund_id, fields, db_path=None):
         raise ValueError(f'Invalid fund_type "{fields["fund_type"]}". Must be one of {FUND_TYPES}.')
     _validate_risk_level(fields)
     with _connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT institution_reg_number, track_number FROM funds WHERE id = ?", (fund_id,)
-        ).fetchone()
+        row = conn.execute("SELECT id FROM funds WHERE id = ?", (fund_id,)).fetchone()
         if row is None:
             raise ValueError(f"Fund {fund_id} not found.")
-        if "institution_reg_number" in fields or "track_number" in fields:
-            resolved_inst = fields.get("institution_reg_number", row["institution_reg_number"])
-            resolved_track = fields.get("track_number", row["track_number"])
-            _validate_unique_track_key(conn, resolved_inst, resolved_track, exclude_fund_id=fund_id)
         set_clause = ", ".join(f"{c} = ?" for c in cols)
         conn.execute(
             f"UPDATE funds SET {set_clause} WHERE id = ?",

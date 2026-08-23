@@ -64,18 +64,25 @@ def test_add_fund_with_track_fields(tmp_db):
     assert funds[0]["institution_reg_number"] == "1"
 
 
-def test_add_fund_duplicate_track_key_raises(tmp_db):
+def test_add_fund_shared_track_key_is_allowed(tmp_db):
+    """Real case (Altshuler Shaham study funds, confirmed with the user's own
+    insurance agent): several of the user's own accounts can be pooled into
+    the SAME investment track at one company — sharing (institution_reg_number,
+    track_number) is legitimate, not a data-entry mistake, so it must not
+    raise. Each fund still keeps its own independent balance/id."""
     db.add_fund("Fund A", "pension", track_number="5", institution_reg_number="1", db_path=tmp_db)
-    with pytest.raises(ValueError):
-        db.add_fund("Fund B", "study_fund", track_number="5", institution_reg_number="1", db_path=tmp_db)
+    updated = db.add_fund("Fund B", "study_fund", track_number="5", institution_reg_number="1", db_path=tmp_db)
+    assert len(updated) == 2
+    assert {f["track_number"] for f in updated} == {"5"}
 
 
-def test_update_fund_duplicate_track_key_raises(tmp_db):
+def test_update_fund_shared_track_key_is_allowed(tmp_db):
     db.add_fund("Fund A", "pension", track_number="5", institution_reg_number="1", db_path=tmp_db)
     funds = db.add_fund("Fund B", "study_fund", track_number="6", institution_reg_number="1", db_path=tmp_db)
     fund_b = next(f["id"] for f in funds if f["name"] == "Fund B")
-    with pytest.raises(ValueError):
-        db.update_fund(fund_b, {"track_number": "5"}, db_path=tmp_db)
+    updated = db.update_fund(fund_b, {"track_number": "5"}, db_path=tmp_db)
+    fund_b_updated = next(f for f in updated if f["id"] == fund_b)
+    assert fund_b_updated["track_number"] == "5"
 
 
 def test_update_fund_same_track_key_on_same_fund_is_a_noop(tmp_db):
@@ -83,13 +90,6 @@ def test_update_fund_same_track_key_on_same_fund_is_a_noop(tmp_db):
     fund_id = funds[0]["id"]
     updated = db.update_fund(fund_id, {"track_number": "5", "institution_reg_number": "1"}, db_path=tmp_db)
     assert updated[0]["track_number"] == "5"
-
-
-def test_partial_track_key_does_not_trigger_uniqueness_check(tmp_db):
-    """Only enforced once BOTH institution_reg_number and track_number are set."""
-    db.add_fund("Fund A", "pension", track_number="5", db_path=tmp_db)  # no institution set
-    updated = db.add_fund("Fund B", "study_fund", track_number="5", db_path=tmp_db)  # should not raise
-    assert updated[-1]["track_number"] == "5"
 
 
 # ── DB-level: stock_holdings.isin ────────────────────────────────────────────
@@ -139,6 +139,35 @@ def test_replace_fund_holdings_filing_new_period_preserves_history(tmp_db):
     db.replace_fund_holdings_filing("1", "Test Co", 2026, 1, [_basic_row(fund_id)], db_path=tmp_db)
     db.replace_fund_holdings_filing("1", "Test Co", 2026, 2, [_basic_row(fund_id)], db_path=tmp_db)
     assert len(db.get_holdings_filings(tmp_db)) == 2
+
+
+def test_multiple_funds_sharing_a_track_each_get_independent_weighting(tmp_db):
+    """The real bug this guards: two of the user's own accounts pooled into
+    the SAME (institution, track) — e.g. two study-fund policies both
+    invested in Altshuler Shaham's generic track — must each get their own
+    correctly-weighted view off their own balance, not have one fund's rows
+    silently swallow the other's. Simulates what the parser now produces:
+    the SAME track rows duplicated once per matching fund_id."""
+    fund_a = _make_fund(tmp_db, "study_fund", "1", "5", balance=10000, name="Fund A")
+    fund_b = _make_fund(tmp_db, "study_fund", "1", "5", balance=20000, name="Fund B")
+    rows = [
+        _basic_row(fund_a, security_number="IL0001", fair_value_ils=700),
+        _basic_row(fund_a, security_number="IL0002", fair_value_ils=300),
+        _basic_row(fund_b, security_number="IL0001", fair_value_ils=700),
+        _basic_row(fund_b, security_number="IL0002", fair_value_ils=300),
+    ]
+    db.replace_fund_holdings_filing("1", "Test Co", 2026, 1, rows, db_path=tmp_db)
+
+    securities = db.get_security_holdings(tmp_db)["securities"]
+    by_security = {s["security_number"]: s for s in securities}
+    # 70/30 split within the shared track, applied independently to each
+    # fund's own balance — not one fund's balance split across both, and
+    # not one fund silently getting zero.
+    assert by_security["IL0001"]["by_fund"][fund_a] == pytest.approx(7000)
+    assert by_security["IL0001"]["by_fund"][fund_b] == pytest.approx(14000)
+    assert by_security["IL0002"]["by_fund"][fund_a] == pytest.approx(3000)
+    assert by_security["IL0002"]["by_fund"][fund_b] == pytest.approx(6000)
+    assert by_security["IL0001"]["combined_value"] == pytest.approx(21000)
 
 
 def test_delete_holdings_filing_soft_deletes(tmp_db):
@@ -591,7 +620,7 @@ def test_create_fund_route_with_track_fields(client):
     assert fund["institution_reg_number"] == "1"
 
 
-def test_create_fund_route_duplicate_track_key_returns_400(client):
+def test_create_fund_route_shared_track_key_is_allowed(client):
     client.post("/api/funds", json={
         "name": "Fund A", "fund_type": "pension", "company_name": "Co",
         "track_number": "5", "institution_reg_number": "1",
@@ -600,7 +629,7 @@ def test_create_fund_route_duplicate_track_key_returns_400(client):
         "name": "Fund B", "fund_type": "pension", "company_name": "Co",
         "track_number": "5", "institution_reg_number": "1",
     })
-    assert resp.status_code == 400
+    assert resp.status_code == 201
 
 
 def test_patch_stock_holding_route_isin(client):

@@ -220,12 +220,13 @@ def test_zero_weight_placeholder_row_is_skipped(tmp_path):
     assert result["rows"][0]["security_name"] == "Real Ord"
 
 
-def test_duplicate_institution_track_pair_across_funds_still_parses(tmp_path):
-    """The parser itself doesn't enforce uniqueness (db._validate_unique_track_key
-    does, at fund creation time) — with two funds resolving to the same
-    (institution, track), matching rows would be attributed to whichever
-    fund is last in the lookup dict; this documents that behavior rather
-    than asserting a specific winner."""
+def test_shared_institution_track_pair_matches_every_fund(tmp_path):
+    """Real case (Altshuler Shaham study funds, confirmed with the user's
+    own insurance agent): multiple of the user's own accounts can be pooled
+    into the SAME investment track at one company. A matching row must be
+    attributed to EVERY fund sharing that (institution, track) — not just
+    whichever fund happens to be last in the lookup — so each fund's own
+    weight calculation downstream sees the full track composition."""
     wb = openpyxl.Workbook()
     _build_cover_sheet(wb, institution_reg_number="1")
     _build_stocks_sheet(wb, [("1", "1", "X", "1", "X Ord", "IL1", "", "", "ILS", 0.5, 10)])
@@ -236,8 +237,9 @@ def test_duplicate_institution_track_pair_across_funds_still_parses(tmp_path):
         {"id": 2, "institution_reg_number": "1", "track_number": "1"},
     ]
     result = parse_holdings_filing(path, funds)
-    assert len(result["rows"]) == 1
-    assert result["rows"][0]["fund_id"] in (1, 2)
+    assert len(result["rows"]) == 2
+    assert {r["fund_id"] for r in result["rows"]} == {1, 2}
+    assert result["rows"][0]["security_number"] == result["rows"][1]["security_number"] == "IL1"
 
 
 def test_unmatched_institution_produces_no_rows(tmp_path):

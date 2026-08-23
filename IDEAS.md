@@ -81,6 +81,25 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Look-Through: multiple funds can share one investment track (v1.28.0)** — user hit
+  "Another fund already uses institution X + track Y" trying to enter their real Institution Reg #
+  across several Altshuler Shaham study-fund policies, all confirmed with their own insurance
+  agent as pooled into the SAME investment track ("1093"), each with a distinct personal fund #
+  and balance. The uniqueness guard (`_validate_unique_track_key`, added in v1.22.1) turned out to
+  be preventing a legitimate real-world case, not just typos — Israeli pension/study-fund products
+  regularly pool many personal accounts into one shared track. Root cause traced before fixing:
+  the parser's `track_lookup` was a plain `(institution, track) -> single fund_id` dict, so if the
+  guard had simply been removed without also fixing this, whichever fund happened to be LAST in
+  `funds` would have silently absorbed 100% of that track's rows and every sibling fund sharing
+  the track would show ₪0 look-through data with no error — the guard was accidentally doing its
+  job for the wrong reason. Real fix: `track_lookup` now maps to a LIST of fund_ids, and a matching
+  filing row is duplicated once per matching fund, so each fund's own weight calculation in
+  `get_security_holdings` (row.fair_value_ils / that fund's own row-set total) stays fully
+  independent — verified with a new test asserting a 70/30 split within a shared track applies
+  correctly to each fund's own separate balance, not merged or dropped. `_validate_unique_track_key`
+  removed entirely from `add_fund`/`update_fund`. Verified live via Playwright: setting the same
+  Institution Reg # across all 5 of the user's real Altshuler Shaham funds (previously blocked by
+  the guard) now saves cleanly with no error.
 - [x] **Look-Through: only By Type starts expanded (v1.27.1)** — with the per-section collapse
   from v1.27.0 shipped, defaulted every section OTHER than By Type (Sector/Country/Currency/
   Same-Issuer) to start collapsed, so the Concentration view opens on one focused table instead
