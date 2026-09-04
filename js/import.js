@@ -86,6 +86,7 @@ function renderImportPreviewBody() {
         <tr class="${t.category === 'Uncategorized' ? 'import-uncategorized' : ''}">
             <td>${escapeHtml(t.date)}</td>
             <td>${escapeHtml(t.merchant)}</td>
+            <td class="amount-cell">${t.installment ? escapeHtml(t.installment) : ''}</td>
             <td>
                 <select style="font-size:0.82em;padding:3px 6px;border-radius:5px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-primary);"
                     onchange="onImportCatChange(this, ${i})">

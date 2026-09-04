@@ -586,7 +586,7 @@ function updateCardChart() {
 // ── Transaction table: sort + resizable columns ───────────────────────
 let txSortCol = 'date', txSortDir = -1;
 
-const TX_COL_DEFAULTS = { date:110, vendor:220, note:170, category:150, card:95, amount:95, action:64 };
+const TX_COL_DEFAULTS = { date:110, vendor:220, note:170, installment:100, category:150, card:95, amount:95, action:64 };
 
 function getTxColWidths() {
     try { return Object.assign({}, TX_COL_DEFAULTS, JSON.parse(localStorage.getItem('txColWidths'))); }
@@ -691,6 +691,7 @@ function updateTransactionsList() {
                 <col style="width:${w.date}px;">
                 <col style="width:${w.vendor}px;">
                 <col style="width:${w.note}px;">
+                <col style="width:${w.installment}px;">
                 <col style="width:${w.category}px;">
                 <col style="width:${w.card}px;">
                 <col style="width:${w.amount}px;">
@@ -701,6 +702,7 @@ function updateTransactionsList() {
                     ${th('date','Date')}
                     ${th('vendor','Vendor Name')}
                     <th style="position:relative;">Note<div class="col-resize-handle" onclick="event.stopPropagation()"></div></th>
+                    <th style="position:relative;" title="Which payment this is, out of the total, for a Bank Leumi installment purchase">Installment<div class="col-resize-handle" onclick="event.stopPropagation()"></div></th>
                     ${th('category','Category')}
                     ${th('card','Card Number')}
                     ${th('amount','Amount')}
@@ -716,6 +718,7 @@ function updateTransactionsList() {
                             placeholder="Add note…"
                             onblur="saveTxNote(${t.id}, this.value)"
                             onkeydown="if(event.key==='Enter')this.blur()"></td>
+                        <td class="amount-cell">${t.installment ? escapeHtml(t.installment) : ''}</td>
                         <td><span class="tx-cat-text" onclick="startEditCategory(this, '${escapeHtml(t.merchant).replace(/'/g, "\\'")}')">${escapeHtml(t.category)}</span></td>
                         <td class="card-cell">*${escapeHtml(t.card)}</td>
                         <td class="amount-cell">${formatCurrency(t.amount)}</td>

@@ -12,6 +12,7 @@ import argparse
 import re
 import os
 import sys
+from collections import Counter
 from pathlib import Path
 
 # Ensure tools/ directory is on import path regardless of working directory
@@ -66,6 +67,21 @@ def extract_transactions(pdf_path):
     """
     Extract transactions from a Bank Leumi PDF statement.
     Returns a list of raw transaction dictionaries.
+
+    Installment continuation rows are a special case, found via real user
+    data: Bank Leumi always prints the ORIGINAL purchase date on every
+    monthly installment line, never the date the money is actually charged
+    this cycle. Confirmed against a real statement labeled "לתקופה: ספטמבר
+    2026" (period: September 2026) whose own regular (non-installment)
+    transactions were ALL dated in August — Bank Leumi names a statement by
+    its billing/due month, not the spending month it covers, so a
+    "September" statement's real transactions land in August. An
+    installment row in that same file should be dated the same way: same
+    spending month as its file's own regular transactions, not its own
+    printed (much older) purchase date and not the statement's own label
+    either. That target month is derived here from whichever (year, month)
+    is most common among the file's regular rows — never guessed from the
+    Hebrew period label, which is one month off in the wrong direction.
     """
     transactions = []
 
@@ -96,6 +112,13 @@ def extract_transactions(pdf_path):
         r'(\d{2}/\d{2}/\d{2})'         # Date DD/MM/YY
     )
 
+    # The "payment N of M" continuation line that follows an installment
+    # row, e.g. raw (un-reversed) ".2 - מ 2 - םולשת" -> "תשלום - 2 מ - .2"
+    # ("payment 2 of 2"). Numbers are already left-to-right in the raw
+    # extraction (only Hebrew letter runs get reversed), and the TOTAL
+    # appears first in raw reading order, current payment number second.
+    installment_count_pattern = re.compile(r'\.?(\d+)\s*-\s*מ\s+(\d+)\s*-\s*םולשת')
+
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
             text = page.extract_text()
@@ -104,20 +127,21 @@ def extract_transactions(pdf_path):
 
             # Split into lines and process each
             lines = text.split('\n')
-            for line in lines:
+            for i, line in enumerate(lines):
                 # Skip header lines and totals
                 if 'בויח םוכס' in line or 'כ"הס' in line:
                     continue
 
                 # Try to match regular transaction pattern first
+                is_installment = False
                 match = regular_pattern.search(line)
                 if not match:
                     # Try installment pattern
                     match = installment_pattern.search(line)
+                    is_installment = match is not None
 
                 if match:
                     charge_amount = match.group(1).replace(',', '')
-                    original_amount = match.group(2).replace(',', '')
                     merchant = fix_hebrew_text(match.group(3).strip())
                     date_str = match.group(4)
 
@@ -129,11 +153,38 @@ def extract_transactions(pdf_path):
                     except ValueError:
                         continue
 
-                    transactions.append({
-                        'raw_date': date_str,
-                        'merchant': merchant,
-                        'amount': amount
-                    })
+                    tx = {'raw_date': date_str, 'merchant': merchant, 'amount': amount}
+
+                    if is_installment:
+                        tx['is_installment'] = True
+                        # The "payment N of M" detail usually sits on the
+                        # very next extracted line.
+                        count_match = (
+                            installment_count_pattern.search(lines[i + 1])
+                            if i + 1 < len(lines) else None
+                        )
+                        if count_match:
+                            total, current = int(count_match.group(1)), int(count_match.group(2))
+                            tx['installment'] = (current, total)
+
+                    transactions.append(tx)
+
+    # Re-date installment rows to the same spending month this file's own
+    # regular transactions fall in (see docstring above) — computed from
+    # whichever (year, month) is most common among the regular rows, since
+    # that's ground truth already correctly parsed from the same statement.
+    regular_months = []
+    for t in transactions:
+        if t.get('is_installment'):
+            continue
+        iso = parse_date(t['raw_date'])
+        if iso:
+            regular_months.append(iso[:7])
+    if regular_months:
+        dominant_ym = Counter(regular_months).most_common(1)[0][0]
+        for t in transactions:
+            if t.get('is_installment'):
+                t['billing_date'] = f"{dominant_ym}-01"
 
     return transactions
 
@@ -181,13 +232,20 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None, interactive
     skipped_count = 0
 
     for tx in raw_transactions:
-        iso_date = parse_date(tx['raw_date'])
+        # Installment continuation rows use the re-derived billing month
+        # (see extract_transactions' docstring) instead of their own
+        # printed original-purchase date.
+        iso_date = tx.get('billing_date') or parse_date(tx['raw_date'])
         if not iso_date:
             print(f"Warning: Skipping transaction with invalid date '{tx['raw_date']}' from merchant: {tx['merchant']}")
             skipped_count += 1
             continue
 
         category = categorize_merchant(tx['merchant'], rules_lower)
+        installment = ''
+        if tx.get('installment'):
+            current, total = tx['installment']
+            installment = f"{current}/{total}"
 
         expense = {
             "date": iso_date,
@@ -196,7 +254,8 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None, interactive
             "category": category,
             "month": get_month_name(iso_date),
             "year": get_year(iso_date),
-            "card": card
+            "card": card,
+            "installment": installment,
         }
         expenses.append(expense)
 

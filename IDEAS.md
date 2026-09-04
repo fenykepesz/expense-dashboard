@@ -17,6 +17,25 @@ Check off items as they ship; add new ideas freely.
 - [x] **Merchant category manager** — view, edit, and reassign merchant→category mappings; save as rules (v1.2.0)
 - [x] **Manage categories** — add and delete categories (including built-ins except Uncategorized); changes persist (v1.3.0)
 - [x] **Import auto-saves rules & updates existing** — category assigned during import preview is saved as a rule and applied to all existing transactions for that merchant (v1.5.0)
+- [x] **PDF import: installment continuation rows dated by real billing month, not original purchase date (v1.29.0)** — user
+  noticed a specific installment charge (טל ואיציק אופטיקה, ₪2,224) wasn't showing up under September despite being part of
+  that statement, and traced it back to a real parser bug: Bank Leumi always prints an installment row's ORIGINAL purchase
+  date, sometimes months earlier than when the money's actually charged, so `tools/pdf_to_json.py` was filing every
+  installment payment under its purchase month instead of its real billing month — multiple genuinely-separate monthly
+  payments (identical date/merchant/amount, since even-split installments repeat the same figure every cycle) were also
+  colliding with the "looks like duplicate" import warning as a result. Root-caused precisely with the user's own real
+  statement: confirmed a statement labeled "לתקופה: ספטמבר 2026" (period: September) has ALL its own regular transactions
+  dated in August — Bank Leumi names a statement by its due/billing month, not the spending month it covers. Fix: installment
+  rows are now re-dated to whichever (year, month) is most common among that SAME file's regular transactions — grounded in
+  already-correctly-parsed data from the same statement, not a guessed Hebrew-month offset. New `installment` column
+  (`"N/M"`, e.g. "2/2") parsed from the "תשלום - N מ - M" continuation line Bank Leumi prints after each installment row,
+  shown in both the main transaction table and the import preview — addresses the user's own point that the statement
+  already specifies this info and it should be represented, not just fixed silently. 6 already-imported historical rows
+  across 3 merchants corrected by hand after a full backup, following the same billing-month logic — verified August 2026's
+  total now matches the real statement's own total (₪12,135.06) to the cent. No automated test coverage yet for
+  `tools/pdf_to_json.py` (there was none before this fix either) — flagged as a gap, not resolved here (no PDF-writing
+  library available in this environment to build synthetic fixtures; a real statement can't be committed as a test fixture,
+  it's PII).
 
 ---
 
