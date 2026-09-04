@@ -159,10 +159,11 @@ def import_file():
         tmp_path = tmp.name
 
     skipped = []
+    reconciliation = None
     try:
         if filename.endswith('.pdf'):
             from pdf_to_json import convert_pdf_to_json
-            expenses = convert_pdf_to_json(tmp_path)
+            expenses, reconciliation = convert_pdf_to_json(tmp_path)
         elif filename.endswith('.xls') or filename.endswith('.xlsx'):
             from excel_to_json import convert_excel_to_json
             expenses, skipped = convert_excel_to_json(tmp_path, exchange_rates=exchange_rates)
@@ -172,7 +173,10 @@ def import_file():
         os.unlink(tmp_path)
 
     duplicate_count = db.check_duplicates(expenses)
-    return jsonify({'transactions': expenses, 'duplicate_count': duplicate_count, 'skipped': skipped})
+    return jsonify({
+        'transactions': expenses, 'duplicate_count': duplicate_count,
+        'skipped': skipped, 'reconciliation': reconciliation,
+    })
 
 
 @app.route('/api/import/confirm', methods=['POST'])

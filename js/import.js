@@ -117,6 +117,19 @@ function showImportPreview(result) {
         warning.classList.add('hidden');
     }
 
+    // Reconciliation: parsed total vs. the PDF's own printed total — catches
+    // a row silently dropped or an amount misparsed. This is a DIFFERENT
+    // check from the duplicate warning above: it doesn't verify which month
+    // things landed in, only that the right total ₪ amount was captured.
+    const recon = document.getElementById('importReconciliationWarning');
+    const r = result.reconciliation;
+    if (r && r.statement_total !== null && r.matches === false) {
+        recon.textContent = `⚠️ Parsed total (${formatCurrency(r.parsed_total)}) doesn't match the statement's own total (${formatCurrency(r.statement_total)}) — difference of ${formatCurrency(Math.abs(r.difference))}. Some transactions may have been missed or misparsed — double-check before importing.`;
+        recon.classList.remove('hidden');
+    } else {
+        recon.classList.add('hidden');
+    }
+
     // Skipped (zero / negative) panel
     const skipped = result.skipped || [];
     const skippedPanel = document.getElementById('skippedPanel');

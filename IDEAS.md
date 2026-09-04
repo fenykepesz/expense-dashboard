@@ -56,6 +56,23 @@ Check off items as they ship; add new ideas freely.
   rows) were corrected by hand after a full backup. Verified live: card 9342's August 2026 total now matches its real
   statement total (₪3,596.47) exactly, and a Playwright screenshot confirmed the sub-line renders only on the 4 corrected
   rows, nowhere else.
+- [x] **PDF import: reconciliation check against the statement's own printed total (v1.30.1)** — user's own suggestion:
+  sum every parsed line and compare it to the "סה"כ" total the PDF itself prints, warning if they don't match. Explicitly
+  flagged to the user before building it that this check would NOT have caught either of the two real bugs found this
+  session (v1.29.0's installment mis-dating, v1.30.0's boundary-case mis-dating) — both had every row captured with the
+  right amount, just filed under the wrong month, so a pure total-sum check can't see that class of error. Still worth
+  building as a genuinely different, complementary safety net: it catches a row silently dropped by a regex miss or an
+  amount misparsed, which a month-attribution check can't see either. Because every transaction from one PDF now shares
+  the same billing month by construction (per v1.30.0), summing all parsed rows in one import IS the same thing as
+  summing that month's contribution from this statement — so the check does end up validating "does this bill's billing
+  month add up correctly," not just "did we capture something close to the right total." `extract_transactions()` now
+  also captures the "כ"הס" line (same raw-digit-first extraction convention as every other numeric field in this parser)
+  and returns it alongside the transaction list; `convert_pdf_to_json()` returns `(expenses, reconciliation)` instead of
+  a bare list (both callers — the CLI `main()` and `app.py`'s `/api/import` route — updated). New warning banner in the
+  import preview, shown only on an actual mismatch (>₪0.01), reusing the exact same `.duplicate-warning` styling as the
+  existing duplicate-count banner for visual consistency. Verified against both real statements from this session: both
+  reconcile exactly (₪12,135.06 and ₪3,596.47), and the warning's show/hide/text logic verified directly via a synthetic
+  mismatched result in the browser.
 
 ---
 

@@ -127,6 +127,13 @@ def extract_transactions(pdf_path):
     # appears first in raw reading order, current payment number second.
     installment_count_pattern = re.compile(r'\.?(\d+)\s*-\s*מ\s+(\d+)\s*-\s*םולשת')
 
+    # The statement's own printed total, e.g. raw "12,135.06:כ"הס" -> "סה"כ:
+    # 12,135.06". Digits are already left-to-right in the raw extraction —
+    # only the Hebrew "כ"הס" ("total") marker itself is reversed, so this is
+    # matched directly on raw text like every other numeric field here.
+    total_pattern = re.compile(r'([\d,]+\.?\d*):כ"הס')
+    statement_total = None
+
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
             text = page.extract_text()
@@ -136,8 +143,17 @@ def extract_transactions(pdf_path):
             # Split into lines and process each
             lines = text.split('\n')
             for i, line in enumerate(lines):
-                # Skip header lines and totals
-                if 'בויח םוכס' in line or 'כ"הס' in line:
+                # Skip header lines; capture the statement's own total
+                # instead of letting it fall through as a transaction row.
+                if 'בויח םוכס' in line:
+                    continue
+                if 'כ"הס' in line:
+                    total_match = total_pattern.search(line)
+                    if total_match:
+                        try:
+                            statement_total = float(total_match.group(1).replace(',', ''))
+                        except ValueError:
+                            pass
                     continue
 
                 # Try to match regular transaction pattern first
@@ -204,7 +220,7 @@ def extract_transactions(pdf_path):
             if iso and iso[:7] != dominant_ym:
                 t['billing_date'] = f"{dominant_ym}-01"
 
-    return transactions
+    return transactions, statement_total
 
 
 def extract_card_number(pdf_path):
@@ -231,7 +247,9 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None, interactive
         interactive: Enable interactive categorization for unknown merchants (optional)
 
     Returns:
-        List of converted expense dictionaries
+        (expenses, reconciliation) — expenses is the list of converted
+        expense dictionaries; reconciliation is {'statement_total',
+        'parsed_total', 'difference', 'matches'} (see below).
     """
     # Load category rules
     rules = load_category_rules(rules_path)
@@ -243,7 +261,7 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None, interactive
     card = extract_card_number(pdf_path)
 
     # Extract raw transactions
-    raw_transactions = extract_transactions(pdf_path)
+    raw_transactions, statement_total = extract_transactions(pdf_path)
 
     # Convert to dashboard format
     expenses = []
@@ -294,7 +312,30 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None, interactive
     if skipped_count > 0:
         print(f"Note: Skipped {skipped_count} transaction(s) with invalid dates")
 
-    return expenses
+    # Reconciliation: every transaction in one PDF shares the SAME billing
+    # month by construction (see extract_transactions), so summing every
+    # parsed row here IS the same thing as summing that month's contribution
+    # from this statement — not just "did we capture every row" but "does
+    # the month this bill is billed in add up to what the bill says," which
+    # is the thing that actually matters (a row-count/amount check alone
+    # would NOT have caught either real bug found this session — both had
+    # every row captured with the right amount, just filed under the wrong
+    # month — this check is a genuinely different, complementary safety net,
+    # not a substitute for that work).
+    parsed_total = round(sum(e["amount"] for e in expenses), 2)
+    difference = None
+    matches = None
+    if statement_total is not None:
+        difference = round(parsed_total - statement_total, 2)
+        matches = abs(difference) < 0.01
+    reconciliation = {
+        "statement_total": statement_total,
+        "parsed_total": parsed_total,
+        "difference": difference,
+        "matches": matches,
+    }
+
+    return expenses, reconciliation
 
 
 def main():
@@ -321,12 +362,20 @@ def main():
     # When --db is given without -o, skip JSON output
     output_path = args.output if not args.db else None
 
-    expenses = convert_pdf_to_json(args.pdf, output_path, args.rules, args.interactive)
+    expenses, reconciliation = convert_pdf_to_json(args.pdf, output_path, args.rules, args.interactive)
 
     if args.db:
         save_to_db(expenses, args.db)
 
     print_summary(expenses)
+
+    if reconciliation["statement_total"] is not None:
+        status = "OK" if reconciliation["matches"] else "MISMATCH"
+        print(
+            f"\nReconciliation [{status}]: parsed total {reconciliation['parsed_total']} "
+            f"vs statement total {reconciliation['statement_total']}"
+            + (f" (difference: {reconciliation['difference']})" if not reconciliation["matches"] else "")
+        )
 
 
 if __name__ == "__main__":
