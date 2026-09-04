@@ -68,20 +68,28 @@ def extract_transactions(pdf_path):
     Extract transactions from a Bank Leumi PDF statement.
     Returns a list of raw transaction dictionaries.
 
-    Installment continuation rows are a special case, found via real user
-    data: Bank Leumi always prints the ORIGINAL purchase date on every
-    monthly installment line, never the date the money is actually charged
-    this cycle. Confirmed against a real statement labeled "לתקופה: ספטמבר
-    2026" (period: September 2026) whose own regular (non-installment)
-    transactions were ALL dated in August — Bank Leumi names a statement by
-    its billing/due month, not the spending month it covers, so a
-    "September" statement's real transactions land in August. An
-    installment row in that same file should be dated the same way: same
-    spending month as its file's own regular transactions, not its own
-    printed (much older) purchase date and not the statement's own label
-    either. That target month is derived here from whichever (year, month)
-    is most common among the file's regular rows — never guessed from the
-    Hebrew period label, which is one month off in the wrong direction.
+    EVERY transaction gets a `billing_date` — the (year, month) most common
+    among this same statement's own transactions, day fixed to the 1st —
+    separate from `raw_date`, its own literal printed date. Two real,
+    confirmed-with-the-user cases motivate always preferring billing_date as
+    the transaction's primary date (`date`/`month`/`year` downstream), with
+    raw_date kept only as a secondary reference field:
+    1. Installment continuation rows always print the ORIGINAL purchase
+       date, sometimes many months before the payment is actually charged.
+    2. A single statement's own regular transactions can straddle a
+       calendar-month boundary (confirmed: a card's billing cycle ran
+       27/07-31/08, so its "September" statement had 4 real, non-installment
+       purchases dated 31/07 alongside 28 dated in August) — those 4 belong
+       to the SAME bill/billing-cycle as the rest, so they should be grouped
+       and totaled with it, not siphoned off into the adjacent month.
+    The target month is never guessed from the statement's own "לתקופה"
+    header line either — confirmed against real data that a statement
+    labeled "September" bills for AUGUST's spending (Bank Leumi names a
+    statement by its due month, one month after the spending it covers), so
+    parsing that label and using it directly would be exactly one month
+    wrong. Instead it's derived purely from a majority vote over the file's
+    own transaction dates — self-consistent, no offset convention to get
+    wrong.
     """
     transactions = []
 
@@ -169,21 +177,31 @@ def extract_transactions(pdf_path):
 
                     transactions.append(tx)
 
-    # Re-date installment rows to the same spending month this file's own
-    # regular transactions fall in (see docstring above) — computed from
-    # whichever (year, month) is most common among the regular rows, since
-    # that's ground truth already correctly parsed from the same statement.
-    regular_months = []
+    # Every transaction gets billing_date = this file's own dominant
+    # (year, month) — see docstring above. Computed across ALL rows
+    # (installment included): in real data the installment/boundary rows
+    # are always a small minority, so they never skew the majority vote,
+    # they just correctly inherit its result.
+    all_months = []
     for t in transactions:
-        if t.get('is_installment'):
-            continue
         iso = parse_date(t['raw_date'])
         if iso:
-            regular_months.append(iso[:7])
-    if regular_months:
-        dominant_ym = Counter(regular_months).most_common(1)[0][0]
+            all_months.append(iso[:7])
+    if all_months:
+        dominant_ym = Counter(all_months).most_common(1)[0][0]
         for t in transactions:
+            # Installment rows ALWAYS override (their own printed date is
+            # untrustworthy for billing purposes regardless of month). A
+            # regular row only overrides if its own real date falls
+            # OUTSIDE the statement's dominant month — the rare
+            # cycle-boundary case — so the vast majority of transactions,
+            # already in the right month, keep their real day intact
+            # instead of collapsing every date in the file to the 1st.
             if t.get('is_installment'):
+                t['billing_date'] = f"{dominant_ym}-01"
+                continue
+            iso = parse_date(t['raw_date'])
+            if iso and iso[:7] != dominant_ym:
                 t['billing_date'] = f"{dominant_ym}-01"
 
     return transactions
@@ -232,10 +250,12 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None, interactive
     skipped_count = 0
 
     for tx in raw_transactions:
-        # Installment continuation rows use the re-derived billing month
-        # (see extract_transactions' docstring) instead of their own
-        # printed original-purchase date.
-        iso_date = tx.get('billing_date') or parse_date(tx['raw_date'])
+        # The transaction's PRIMARY date is now its billing-cycle date (see
+        # extract_transactions' docstring) — the literal printed date is
+        # kept separately as transaction_date, for reference/investigation
+        # only, never used for month/year grouping or totals.
+        raw_iso_date = parse_date(tx['raw_date'])
+        iso_date = tx.get('billing_date') or raw_iso_date
         if not iso_date:
             print(f"Warning: Skipping transaction with invalid date '{tx['raw_date']}' from merchant: {tx['merchant']}")
             skipped_count += 1
@@ -249,6 +269,7 @@ def convert_pdf_to_json(pdf_path, output_path=None, rules_path=None, interactive
 
         expense = {
             "date": iso_date,
+            "transaction_date": raw_iso_date or iso_date,
             "merchant": tx['merchant'],
             "amount": tx['amount'],
             "category": category,

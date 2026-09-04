@@ -84,7 +84,9 @@ function renderImportPreviewBody() {
     const visible = importedTransactions;
     document.getElementById('importPreviewBody').innerHTML = visible.map((t, i) => `
         <tr class="${t.category === 'Uncategorized' ? 'import-uncategorized' : ''}">
-            <td>${escapeHtml(t.date)}</td>
+            <td>${escapeHtml(t.date)}${t.transaction_date && t.transaction_date !== t.date
+                ? `<br><span style="font-size:0.78em;color:var(--text-secondary);" title="The date this was actually charged, before being aligned to its billing month">purchased ${escapeHtml(t.transaction_date)}</span>`
+                : ''}</td>
             <td>${escapeHtml(t.merchant)}</td>
             <td class="amount-cell">${t.installment ? escapeHtml(t.installment) : ''}</td>
             <td>

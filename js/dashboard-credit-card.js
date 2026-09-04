@@ -712,7 +712,9 @@ function updateTransactionsList() {
             <tbody>
                 ${sortedTransactions.map(t => `
                     <tr class="${t.excluded ? 'tx-excluded' : ''}">
-                        <td>${escapeHtml(t.date)}</td>
+                        <td>${escapeHtml(t.date)}${t.transaction_date && t.transaction_date !== t.date
+                            ? `<br><span style="font-size:0.78em;color:var(--text-secondary);" title="The date this was actually charged, before being aligned to its billing month">purchased ${escapeHtml(t.transaction_date)}</span>`
+                            : ''}</td>
                         <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.merchant)}</td>
                         <td><input type="text" class="tx-note-input" value="${escapeHtml(t.notes || '')}"
                             placeholder="Add note…"

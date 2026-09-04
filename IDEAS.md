@@ -36,6 +36,26 @@ Check off items as they ship; add new ideas freely.
   `tools/pdf_to_json.py` (there was none before this fix either) — flagged as a gap, not resolved here (no PDF-writing
   library available in this environment to build synthetic fixtures; a real statement can't be committed as a test fixture,
   it's PII).
+- [x] **PDF import: EVERY transaction dated by billing cycle, not just installments; new transaction_date reference field
+  (v1.30.0)** — direct follow-up once v1.29.0 shipped: user found a SECOND, non-installment discrepancy on a different
+  card, where a bill's own regular purchases straddled a calendar-month boundary (a card's cycle ran 27/07-31/08, so its
+  "September" statement had 4 real WOLT charges dated 31/07 alongside 28 dated in August) — those 4 were landing under July
+  in the app instead of counting toward the same bill as the rest. After discussing a "statement period" view as a
+  secondary filter, the user reframed the actual goal more simply: there should be ONE authoritative date driving
+  totals/filtering (the billing cycle), with the literal purchase date kept only as a reference column for investigation —
+  not two competing views. Generalized v1.29.0's "dominant month of the file's own transactions" logic from
+  installment-only to EVERY transaction: a row's `date` only overrides to the statement's dominant month when it actually
+  falls outside it (installment rows always override, since their printed date is untrustworthy regardless of month) —
+  everything else keeps its real day intact, so day-level precision is preserved for the ~95% of transactions that were
+  already in the right month. New `transactions.transaction_date` column stores the literal original date for every row
+  that gets overridden; shown as a small "purchased YYYY-MM-DD" sub-line under the Date cell only when it differs from the
+  billing date, in both the transaction table and import preview — keeps the common case uncluttered. Explicitly scoped to
+  apply going forward from this point, per the user's own call ("the amount of such transactions should be relatively low
+  and the impact should be low") — NOT a full historical audit/re-date of all 2000+ existing transactions, only the
+  specific rows already identified this session (the 6 installment rows from v1.29.0 plus 4 newly-found WOLT boundary
+  rows) were corrected by hand after a full backup. Verified live: card 9342's August 2026 total now matches its real
+  statement total (₪3,596.47) exactly, and a Playwright screenshot confirmed the sub-line renders only on the 4 corrected
+  rows, nowhere else.
 
 ---
 

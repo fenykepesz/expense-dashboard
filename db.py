@@ -277,8 +277,9 @@ def init_db(db_path=None):
         for col, definition in [
             ("imported_at", "TEXT NOT NULL DEFAULT ''"),
             ("excluded",    "INTEGER NOT NULL DEFAULT 0"),
-            ("notes",       "TEXT NOT NULL DEFAULT ''"),
-            ("installment", "TEXT NOT NULL DEFAULT ''"),
+            ("notes",            "TEXT NOT NULL DEFAULT ''"),
+            ("installment",      "TEXT NOT NULL DEFAULT ''"),
+            ("transaction_date", "TEXT NOT NULL DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE transactions ADD COLUMN {col} {definition}")
@@ -1489,14 +1490,15 @@ def insert_transactions(expenses, db_path=None, imported_at=None):
     ts = imported_at or datetime.now().isoformat(timespec="seconds")
     rows = [
         (e["date"], e["merchant"], e["amount"], e["category"],
-         e["month"], e["year"], e["card"], ts, e.get("installment", ""))
+         e["month"], e["year"], e["card"], ts, e.get("installment", ""),
+         e.get("transaction_date", ""))
         for e in expenses
     ]
     with _connect(db_path) as conn:
         conn.executemany(
             "INSERT INTO transactions "
-            "(date, merchant, amount, category, month, year, card, imported_at, installment) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(date, merchant, amount, category, month, year, card, imported_at, installment, transaction_date) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
     return len(rows)
@@ -1505,7 +1507,8 @@ def insert_transactions(expenses, db_path=None, imported_at=None):
 def get_all_transactions(db_path=None):
     with _connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT id, date, merchant, amount, category, month, year, card, excluded, notes, installment "
+            "SELECT id, date, merchant, amount, category, month, year, card, excluded, notes, "
+            "installment, transaction_date "
             "FROM transactions ORDER BY date DESC"
         ).fetchall()
     return [dict(row) for row in rows]
