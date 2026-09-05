@@ -253,6 +253,7 @@ function renderFundRow(f) {
                 : '—'}</td>
             <td>
                 <div class="tx-actions">
+                    <button class="btn-excl" onclick="openFundBalanceModal(${f.id})" title="Update balance">📈</button>
                     <button class="btn-excl" onclick="toggleFundNetWorthExclude(${f.id})" title="${f.excluded_from_net_worth ? 'Include in Net Worth' : 'Exclude from Net Worth'}">${f.excluded_from_net_worth ? '↺' : '⊘'}</button>
                     <button class="btn-excl btn-delete" onclick="deleteFund(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')" title="Delete">🗑</button>
                 </div>
@@ -651,6 +652,56 @@ async function addFundBalanceEntry() {
     renderFundBalancesTable(result.balances);
     renderFundBalanceChart(result.balances);
     refreshFundsList(); // Latest Value column needs to reflect the new entry
+}
+
+// ── Quick balance-update modal (per-row "📈" button) ─────────────────────
+// A direct shortcut for the common case — updating ONE already-visible
+// fund's balance — without re-navigating the Company→Name→Fund#→Track#
+// picker in the panel below just to reach a fund you can already see.
+
+let fundBalanceModalFundId = null;
+
+function openFundBalanceModal(fundId) {
+    const fund = currentFunds.find(f => f.id === fundId);
+    if (!fund) return;
+    fundBalanceModalFundId = fundId;
+    document.getElementById('fundBalanceModalTitle').textContent = fund.name;
+    document.getElementById('fundBalanceModalSubtitle').textContent =
+        [fund.company_name, fund.track_number ? `Track ${fund.track_number}` : null]
+            .filter(Boolean).join(' · ') || '—';
+    document.getElementById('fundBalanceModalDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('fundBalanceModalAmount').value = '';
+    document.getElementById('fundBalanceModal').classList.remove('hidden');
+    document.getElementById('fundBalanceModalAmount').focus();
+}
+
+function closeFundBalanceModal() {
+    fundBalanceModalFundId = null;
+    document.getElementById('fundBalanceModal').classList.add('hidden');
+}
+
+async function saveFundBalanceModal() {
+    if (!fundBalanceModalFundId) return;
+    const date = document.getElementById('fundBalanceModalDate').value;
+    const balance = document.getElementById('fundBalanceModalAmount').value;
+    if (!date || balance === '') { alert('Date and balance are required'); return; }
+
+    const resp = await fetch(`/api/funds/${fundBalanceModalFundId}/balances`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, balance: parseFloat(balance), contribution: 0 }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to update balance'); return; }
+
+    // If the Fund Balances panel below happens to have this same fund
+    // open, keep its table/chart in sync too — not just the row above.
+    if (selectedFundId === fundBalanceModalFundId) {
+        renderFundBalancesTable(result.balances);
+        renderFundBalanceChart(result.balances);
+    }
+    closeFundBalanceModal();
+    refreshFundsList();
 }
 
 async function deleteFundBalanceEntry(id) {

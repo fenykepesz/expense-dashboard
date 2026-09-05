@@ -137,6 +137,17 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Manage Funds: quick "Update balance" modal per row (v1.34.0)** — user flagged the existing
+  Fund Balances flow as cumbersome for the common case of updating ONE fund you can already see in
+  the table: it requires re-navigating the whole Company→Fund Name→Fund #→Track # cascading picker
+  from scratch every time, even though the row itself already identifies the fund unambiguously. New
+  "📈" button per row opens a modal pre-filled with that fund's name/company/track and today's date —
+  the only thing left to do is type the new balance. First modal dialog in the app (new
+  `.modal-overlay`/`.modal-box` CSS, vanilla, no library) — reuses the exact same
+  `POST /api/funds/<id>/balances` endpoint the existing picker-based flow already calls, so no
+  backend change was needed at all; if the Fund Balances panel below happens to have the same fund
+  open, its chart/table refresh too, in sync. Verified live via Playwright: modal opens with correct
+  fund identity and today's date, saving updates the row's Latest Value column immediately.
 - [x] **Bank Accounts: manual "new balance" entry mode, for accounts with close to no real activity
   (v1.33.0)** — user has 3 foreign-currency Leumi sub-accounts (USD/GBP/EUR) plus a 4th account
   they're closing soon, currently mis-modeled as Funds just because Funds already support simple
