@@ -382,6 +382,46 @@ def test_create_bank_transaction_invalid_type_returns_400(client):
     assert resp.status_code == 400
 
 
+def test_create_bank_transaction_new_balance_mode_sets_balance_after(client):
+    """For accounts with close to no real activity — record today's actual
+    balance directly rather than computing a delta transaction."""
+    create_resp = client.post("/api/bank-accounts", json={"name": "USD Account"})
+    account_id = create_resp.get_json()["accounts"][0]["id"]
+    resp = client.post(f"/api/bank-accounts/{account_id}/transactions", json={
+        "date": "2026-08-01", "description": "Balance check", "new_balance": 5000.0,
+    })
+    assert resp.status_code == 201
+    txns = resp.get_json()["transactions"]
+    assert txns[0]["balance_after"] == 5000.0
+    assert txns[0]["amount"] == 0
+
+
+def test_create_bank_transaction_new_balance_mode_anchors_running_balance(client):
+    """Two balance-mode entries in a row should each independently snap the
+    running balance to whatever was typed, regardless of the prior value —
+    no delta math, unlike normal amount-based transactions."""
+    create_resp = client.post("/api/bank-accounts", json={"name": "USD Account"})
+    account_id = create_resp.get_json()["accounts"][0]["id"]
+    client.post(f"/api/bank-accounts/{account_id}/transactions", json={
+        "date": "2026-08-01", "description": "First check", "new_balance": 5000.0,
+    })
+    client.post(f"/api/bank-accounts/{account_id}/transactions", json={
+        "date": "2026-09-01", "description": "Second check", "new_balance": 5200.0,
+    })
+    series = db.get_net_worth_series()
+    bank_item = next(s for s in series["series"] if s["kind"] == "bank")
+    assert bank_item["balances"][-1] == 5200.0
+
+
+def test_create_bank_transaction_new_balance_missing_description_returns_400(client):
+    create_resp = client.post("/api/bank-accounts", json={"name": "Checking"})
+    account_id = create_resp.get_json()["accounts"][0]["id"]
+    resp = client.post(f"/api/bank-accounts/{account_id}/transactions", json={
+        "date": "2026-01-01", "new_balance": 100,
+    })
+    assert resp.status_code == 400
+
+
 def test_get_bank_account_transactions_route(client):
     create_resp = client.post("/api/bank-accounts", json={"name": "Checking"})
     account_id = create_resp.get_json()["accounts"][0]["id"]

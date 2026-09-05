@@ -137,6 +137,21 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Bank Accounts: manual "new balance" entry mode, for accounts with close to no real activity
+  (v1.33.0)** — user has 3 foreign-currency Leumi sub-accounts (USD/GBP/EUR) plus a 4th account
+  they're closing soon, currently mis-modeled as Funds just because Funds already support simple
+  manual balance snapshots, which is closer to how these actually get updated (rarely, by hand) than
+  a real transaction ledger. Rather than build a whole new balance-snapshot mechanism, reused what
+  already existed: a transaction's `balance_after` field (previously only ever set by statement
+  imports) directly anchors the running balance when present — the manual "Add Transaction" panel
+  just never exposed it. New mode toggle ("Amount changed" / "New balance") on that same panel;
+  picking "New balance" hides the Income/Expense selector (doesn't apply) and sends `new_balance`
+  instead of `amount`/`type` — the route stores it as `amount: 0, balance_after: <entered value>`,
+  so a balance check never inflates the income/expense cash-flow cards with a fake transaction. 7
+  new tests, 341 passing (was 338). Verified live end-to-end via Playwright: mode toggle correctly
+  hides the type selector and relabels the amount field, and the submitted entry snaps the account's
+  running balance to exactly the typed number. Paired with actually moving the 4 accounts from Funds
+  to Bank Accounts (real data, not a code change) once this shipped.
 - [x] **Net Worth: flag carried-forward balances as stale in the Latest Balances table (v1.32.0)** —
   user asked what drives the graph's rightmost "checkpoint" month, and in explaining the
   carry-forward mechanic (a fund with no new entry just repeats its last known balance, rather than

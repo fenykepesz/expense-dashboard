@@ -965,7 +965,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.32.0</span>
+            <span class="version-badge">v1.33.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1556,6 +1556,10 @@
                     <input type="date" id="newBankTxDate" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
                     <input type="text" id="newBankTxDescription" placeholder="Description"
                         style="height:34px;padding:0 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;width:200px;">
+                    <select id="newBankTxMode" title="Amount: a normal transaction that changes the balance by this much. New Balance: for accounts you barely track — just record what the balance is today, no transaction math needed." style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;" onchange="onBankTxModeChange()">
+                        <option value="amount">Amount changed</option>
+                        <option value="balance">New balance</option>
+                    </select>
                     <select id="newBankTxType" style="height:34px;padding:0 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.875em;">
                         <option value="expense">Expense</option>
                         <option value="income">Income</option>

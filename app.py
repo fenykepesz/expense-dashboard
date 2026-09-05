@@ -661,15 +661,34 @@ def create_bank_transaction(account_id):
     data = request.get_json() or {}
     date = data.get('date')
     description = (data.get('description') or '').strip()
-    amount = data.get('amount')
-    txn_type = data.get('type')
-    if not date or not description or amount is None or txn_type not in ('income', 'expense'):
-        return jsonify({'error': 'date, description, amount, and a valid type are required'}), 400
-    signed_amount = abs(float(amount)) if txn_type == 'income' else -abs(float(amount))
-    row = {
-        'date': date, 'description': description, 'amount': signed_amount, 'type': txn_type,
-        'category': data.get('category', 'Uncategorized'),
-    }
+    if not date or not description:
+        return jsonify({'error': 'date and description are required'}), 400
+
+    if data.get('new_balance') is not None:
+        # "New balance" mode: for accounts with close to no real activity —
+        # anchor the running balance directly to the entered number via
+        # balance_after (same field an imported statement's own running
+        # balance uses), instead of asking the user to compute a delta.
+        # amount stays 0 so this never inflates the income/expense cards.
+        try:
+            new_balance = float(data['new_balance'])
+        except (TypeError, ValueError):
+            return jsonify({'error': 'new_balance must be a number'}), 400
+        row = {
+            'date': date, 'description': description, 'amount': 0, 'type': 'income',
+            'balance_after': new_balance, 'category': data.get('category', 'Uncategorized'),
+        }
+    else:
+        amount = data.get('amount')
+        txn_type = data.get('type')
+        if amount is None or txn_type not in ('income', 'expense'):
+            return jsonify({'error': 'amount and a valid type are required'}), 400
+        signed_amount = abs(float(amount)) if txn_type == 'income' else -abs(float(amount))
+        row = {
+            'date': date, 'description': description, 'amount': signed_amount, 'type': txn_type,
+            'category': data.get('category', 'Uncategorized'),
+        }
+
     db.insert_bank_transactions([row], account_id)
     return jsonify({'transactions': db.get_bank_transactions(account_id)}), 201
 

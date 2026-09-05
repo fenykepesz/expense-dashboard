@@ -165,19 +165,42 @@ function onBankAccountChange() {
 
 // ── Manual entry ──────────────────────────────────────────────────────
 
+// "Amount changed" (default) records a normal signed transaction, same as
+// always. "New balance" is for accounts with close to no real activity
+// (e.g. a rarely-touched foreign-currency account) — instead of computing
+// a delta, just type today's actual balance; the row is stored anchored by
+// balance_after (the same field an imported statement's own running
+// balance uses), so the account's balance snaps directly to that number.
+function onBankTxModeChange() {
+    const mode = document.getElementById('newBankTxMode').value;
+    const typeSelect = document.getElementById('newBankTxType');
+    const amountInput = document.getElementById('newBankTxAmount');
+    if (mode === 'balance') {
+        typeSelect.style.display = 'none';
+        amountInput.placeholder = 'New balance';
+    } else {
+        typeSelect.style.display = '';
+        amountInput.placeholder = 'Amount';
+    }
+}
+
 async function addBankTransaction() {
     if (!selectedBankAccountId) { alert('Select an account first'); return; }
     const date = document.getElementById('newBankTxDate').value;
     const description = document.getElementById('newBankTxDescription').value.trim();
-    const type = document.getElementById('newBankTxType').value;
+    const mode = document.getElementById('newBankTxMode').value;
     const amount = document.getElementById('newBankTxAmount').value;
     const category = document.getElementById('newBankTxCategory').value;
     if (!date || !description || amount === '') { alert('Date, description, and amount are required'); return; }
 
+    const body = mode === 'balance'
+        ? { date, description, new_balance: parseFloat(amount), category }
+        : { date, description, type: document.getElementById('newBankTxType').value, amount: parseFloat(amount), category };
+
     const resp = await fetch(`/api/bank-accounts/${selectedBankAccountId}/transactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, description, type, amount: parseFloat(amount), category }),
+        body: JSON.stringify(body),
     });
     const result = await resp.json();
     if (!resp.ok) { alert(result.error || 'Failed to add transaction'); return; }
