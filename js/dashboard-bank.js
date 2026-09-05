@@ -42,9 +42,10 @@ async function reloadBankTransactions() {
     ]);
     bankAllTransactions = await txResp.json();
     // Adding/deleting a transaction can change which one is "latest" for its
-    // account, so the updated-pills need this refreshed too, not just the
-    // transaction list itself.
+    // account (and its current_balance), so the accounts list needs
+    // refreshing too, not just the transaction list itself.
     currentBankAccounts = await accountsResp.json();
+    renderBankAccountsList();
     populateBankFilters();
     applyBankFilters();
 }
@@ -60,7 +61,8 @@ function renderBankAccountsList() {
     list.innerHTML = currentBankAccounts.map(a => `
         <span class="cat-pill"${a.excluded_from_net_worth ? ' style="opacity:0.55;"' : ''}>
             ${escapeHtml(a.name)}
-            <span class="cat-pill-count">${a.account_number ? '*' + escapeHtml(a.account_number) + ' · ' : ''}${a.owner_name ? escapeHtml(a.owner_name) : 'No owner'} · Risk: ${escapeHtml(RISK_LEVEL_LABELS[a.risk_level])}${a.excluded_from_net_worth ? ' · ⊘ excluded from Net Worth' : ''}</span>
+            <span class="cat-pill-count">${a.account_number ? '*' + escapeHtml(a.account_number) + ' · ' : ''}${a.owner_name ? escapeHtml(a.owner_name) : 'No owner'} · Risk: ${escapeHtml(RISK_LEVEL_LABELS[a.risk_level])}${a.current_balance != null ? ` · ${formatCurrency(a.current_balance)}` : ''}${a.excluded_from_net_worth ? ' · ⊘ excluded from Net Worth' : ''}</span>
+            <button class="cat-pill-del" title="Update balance" onclick="openBankBalanceModal(${a.id})" style="color:var(--text-secondary);">📈</button>
             <button class="cat-pill-del" title="Edit risk" onclick="startEditBankAccountRisk(${a.id})" style="color:var(--text-secondary);">✎</button>
             <button class="cat-pill-del" title="${a.excluded_from_net_worth ? 'Include in Net Worth' : 'Exclude from Net Worth'}" onclick="toggleBankAccountNetWorthExclude(${a.id})" style="color:var(--text-secondary);">${a.excluded_from_net_worth ? '↺' : '⊘'}</button>
             <button class="cat-pill-del" title="Delete account" onclick="deleteBankAccount(${a.id}, '${escapeHtml(a.name).replace(/'/g, "\\'")}')">✕</button>
@@ -207,6 +209,64 @@ async function addBankTransaction() {
     document.getElementById('newBankTxDate').value = '';
     document.getElementById('newBankTxDescription').value = '';
     document.getElementById('newBankTxAmount').value = '';
+    reloadBankTransactions();
+}
+
+// ── Quick balance-update modal (pill "📈" button) ────────────────────────
+// Same idea as the Manage Funds one (#fundBalanceModal): for an account you
+// can already see, skip re-selecting it in the inline form below and typing
+// a description just to record today's balance — open a modal pre-filled
+// with its identity, type the number, done. Reuses the exact same
+// "new balance" mode the inline form already sends (POST .../transactions
+// with new_balance), just auto-supplies the description so it's never
+// required from the user for this specific flow.
+
+let bankBalanceModalAccountId = null;
+
+function openBankBalanceModal(accountId) {
+    const account = currentBankAccounts.find(a => a.id === accountId);
+    if (!account) return;
+    bankBalanceModalAccountId = accountId;
+    document.getElementById('bankBalanceModalTitle').textContent = account.name;
+    document.getElementById('bankBalanceModalSubtitle').textContent =
+        account.owner_name || 'No owner';
+
+    const details = [
+        ['Account #', account.account_number || '—'],
+        ['Owner', account.owner_name || '—'],
+        ['Risk', RISK_LEVEL_LABELS[account.risk_level]],
+        ['Current balance', account.current_balance != null
+            ? `${formatCurrency(account.current_balance)} (as of ${account.last_imported_date})`
+            : 'No entries yet'],
+    ];
+    document.getElementById('bankBalanceModalDetails').innerHTML = details
+        .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd>`).join('');
+
+    document.getElementById('bankBalanceModalDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('bankBalanceModalAmount').value = '';
+    document.getElementById('bankBalanceModal').classList.remove('hidden');
+    document.getElementById('bankBalanceModalAmount').focus();
+}
+
+function closeBankBalanceModal() {
+    bankBalanceModalAccountId = null;
+    document.getElementById('bankBalanceModal').classList.add('hidden');
+}
+
+async function saveBankBalanceModal() {
+    if (!bankBalanceModalAccountId) return;
+    const date = document.getElementById('bankBalanceModalDate').value;
+    const balance = document.getElementById('bankBalanceModalAmount').value;
+    if (!date || balance === '') { alert('Date and balance are required'); return; }
+
+    const resp = await fetch(`/api/bank-accounts/${bankBalanceModalAccountId}/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, description: 'Balance update', new_balance: parseFloat(balance) }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to update balance'); return; }
+    closeBankBalanceModal();
     reloadBankTransactions();
 }
 

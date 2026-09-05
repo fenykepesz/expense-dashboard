@@ -1590,6 +1590,12 @@ def get_bank_accounts(db_path=None):
     balance reflect." This is the same value shown in the Net Worth item
     pills and the Bank Accounts transaction panel — computed once, here, so
     both places can never disagree with each other.
+
+    `current_balance` is computed with the exact same walk `get_net_worth_series`
+    uses (excluded transactions don't move it, a balance_after row anchors
+    it, everything else adds its signed amount) — deliberately, so this
+    number can never quietly drift from what Net Worth shows for the same
+    account.
     """
     with _connect(db_path) as conn:
         rows = conn.execute(
@@ -1607,7 +1613,24 @@ def get_bank_accounts(db_path=None):
             ORDER BY a.name
             """
         ).fetchall()
-    return [dict(row) for row in rows]
+        accounts = [dict(row) for row in rows]
+
+        txn_rows = conn.execute(
+            "SELECT account_id, amount, balance_after FROM bank_transactions "
+            "WHERE excluded = 0 ORDER BY date, id"
+        ).fetchall()
+
+    running_by_account = {}
+    for r in txn_rows:
+        running = running_by_account.get(r["account_id"], 0.0)
+        running = r["balance_after"] if r["balance_after"] is not None else running + r["amount"]
+        running_by_account[r["account_id"]] = running
+
+    for a in accounts:
+        a["current_balance"] = (
+            round(running_by_account[a["id"]], 2) if a["id"] in running_by_account else None
+        )
+    return accounts
 
 
 def add_bank_account(name, owner_id=None, account_number="", db_path=None):

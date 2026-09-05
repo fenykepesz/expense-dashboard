@@ -53,6 +53,49 @@ def test_delete_bank_account_soft_deletes(tmp_db):
     assert "Temp Account" not in names
 
 
+def test_get_bank_accounts_current_balance_is_none_without_transactions(tmp_db):
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    assert accounts[0]["current_balance"] is None
+
+
+def test_get_bank_accounts_current_balance_matches_new_balance_entry(tmp_db):
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    account_id = accounts[0]["id"]
+    db.insert_bank_transactions(
+        [{"date": "2026-08-08", "description": "Balance check", "amount": 0,
+          "type": "income", "balance_after": 34345.26}],
+        account_id, db_path=tmp_db,
+    )
+    accounts = db.get_bank_accounts(tmp_db)
+    assert accounts[0]["current_balance"] == 34345.26
+
+
+def test_get_bank_accounts_current_balance_matches_net_worth_series(tmp_db):
+    """These must never disagree — both are computed with the same walk."""
+    account_id = db.add_bank_account("Checking", db_path=tmp_db)[0]["id"]
+    db.insert_bank_transactions(
+        [{"date": "2026-08-01", "description": "Deposit", "amount": 500, "type": "income"},
+         {"date": "2026-08-15", "description": "Groceries", "amount": -50, "type": "expense"}],
+        account_id, db_path=tmp_db,
+    )
+    current = db.get_bank_accounts(tmp_db)[0]["current_balance"]
+    series = db.get_net_worth_series(tmp_db)
+    bank_item = next(s for s in series["series"] if s["kind"] == "bank")
+    assert current == bank_item["balances"][-1] == 450.0
+
+
+def test_get_bank_accounts_current_balance_ignores_excluded_transactions(tmp_db):
+    account_id = db.add_bank_account("Checking", db_path=tmp_db)[0]["id"]
+    db.insert_bank_transactions(
+        [{"date": "2026-08-01", "description": "Deposit", "amount": 500, "type": "income"}],
+        account_id, db_path=tmp_db,
+    )
+    tx_id = db.get_bank_transactions(account_id, tmp_db)[0]["id"]
+    db.set_bank_transaction_excluded(tx_id, True, tmp_db)
+    accounts = db.get_bank_accounts(tmp_db)
+    assert accounts[0]["current_balance"] is None
+
+
 def test_get_bank_accounts_last_imported_date_is_none_without_transactions(tmp_db):
     accounts = db.add_bank_account("Checking", db_path=tmp_db)
     assert accounts[0]["last_imported_date"] is None

@@ -137,6 +137,22 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Bank Accounts: quick "Update balance" modal per account, same pattern as Manage Funds
+  (v1.35.0)** — using the v1.33.0 "new balance" mode via the inline form, the user hit exactly the
+  friction it was meant to avoid: the form still requires a Description before it'll submit,
+  surfaced as a confusing "Date, description, and amount are required" browser alert with every
+  other field already filled in. Rather than patch that one validation message, replaced the whole
+  inline flow with the same modal pattern already built for Manage Funds (v1.34.0/v1.34.1): a new
+  "📈" button on each account pill opens a modal pre-filled with that account's identity — Account #,
+  Owner, Risk, and (new) **Current balance** — auto-supplies the description under the hood, so
+  typing the new number is genuinely the only step. New `current_balance` field on
+  `get_bank_accounts()`, computed with the EXACT SAME walk `get_net_worth_series()` already uses
+  (excluded transactions don't move it, a `balance_after` row anchors it) — deliberately duplicated
+  logic, not a shared call, so this number can never silently disagree with what Net Worth shows for
+  the same account; also now shown directly on each account's pill, which previously showed no
+  balance at all. 4 new tests (one asserting `get_bank_accounts()` and `get_net_worth_series()`
+  agree), 345 passing (was 341). Verified live: no validation error, pill balance updates
+  immediately after saving.
 - [x] **Manage Funds: read-only fund details in the balance-update modal (v1.34.1)** — immediate
   follow-up: the Company · Track subtitle alone isn't always enough to know which specific fund
   you're about to update — several of the user's real funds share the exact same company, name,
