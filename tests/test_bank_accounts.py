@@ -53,6 +53,80 @@ def test_delete_bank_account_soft_deletes(tmp_db):
     assert "Temp Account" not in names
 
 
+def test_get_bank_accounts_latest_transaction_date_is_none_without_transactions(tmp_db):
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    assert accounts[0]["latest_transaction_date"] is None
+
+
+def test_get_bank_accounts_latest_transaction_date_is_the_most_recent_row(tmp_db):
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    account_id = accounts[0]["id"]
+    db.insert_bank_transactions(
+        [
+            {"date": "2026-08-10", "description": "Early", "amount": 100, "type": "income"},
+            {"date": "2026-08-30", "description": "Latest", "amount": 50, "type": "income"},
+            {"date": "2026-08-20", "description": "Middle", "amount": -10, "type": "expense"},
+        ],
+        account_id, db_path=tmp_db,
+    )
+    accounts = db.get_bank_accounts(tmp_db)
+    assert accounts[0]["latest_transaction_date"] == "2026-08-30"
+
+
+def test_get_bank_accounts_latest_transaction_date_includes_excluded_rows(tmp_db):
+    """An excluded transaction still carries the bank's real balance_after,
+    so it still counts as "when did we last get real data" — exclusion is a
+    cash-flow-reporting choice, not a statement about data staleness."""
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    account_id = accounts[0]["id"]
+    db.insert_bank_transactions(
+        [{"date": "2026-08-10", "description": "Old", "amount": 100, "type": "income"}],
+        account_id, db_path=tmp_db,
+    )
+    db.insert_bank_transactions(
+        [{"date": "2026-08-30", "description": "Self-transfer", "amount": 500, "type": "income"}],
+        account_id, db_path=tmp_db,
+    )
+    tx_id = db.get_bank_transactions(account_id, tmp_db)[0]["id"]
+    db.set_bank_transaction_excluded(tx_id, True, tmp_db)
+    accounts = db.get_bank_accounts(tmp_db)
+    assert accounts[0]["latest_transaction_date"] == "2026-08-30"
+
+
+def test_get_bank_accounts_latest_transaction_date_is_per_account(tmp_db):
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    accounts = db.add_bank_account("Savings", db_path=tmp_db)
+    checking_id = next(a["id"] for a in accounts if a["name"] == "Checking")
+    savings_id = next(a["id"] for a in accounts if a["name"] == "Savings")
+    db.insert_bank_transactions(
+        [{"date": "2026-08-05", "description": "A", "amount": 10, "type": "income"}],
+        checking_id, db_path=tmp_db,
+    )
+    db.insert_bank_transactions(
+        [{"date": "2026-08-25", "description": "B", "amount": 20, "type": "income"}],
+        savings_id, db_path=tmp_db,
+    )
+    accounts = {a["name"]: a for a in db.get_bank_accounts(tmp_db)}
+    assert accounts["Checking"]["latest_transaction_date"] == "2026-08-05"
+    assert accounts["Savings"]["latest_transaction_date"] == "2026-08-25"
+
+
+def test_net_worth_series_bank_latest_date_matches_get_bank_accounts(tmp_db):
+    """The Net Worth item pills and the Bank Accounts tab must never show
+    two different dates for the same account — both are computed from the
+    same underlying value."""
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    account_id = accounts[0]["id"]
+    db.insert_bank_transactions(
+        [{"date": "2026-08-30", "description": "Latest", "amount": 100, "type": "income"}],
+        account_id, db_path=tmp_db,
+    )
+    expected = db.get_bank_accounts(tmp_db)[0]["latest_transaction_date"]
+    series = db.get_net_worth_series(tmp_db)
+    bank_item = next(s for s in series["series"] if s["kind"] == "bank")
+    assert bank_item["latest_date"] == expected == "2026-08-30"
+
+
 def test_delete_nonexistent_bank_account_raises(tmp_db):
     with pytest.raises(ValueError):
         db.delete_bank_account(9999, tmp_db)

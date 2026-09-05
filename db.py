@@ -1581,14 +1581,27 @@ def get_bank_accounts(db_path=None):
 
     Includes accounts excluded from Net Worth — that flag only affects
     get_net_worth_series, not this listing.
+
+    `latest_transaction_date` is the date of the most recent transaction on
+    record for that account (imported or manual, excluded or not — even an
+    excluded row still carries the bank's real balance_after, so it still
+    counts as "when did we last get real data for this account"). This is
+    the same "when was this balance last updated" date shown in the Net
+    Worth item pills and the Bank Accounts transaction panel — computed
+    once, here, so both places can never disagree with each other.
     """
     with _connect(db_path) as conn:
         rows = conn.execute(
             """
             SELECT a.id, a.name, a.account_number, a.owner_id,
-                   a.excluded_from_net_worth, a.risk_level, a.risk_note, m.name AS owner_name
+                   a.excluded_from_net_worth, a.risk_level, a.risk_note, m.name AS owner_name,
+                   bt.date AS latest_transaction_date
             FROM bank_accounts a
             LEFT JOIN household_members m ON m.id = a.owner_id
+            LEFT JOIN bank_transactions bt ON bt.id = (
+                SELECT id FROM bank_transactions
+                WHERE account_id = a.id ORDER BY date DESC, id DESC LIMIT 1
+            )
             WHERE a.is_deleted = 0
             ORDER BY a.name
             """
@@ -1772,8 +1785,12 @@ def get_net_worth_series(db_path=None):
         ).fetchall()
         accounts = conn.execute(
             """
-            SELECT a.id, a.name, m.name AS owner_name
+            SELECT a.id, a.name, m.name AS owner_name, bt.date AS latest_transaction_date
             FROM bank_accounts a LEFT JOIN household_members m ON m.id = a.owner_id
+            LEFT JOIN bank_transactions bt ON bt.id = (
+                SELECT id FROM bank_transactions
+                WHERE account_id = a.id ORDER BY date DESC, id DESC LIMIT 1
+            )
             WHERE a.is_deleted = 0 AND a.excluded_from_net_worth = 0 ORDER BY a.name
             """
         ).fetchall()
@@ -1845,7 +1862,7 @@ def get_net_worth_series(db_path=None):
         series.append({
             "key": f"bank-{a['id']}", "kind": "bank", "name": a["name"],
             "fund_type": None, "owner_name": a["owner_name"],
-            "balances": balances,
+            "balances": balances, "latest_date": a["latest_transaction_date"],
         })
 
     for s in stocks:

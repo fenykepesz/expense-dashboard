@@ -137,6 +137,27 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Bank accounts: "last updated" date, per account, everywhere the balance shows up (v1.31.0)**
+  — user asked how to update a bank account's balance, which surfaced that there was no way to see
+  WHEN a shown balance was actually current as of — Funds already have this (Manage Funds' "Latest
+  Value" column shows both the number and its date), bank accounts didn't. New
+  `latest_transaction_date` (the date of the most recent transaction on record for that account —
+  imported or manual, excluded or not, since an excluded row still carries the bank's real
+  `balance_after`) computed identically in TWO places that must never disagree: `get_bank_accounts()`
+  (a correlated subquery, same pattern as `get_funds()`'s `latest_balance_date`) and
+  `get_net_worth_series()`'s per-account `accounts` query — both use the exact same SQL fragment
+  rather than two independently-written formulas for the same thing, a lesson repeated enough times
+  on this app's money math to take seriously here too. Shown in exactly the 3 places the user asked
+  for, no more: (1) the Net Worth "Include" picker's bank-account pills, as a sub-line via
+  `netWorthSubLine()` — "updated 2026-08-30"; (2) explicitly NOT the Net Worth trend
+  graph/table, which stays monthly-bucketed on the user's own instruction, unchanged; (3) a new row
+  of small pills on the Bank Accounts tab, next to the existing "N excluded" pill, one per account,
+  always reflecting every active account regardless of the current account filter — a quick-glance
+  summary rather than a filtered view. Confirmed per-account distinctness is real, not coincidental:
+  the three real accounts show 2026-08-30 / 2026-08-28 / 2026-08-16 respectively. 5 new tests
+  (including one that asserts `get_bank_accounts()` and `get_net_worth_series()` return the
+  identical date for the same account) — 333 tests passing (was 328). Verified live via Playwright
+  against real data in both locations.
 - [x] **Look-Through: consolidate Concentration columns for funds sharing a track (v1.28.1)** —
   direct follow-up to v1.28.0: once the user could actually enter the same Institution Reg # across
   their 5 Altshuler Shaham study funds, the Concentration tables showed 5 nearly-identical columns

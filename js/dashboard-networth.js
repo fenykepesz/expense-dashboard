@@ -45,6 +45,12 @@ function netWorthSubLine(s) {
     if (s.kind === 'stock' && s.holding_type) {
         parts.push(STOCK_HOLDING_TYPE_LABELS[s.holding_type] || s.holding_type);
     }
+    // Bank accounts only, for now — the date their balance last actually
+    // moved (most recent transaction on file), same value shown next to
+    // the Bank Accounts tab's transaction list so the two can never disagree.
+    if (s.kind === 'bank' && s.latest_date) {
+        parts.push(`updated ${s.latest_date}`);
+    }
     return parts.join(' · ');
 }
 
