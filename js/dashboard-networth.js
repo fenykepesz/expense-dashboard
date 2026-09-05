@@ -370,7 +370,7 @@ function renderNetWorthChart(selected, months) {
 function renderNetWorthTable(selected, months) {
     const body = document.getElementById('netWorthTableBody');
     if (!months.length || !selected.length) {
-        body.innerHTML = '<tr><td colspan="5" class="no-data">No balance data yet — add fund balances or bank transactions first.</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" class="no-data">No balance data yet — add fund balances or bank transactions first.</td></tr>';
         return;
     }
     body.innerHTML = selected.map(s => {
@@ -382,12 +382,27 @@ function renderNetWorthTable(selected, months) {
         const typeSuffix = (s.kind === 'stock' && s.holding_type)
             ? ` <span style="color:var(--text-secondary);font-size:0.85em;">(${escapeHtml(STOCK_HOLDING_TYPE_LABELS[s.holding_type] || s.holding_type)})</span>`
             : '';
+        // "As of" is the month this row's Balance is being shown for — the
+        // same shared month for every item once carried forward. Last
+        // Updated is the real date THIS item's own number was last
+        // confirmed — flagged stale only when it's BEHIND "As of" (the
+        // Balance shown is carried forward, not a fresh entry). Last
+        // Updated being AHEAD of "As of" is normal for bank accounts (whose
+        // last_updated is the import date, which can post-date the
+        // transactions it actually contains) and isn't a warning at all.
+        const asOfMonth = latestIdx === -1 ? null : months[latestIdx];
+        const updatedMonth = s.last_updated ? s.last_updated.slice(0, 7) : null;
+        const isStale = asOfMonth && updatedMonth && updatedMonth < asOfMonth;
+        const updatedCell = !s.last_updated ? '—' : isStale
+            ? `<span style="color:#c2410c;" title="Balance shown is carried forward from this date, not confirmed for ${escapeHtml(asOfMonth)}">⚠ ${escapeHtml(s.last_updated)}</span>`
+            : escapeHtml(s.last_updated);
         return `
             <tr>
                 <td>${netWorthIcon(s)} ${escapeHtml(s.name)}${typeSuffix}</td>
                 <td>${escapeHtml(group)}</td>
                 <td>${escapeHtml(s.owner_name || '—')}</td>
-                <td>${latestIdx === -1 ? '—' : escapeHtml(months[latestIdx])}</td>
+                <td>${asOfMonth === null ? '—' : escapeHtml(asOfMonth)}</td>
+                <td>${updatedCell}</td>
                 <td class="amount-cell">${latestIdx === -1 ? '—' : formatCurrency(s.balances[latestIdx])}</td>
             </tr>
         `;

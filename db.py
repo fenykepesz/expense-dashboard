@@ -1775,6 +1775,14 @@ def get_net_worth_series(db_path=None):
     when cost basis is known, else total value — a holding is never silently
     dropped from the total just because cost basis hasn't been entered yet.
     Months before an item's first data point are None.
+
+    Each series item also carries `last_updated` — the date of that item's
+    own most recent REAL entry (a fund_balances/stock_values row's date, or
+    a bank account's last_imported_date) — distinct from `months[-1]`,
+    which is the shared right edge of the whole series and can be much
+    later for an item nobody's updated recently. `balances[-1]` for such an
+    item is a carried-forward value, not a confirmed one; comparing
+    `last_updated` against `months[-1]` is how a caller tells the two apart.
     """
     with _connect(db_path) as conn:
         funds = conn.execute(
@@ -1832,11 +1840,17 @@ def get_net_worth_series(db_path=None):
 
     series = []
     for f in funds:
-        # Rows are date-ordered, so the last entry in a month wins
+        # Rows are date-ordered, so the last entry in a month wins, and the
+        # last row touched gives this fund's true most recent REAL entry
+        # date — distinct from `months[-1]`, which is the graph's shared
+        # right edge and can be many months later for a fund nobody's
+        # updated recently (carried forward, not confirmed).
         by_month = {}
+        last_updated = None
         for r in fund_rows:
             if r["fund_id"] == f["id"]:
                 by_month[r["date"][:7]] = r["balance"]
+                last_updated = r["date"]
         balances, last = [], None
         for month in months:
             last = by_month.get(month, last)
@@ -1844,7 +1858,7 @@ def get_net_worth_series(db_path=None):
         series.append({
             "key": f"fund-{f['id']}", "kind": "fund", "name": f["name"],
             "fund_type": f["fund_type"], "owner_name": f["owner_name"],
-            "balances": balances,
+            "balances": balances, "last_updated": last_updated,
         })
 
     for a in accounts:
@@ -1861,17 +1875,23 @@ def get_net_worth_series(db_path=None):
         for month in months:
             last = month_end.get(month, last)
             balances.append(last)
+        # Bank accounts use last_imported_date (when the user last added
+        # data), not a transaction's own date — see get_bank_accounts'
+        # docstring for why that's the deliberate choice here.
         series.append({
             "key": f"bank-{a['id']}", "kind": "bank", "name": a["name"],
             "fund_type": None, "owner_name": a["owner_name"],
             "balances": balances, "latest_date": a["last_imported_date"],
+            "last_updated": a["last_imported_date"],
         })
 
     for s in stocks:
         by_month = {}
+        last_updated = None
         for r in stock_value_rows:
             if r["holding_id"] == s["id"]:
                 by_month[r["date"][:7]] = (r["quantity"], r["price_per_unit"])
+                last_updated = r["date"]
         balances, last = [], None
         for month in months:
             last = by_month.get(month, last)
@@ -1884,7 +1904,7 @@ def get_net_worth_series(db_path=None):
         series.append({
             "key": f"stock-{s['id']}", "kind": "stock", "name": s["symbol"],
             "fund_type": None, "owner_name": s["owner_name"], "holding_type": s["holding_type"],
-            "balances": balances,
+            "balances": balances, "last_updated": last_updated,
         })
 
     return {"months": months, "series": series}

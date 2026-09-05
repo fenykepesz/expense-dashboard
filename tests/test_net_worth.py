@@ -77,6 +77,53 @@ def test_fund_last_entry_in_month_wins(tmp_db):
     assert result["series"][0]["balances"] == [950]
 
 
+def test_fund_last_updated_is_its_own_real_entry_date(tmp_db):
+    fund_id = _add_fund(tmp_db)
+    db.add_fund_balance(fund_id, "2026-01-15", 1000, db_path=tmp_db)
+    db.add_fund_balance(fund_id, "2026-03-15", 1200, db_path=tmp_db)
+    result = db.get_net_worth_series(tmp_db)
+    assert result["series"][0]["last_updated"] == "2026-03-15"
+
+
+def test_fund_last_updated_can_be_stale_relative_to_the_series_range(tmp_db):
+    """A fund with no recent entry still gets carried forward through
+    months another item's data extends the series into — but its
+    last_updated must keep pointing at its own real entry, not the
+    series' shared right edge, so a caller can tell the carried-forward
+    figure isn't a fresh confirmation."""
+    fund_id = _add_fund(tmp_db, "Stale Fund")
+    db.add_fund_balance(fund_id, "2026-01-15", 1000, db_path=tmp_db)
+    account_id = db.add_bank_account("Checking", db_path=tmp_db)[0]["id"]
+    db.insert_bank_transactions(
+        [{"date": "2026-04-01", "description": "Keeps the series going", "amount": 500, "type": "income"}],
+        account_id, db_path=tmp_db,
+    )
+    result = db.get_net_worth_series(tmp_db)
+    assert result["months"][-1] == "2026-04"
+    fund = next(s for s in result["series"] if s["kind"] == "fund")
+    assert fund["last_updated"] == "2026-01-15"
+    assert fund["balances"][-1] == 1000  # carried forward into April, not a fresh number
+
+
+def test_bank_last_updated_uses_imported_at_not_transaction_date(tmp_db):
+    account_id = db.add_bank_account("Checking", db_path=tmp_db)[0]["id"]
+    db.insert_bank_transactions(
+        [{"date": "2026-01-15", "description": "Old transaction", "amount": 100, "type": "income"}],
+        account_id, db_path=tmp_db, imported_at="2026-03-01T09:00:00",
+    )
+    result = db.get_net_worth_series(tmp_db)
+    bank = next(s for s in result["series"] if s["kind"] == "bank")
+    assert bank["last_updated"] == "2026-03-01"
+
+
+def test_stock_last_updated_is_its_own_real_entry_date(tmp_db):
+    holding_id = db.add_stock_holding("AAPL", db_path=tmp_db)[0]["id"]
+    db.add_stock_value(holding_id, "2026-02-10", 10, 100, db_path=tmp_db)
+    result = db.get_net_worth_series(tmp_db)
+    stock = next(s for s in result["series"] if s["kind"] == "stock")
+    assert stock["last_updated"] == "2026-02-10"
+
+
 def test_fund_null_before_first_entry(tmp_db):
     fund_a = _add_fund(tmp_db, "Fund A")
     fund_b = _add_fund(tmp_db, "Fund B", "investment")

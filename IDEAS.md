@@ -137,6 +137,25 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Net Worth: flag carried-forward balances as stale in the Latest Balances table (v1.32.0)** —
+  user asked what drives the graph's rightmost "checkpoint" month, and in explaining the
+  carry-forward mechanic (a fund with no new entry just repeats its last known balance, rather than
+  dropping to zero) realized the EXISTING "As of" column was itself quietly misleading: it's derived
+  from each item's own carried-forward `balances` array, which is non-null all the way to the
+  series' shared right edge for any item with historical data — so "As of" showed the SAME month
+  for every item regardless of whether that item's own data was actually that current. Confirmed
+  against real data: a fund named "אלטשולר שחם השתלמות כללי" showed "As of: 2026-08" despite its
+  real last balance entry being 2026-07-31. New `last_updated` field per series item
+  (`get_net_worth_series()`) — a fund/stock's own most recent real entry date, or a bank account's
+  `last_imported_date` — computed by tracking it inline while building each item's month-bucketed
+  series, no extra queries needed. New "Last Updated" column in the Latest Balances table, right
+  where the user pointed at the gap in a screenshot, flagged with a ⚠ orange warning ONLY when it's
+  genuinely BEHIND "As of" (a caught-before-shipping bug: the first version flagged ANY mismatch,
+  which incorrectly warned on every bank account too, since their `last_imported_date` is often
+  AHEAD of "As of" — that's normal, not stale, and fixed to a directional `<` comparison). 4 new
+  tests. 338 tests passing (was 334). Verified live: only funds with genuinely old real entries
+  (July/June, while the series itself reaches August) show the warning; current items and bank
+  accounts (even ones imported after the graph's checkpoint month) show plain text.
 - [x] **Bank accounts: "last updated" now means date of import, not date of the transaction (v1.31.1)**
   — immediate correction to v1.31.0: after seeing it live, the user clarified what they actually
   wanted was "when did I last add data for this account" (a routine/freshness question — did I

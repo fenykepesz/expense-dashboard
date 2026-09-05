@@ -965,7 +965,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.31.1</span>
+            <span class="version-badge">v1.32.0</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1642,10 +1642,12 @@
                 <div style="overflow-x:auto;">
                     <table class="transactions-table">
                         <thead><tr>
-                            <th>Item</th><th>Type</th><th>Owner</th><th>As of</th><th>Balance</th>
+                            <th>Item</th><th>Type</th><th>Owner</th><th>As of</th>
+                            <th title="The date this item's own balance was actually last confirmed — flagged if it's older than 'As of', meaning the figure shown is carried forward, not fresh">Last Updated</th>
+                            <th>Balance</th>
                         </tr></thead>
                         <tbody id="netWorthTableBody">
-                            <tr><td colspan="5" class="no-data">Loading…</td></tr>
+                            <tr><td colspan="6" class="no-data">Loading…</td></tr>
                         </tbody>
                     </table>
                 </div>
