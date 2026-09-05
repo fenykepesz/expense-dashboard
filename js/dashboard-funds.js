@@ -669,6 +669,24 @@ function openFundBalanceModal(fundId) {
     document.getElementById('fundBalanceModalSubtitle').textContent =
         [fund.company_name, fund.track_number ? `Track ${fund.track_number}` : null]
             .filter(Boolean).join(' · ') || '—';
+
+    // Read-only, for disambiguation — several of the user's real funds
+    // share the same company + name + track (e.g. multiple study-fund
+    // policies pooled into one company-wide track), so Fund # is often the
+    // ONLY thing that actually tells two rows apart. Shown here so it's
+    // impossible to update the wrong one by mistake.
+    const details = [
+        ['Fund #', fund.fund_number || '—'],
+        ['Institution Reg #', fund.institution_reg_number || '—'],
+        ['Owner', fund.owner_name || '—'],
+        ['Type', FUND_TYPE_LABELS[fund.fund_type] || fund.fund_type],
+        ['Current value', fund.latest_balance != null
+            ? `${formatCurrency(fund.latest_balance)} (as of ${fund.latest_balance_date})`
+            : 'No entries yet'],
+    ];
+    document.getElementById('fundBalanceModalDetails').innerHTML = details
+        .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd>`).join('');
+
     document.getElementById('fundBalanceModalDate').value = new Date().toISOString().slice(0, 10);
     document.getElementById('fundBalanceModalAmount').value = '';
     document.getElementById('fundBalanceModal').classList.remove('hidden');

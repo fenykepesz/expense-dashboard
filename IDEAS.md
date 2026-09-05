@@ -137,6 +137,15 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Manage Funds: read-only fund details in the balance-update modal (v1.34.1)** — immediate
+  follow-up: the Company · Track subtitle alone isn't always enough to know which specific fund
+  you're about to update — several of the user's real funds share the exact same company, name,
+  AND track (multiple study-fund policies pooled into one company-wide track), differing only by
+  Fund #. New read-only details block (Fund #, Institution Reg #, Owner, Type, Current value with
+  its own date) sits between the subtitle and the Date field — everything needed to positively
+  confirm the right fund before typing a new number, with zero risk of confusing it with an
+  editable field. Verified live against the real "אלטשולר שחם השתלמות כללי" case (5 funds sharing
+  identical company+name+track): Fund # correctly shown and distinct per fund.
 - [x] **Manage Funds: quick "Update balance" modal per row (v1.34.0)** — user flagged the existing
   Fund Balances flow as cumbersome for the common case of updating ONE fund you can already see in
   the table: it requires re-navigating the whole Company→Fund Name→Fund #→Track # cascading picker

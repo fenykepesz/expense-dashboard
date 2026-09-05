@@ -395,7 +395,29 @@
         .modal-box .modal-subtitle {
             color: var(--text-secondary);
             font-size: 0.85em;
-            margin: 0 0 18px;
+            margin: 0 0 12px;
+        }
+
+        .modal-details {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            column-gap: 10px;
+            row-gap: 3px;
+            font-size: 0.8em;
+            background: var(--table-header-bg);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin: 0 0 16px;
+        }
+
+        .modal-details dt {
+            color: var(--text-secondary);
+        }
+
+        .modal-details dd {
+            margin: 0;
+            color: var(--text-primary);
+            text-align: right;
         }
 
         .modal-box label {
@@ -1028,7 +1050,7 @@
             </div>
             <h1>💳 Personal Expense Dashboard</h1>
             <p>Track and analyze your spending patterns</p>
-            <span class="version-badge">v1.34.0</span>
+            <span class="version-badge">v1.34.1</span>
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
@@ -1352,6 +1374,7 @@
                 <div class="modal-box">
                     <h3 id="fundBalanceModalTitle"></h3>
                     <p class="modal-subtitle" id="fundBalanceModalSubtitle"></p>
+                    <dl class="modal-details" id="fundBalanceModalDetails"></dl>
                     <label for="fundBalanceModalDate">Date</label>
                     <input type="date" id="fundBalanceModalDate">
                     <label for="fundBalanceModalAmount">New balance</label>
