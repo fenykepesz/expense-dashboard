@@ -205,6 +205,39 @@ def test_toggle_bank_account_excluded_from_net_worth(tmp_db):
     assert restored[0]["excluded_from_net_worth"] == 0
 
 
+def test_add_bank_account_excluded_from_cash_flow_defaults_false(tmp_db):
+    accounts = db.add_bank_account("Checking", db_path=tmp_db)
+    assert accounts[0]["excluded_from_cash_flow"] == 0
+
+
+def test_toggle_bank_account_excluded_from_cash_flow(tmp_db):
+    """A 'holding only' account — still a completely normal bank_account
+    (net worth, get_bank_accounts) — the flag only tells the frontend to
+    leave it out of the cash-flow tab's transaction-level views."""
+    accounts = db.add_bank_account("USD Account", db_path=tmp_db)
+    account_id = accounts[0]["id"]
+    updated = db.update_bank_account(account_id, {"excluded_from_cash_flow": 1}, tmp_db)
+    assert updated[0]["excluded_from_cash_flow"] == 1
+    # Still a real bank account otherwise — get_bank_accounts still lists it
+    still_listed = [a["name"] for a in db.get_bank_accounts(tmp_db)]
+    assert "USD Account" in still_listed
+    restored = db.update_bank_account(account_id, {"excluded_from_cash_flow": 0}, tmp_db)
+    assert restored[0]["excluded_from_cash_flow"] == 0
+
+
+def test_bank_account_excluded_from_cash_flow_still_counts_in_net_worth(tmp_db):
+    account_id = db.add_bank_account("USD Account", db_path=tmp_db)[0]["id"]
+    db.update_bank_account(account_id, {"excluded_from_cash_flow": 1}, tmp_db)
+    db.insert_bank_transactions(
+        [{"date": "2026-08-08", "description": "Balance check", "amount": 0,
+          "type": "income", "balance_after": 5000.0}],
+        account_id, db_path=tmp_db,
+    )
+    series = db.get_net_worth_series(tmp_db)
+    bank_item = next(s for s in series["series"] if s["kind"] == "bank")
+    assert bank_item["balances"][-1] == 5000.0
+
+
 def test_update_nonexistent_bank_account_raises(tmp_db):
     with pytest.raises(ValueError):
         db.update_bank_account(9999, {"excluded_from_net_worth": 1}, tmp_db)
@@ -356,6 +389,20 @@ def test_patch_bank_account_route_toggles_net_worth_exclude(client):
     assert resp.status_code == 200
     account = next(a for a in resp.get_json()["accounts"] if a["id"] == account_id)
     assert account["excluded_from_net_worth"] == 1
+
+
+def test_patch_bank_account_route_toggles_cash_flow_exclude(client):
+    """Regression test: app.py's PATCH route has its own manual field
+    allowlist, separate from db.py's BANK_ACCOUNT_EDITABLE_FIELDS — adding a
+    field to one without the other silently makes the route reject it with
+    "no editable fields provided" even though the field is otherwise fully
+    wired up. Caught exactly this way once already for excluded_from_cash_flow."""
+    create_resp = client.post("/api/bank-accounts", json={"name": "Checking"})
+    account_id = create_resp.get_json()["accounts"][0]["id"]
+    resp = client.patch(f"/api/bank-accounts/{account_id}", json={"excluded_from_cash_flow": True})
+    assert resp.status_code == 200
+    account = next(a for a in resp.get_json()["accounts"] if a["id"] == account_id)
+    assert account["excluded_from_cash_flow"] == 1
 
 
 def test_patch_bank_account_route_missing_field_returns_400(client):

@@ -9,6 +9,17 @@ let bankFilteredTx = [];  // bankDisplayTx minus excluded — feeds charts/cards
 let bankMonthlyChart, bankNetChart, bankCategoryChart, bankDescChart, bankAccountChart;
 let bankFiltersInitialized = false;
 
+// Accounts marked "holding only" (excluded_from_cash_flow) are still full
+// bank_accounts for Net Worth purposes and remain fully manageable in the
+// Manage Bank Accounts pill list (balance-update modal included) — they're
+// just left out of THIS tab's cash-flow machinery (cards, charts, the
+// transaction table, and the account filter pills), since an account with
+// no real transaction activity only adds noise there, never signal.
+function cashFlowTransactions(all) {
+    const excludedIds = new Set(currentBankAccounts.filter(a => a.excluded_from_cash_flow).map(a => a.id));
+    return all.filter(t => !excludedIds.has(t.account_id));
+}
+
 async function loadBankAccountsPanel() {
     const [accountsResp, membersResp, txResp] = await Promise.all([
         fetch('/api/bank-accounts'),
@@ -17,7 +28,7 @@ async function loadBankAccountsPanel() {
     ]);
     currentBankAccounts = await accountsResp.json();
     const members = await membersResp.json();
-    bankAllTransactions = await txResp.json();
+    bankAllTransactions = cashFlowTransactions(await txResp.json());
 
     const ownerOpts = '<option value="">No owner</option>' +
         members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
@@ -40,11 +51,13 @@ async function reloadBankTransactions() {
         fetch('/api/bank-transactions'),
         fetch('/api/bank-accounts'),
     ]);
-    bankAllTransactions = await txResp.json();
+    const rawTransactions = await txResp.json();
     // Adding/deleting a transaction can change which one is "latest" for its
     // account (and its current_balance), so the accounts list needs
-    // refreshing too, not just the transaction list itself.
+    // refreshing too, not just the transaction list itself. Accounts first,
+    // since the cash-flow filter below needs to know which are excluded.
     currentBankAccounts = await accountsResp.json();
+    bankAllTransactions = cashFlowTransactions(rawTransactions);
     renderBankAccountsList();
     populateBankFilters();
     applyBankFilters();
@@ -61,8 +74,9 @@ function renderBankAccountsList() {
     list.innerHTML = currentBankAccounts.map(a => `
         <span class="cat-pill"${a.excluded_from_net_worth ? ' style="opacity:0.55;"' : ''}>
             ${escapeHtml(a.name)}
-            <span class="cat-pill-count">${a.account_number ? '*' + escapeHtml(a.account_number) + ' · ' : ''}${a.owner_name ? escapeHtml(a.owner_name) : 'No owner'} · Risk: ${escapeHtml(RISK_LEVEL_LABELS[a.risk_level])}${a.current_balance != null ? ` · ${formatCurrency(a.current_balance)}` : ''}${a.excluded_from_net_worth ? ' · ⊘ excluded from Net Worth' : ''}</span>
+            <span class="cat-pill-count">${a.account_number ? '*' + escapeHtml(a.account_number) + ' · ' : ''}${a.owner_name ? escapeHtml(a.owner_name) : 'No owner'} · Risk: ${escapeHtml(RISK_LEVEL_LABELS[a.risk_level])}${a.current_balance != null ? ` · ${formatCurrency(a.current_balance)}` : ''}${a.excluded_from_net_worth ? ' · ⊘ excluded from Net Worth' : ''}${a.excluded_from_cash_flow ? ' · 🙈 holding only' : ''}</span>
             <button class="cat-pill-del" title="Update balance" onclick="openBankBalanceModal(${a.id})" style="color:var(--text-secondary);">📈</button>
+            <button class="cat-pill-del" title="${a.excluded_from_cash_flow ? 'Show in Bank Accounts cash-flow view' : 'Hide from Bank Accounts cash-flow view — for a holding-only account with no real transaction activity'}" onclick="toggleBankAccountCashFlowExclude(${a.id})" style="color:var(--text-secondary);">${a.excluded_from_cash_flow ? '👁' : '🙈'}</button>
             <button class="cat-pill-del" title="Edit risk" onclick="startEditBankAccountRisk(${a.id})" style="color:var(--text-secondary);">✎</button>
             <button class="cat-pill-del" title="${a.excluded_from_net_worth ? 'Include in Net Worth' : 'Exclude from Net Worth'}" onclick="toggleBankAccountNetWorthExclude(${a.id})" style="color:var(--text-secondary);">${a.excluded_from_net_worth ? '↺' : '⊘'}</button>
             <button class="cat-pill-del" title="Delete account" onclick="deleteBankAccount(${a.id}, '${escapeHtml(a.name).replace(/'/g, "\\'")}')">✕</button>
@@ -159,6 +173,26 @@ async function toggleBankAccountNetWorthExclude(id) {
     if (!resp.ok) { alert(result.error || 'Failed to update account'); return; }
     currentBankAccounts = result.accounts;
     renderBankAccountsList();
+}
+
+// "Holding only" — for an account with close to no real transaction
+// activity (e.g. a rarely-touched foreign-currency account), hides it from
+// THIS tab's cash-flow machinery (cards, charts, the transaction table, the
+// account filter pills) — it stays a completely normal bank_account for
+// Net Worth, and stays fully manageable in this same pill list (balance
+// modal included). Re-fetches everything since the flag changes which
+// transactions cashFlowTransactions() keeps.
+async function toggleBankAccountCashFlowExclude(id) {
+    const account = currentBankAccounts.find(a => a.id === id);
+    if (!account) return;
+    const resp = await fetch(`/api/bank-accounts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ excluded_from_cash_flow: !account.excluded_from_cash_flow }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to update account'); return; }
+    reloadBankTransactions();
 }
 
 function onBankAccountChange() {
@@ -350,7 +384,7 @@ function populateBankFilters() {
     const categories = [...new Set(bankAllTransactions.map(t => t.category))].sort();
     fillBankSelect('bankMonthFilter', months);
     fillBankSelect('bankCategoryFilter', categories);
-    populateBankAccountPicker(currentBankAccounts.map(a => a.name));
+    populateBankAccountPicker(currentBankAccounts.filter(a => !a.excluded_from_cash_flow).map(a => a.name));
 
     if (!bankFiltersInitialized) {
         document.getElementById('bankSearchDesc').addEventListener('input', debounce(applyBankFilters, 200));
@@ -869,6 +903,7 @@ function updateBankTransactionsList() {
                     ${th('category', 'Category')}
                     ${th('account', 'Account')}
                     ${th('amount', 'Amount')}
+                    <th title="The bank's own running balance right after this transaction — only set on imported rows and manual balance updates, blank for a normal manual entry">Balance</th>
                     <th></th>
                 </tr>
             </thead>
@@ -885,6 +920,7 @@ function updateBankTransactionsList() {
                         <td><span class="tx-cat-text" onclick="startEditBankCategory(this, ${t.id})">${escapeHtml(t.category)}</span></td>
                         <td>${escapeHtml(t.account_name || '')}</td>
                         <td class="amount-cell" style="color:${t.amount >= 0 ? 'var(--success-color)' : 'inherit'};">${formatCurrency(t.amount)}</td>
+                        <td class="amount-cell">${t.balance_after == null ? '—' : formatCurrency(t.balance_after)}</td>
                         <td>
                             <div class="tx-actions">
                                 <button class="btn-excl" onclick="toggleBankExclude(${t.id})" title="${t.excluded ? 'Restore' : 'Exclude'}">${t.excluded ? '↺' : '⊘'}</button>

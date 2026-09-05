@@ -137,6 +137,25 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Bank Accounts: "holding only" flag hides an account from the cash-flow tab; new Balance
+  column (v1.36.0)** — two real gaps surfaced together. First: the main Bank Transactions table has
+  no Balance column at all (only the one-time import preview shows `balance_after`), so a
+  zero-amount balance-update entry looked exactly like nothing happened — user's literal complaint
+  after using the v1.35.0 modal. Fixed with a new Balance column showing `balance_after` when set.
+  Second, the deeper point: the 4 accounts just migrated from Funds are genuinely bank accounts for
+  Net Worth purposes but have essentially no real transaction activity, so participating in the
+  cash-flow tab's transaction filters/charts/cards adds pure noise — confirmed visually via a
+  screenshot showing Total Income/Expenses at ₪0 and 7 account-filter pills where 4 were just
+  synthetic balance-check rows. New `excluded_from_cash_flow` per-account flag (independent of
+  `excluded_from_net_worth` — orthogonal concerns) — a "🙈"/"👁" toggle on each account pill hides it
+  from the transaction table, filter pills, cash-flow cards, and charts entirely, while it remains a
+  completely normal `bank_account` for Net Worth and stays fully manageable (including the balance
+  modal) in the same pill list. **Caught a real bug before it shipped**: the PATCH route in app.py
+  has its OWN manually-maintained field allowlist, separate from `db.py`'s — adding the new field to
+  one without the other silently rejected every toggle attempt with "no editable fields provided."
+  Added a regression test specifically for this failure mode. 4 new tests, 349 passing (was 345).
+  Verified live: with the flag set, the 4 accounts vanish from the transaction table/filter
+  pills/charts, and the cash-flow cards correctly show only the 3 real Leumi accounts' activity.
 - [x] **Bank Accounts: quick "Update balance" modal per account, same pattern as Manage Funds
   (v1.35.0)** — using the v1.33.0 "new balance" mode via the inline form, the user hit exactly the
   friction it was meant to avoid: the form still requires a Description before it'll submit,

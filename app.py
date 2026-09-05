@@ -629,6 +629,8 @@ def patch_bank_account(account_id):
     fields = {}
     if 'excluded_from_net_worth' in data:
         fields['excluded_from_net_worth'] = 1 if data['excluded_from_net_worth'] else 0
+    if 'excluded_from_cash_flow' in data:
+        fields['excluded_from_cash_flow'] = 1 if data['excluded_from_cash_flow'] else 0
     if 'risk_level' in data:
         fields['risk_level'] = data['risk_level'] or 0
     if 'risk_note' in data:

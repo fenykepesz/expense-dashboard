@@ -311,6 +311,7 @@ def init_db(db_path=None):
             ("excluded_from_net_worth", "INTEGER NOT NULL DEFAULT 0"),
             ("risk_level",              "INTEGER NOT NULL DEFAULT 0"),
             ("risk_note",               "TEXT NOT NULL DEFAULT ''"),
+            ("excluded_from_cash_flow", "INTEGER NOT NULL DEFAULT 0"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE bank_accounts ADD COLUMN {col} {definition}")
@@ -1601,7 +1602,8 @@ def get_bank_accounts(db_path=None):
         rows = conn.execute(
             """
             SELECT a.id, a.name, a.account_number, a.owner_id,
-                   a.excluded_from_net_worth, a.risk_level, a.risk_note, m.name AS owner_name,
+                   a.excluded_from_net_worth, a.risk_level, a.risk_note,
+                   a.excluded_from_cash_flow, m.name AS owner_name,
                    SUBSTR(bt.imported_at, 1, 10) AS last_imported_date
             FROM bank_accounts a
             LEFT JOIN household_members m ON m.id = a.owner_id
@@ -1653,7 +1655,9 @@ def delete_bank_account(account_id, db_path=None):
     return get_bank_accounts(db_path)
 
 
-BANK_ACCOUNT_EDITABLE_FIELDS = {"excluded_from_net_worth", "risk_level", "risk_note"}
+BANK_ACCOUNT_EDITABLE_FIELDS = {
+    "excluded_from_net_worth", "risk_level", "risk_note", "excluded_from_cash_flow",
+}
 
 
 def update_bank_account(account_id, fields, db_path=None):
