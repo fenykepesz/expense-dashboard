@@ -137,6 +137,31 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Net Worth: "Include" picker's big All pill now selects every pill instead of clearing
+  them, and its column layout is centered (v1.37.0)** — two related complaints. First: clicking
+  the full-width "All" pill above the item-picker columns cleared every individual pill's
+  highlighted state (relying on an implicit "nothing marked = everything included" convention),
+  so there was no way to start from "everything selected" and click a few off — the user would
+  have had to hand-select all ~40 pills first. Reworked `syncPickerAllButtons`/
+  `makeAllPickerButton` in `dashboard-networth.js` so All (both the overall one and each
+  category's own, plus the Owner picker's) is a real bulk toggle: its own "active" state is now
+  just a derived reflection of whether every pill it covers is currently selected, exactly like
+  the per-category All buttons already worked — no more implicit bypass in
+  `getSelectedNetWorthSeries`/`getSelectedNetWorthOwners`. Every pill (and both picker's All
+  buttons) now starts active/highlighted, so the picker always shows its real, editable state.
+  Second: the item-picker's category columns (`.picker-groups`) are fixed-width and don't stretch
+  to fill their container, so with `justify-content` defaulting to flex-start they hugged the
+  left edge, leaving a large empty gap on the right that made the whole section look off-balance
+  next to the rest of the (centered) page — fixed with `justify-content: center` on `.picker-groups`.
+- [x] **Bank Accounts: owner is now editable after creation (v1.37.0)** — owner was only ever
+  settable at account-creation time; there was no way to reassign it afterward (e.g. after the
+  Funds→Bank Accounts migration in v1.36.0, or just a household member re-splitting who "owns"
+  an account). `owner_id` was missing from both `BANK_ACCOUNT_EDITABLE_FIELDS` in `db.py` and the
+  `patch_bank_account` route's manual field list in `app.py` — added to both. Frontend mirrors the
+  Manage Funds table's existing inline owner dropdown exactly: each Manage Bank Accounts pill now
+  has its own `<select>` (new `bankOwnerOptions()`/`updateBankAccountOwner()` in
+  `dashboard-bank.js`, new module-level `bankMembers` array populated once in
+  `loadBankAccountsPanel()`), replacing the old plain-text "owner or 'No owner'" label in the pill.
 - [x] **Bank Accounts: "holding only" flag hides an account from the cash-flow tab; new Balance
   column (v1.36.0)** — two real gaps surfaced together. First: the main Bank Transactions table has
   no Balance column at all (only the one-time import preview shows `balance_after`), so a

@@ -635,6 +635,8 @@ def patch_bank_account(account_id):
         fields['risk_level'] = data['risk_level'] or 0
     if 'risk_note' in data:
         fields['risk_note'] = (data.get('risk_note') or '').strip()
+    if 'owner_id' in data:
+        fields['owner_id'] = data['owner_id']
     if not fields:
         return jsonify({'error': 'no editable fields provided'}), 400
     try:

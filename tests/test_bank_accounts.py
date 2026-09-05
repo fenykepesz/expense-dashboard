@@ -238,6 +238,21 @@ def test_bank_account_excluded_from_cash_flow_still_counts_in_net_worth(tmp_db):
     assert bank_item["balances"][-1] == 5000.0
 
 
+def test_update_bank_account_owner(tmp_db):
+    """Owner is only ever set at creation time otherwise — this is the only
+    way to reassign it afterward, so it must go through update_bank_account
+    like every other editable field."""
+    members = db.add_household_member("Dad", tmp_db)
+    owner_id = members[0]["id"]
+    account_id = db.add_bank_account("Checking", db_path=tmp_db)[0]["id"]
+    updated = db.update_bank_account(account_id, {"owner_id": owner_id}, tmp_db)
+    assert updated[0]["owner_id"] == owner_id
+    assert updated[0]["owner_name"] == "Dad"
+    cleared = db.update_bank_account(account_id, {"owner_id": None}, tmp_db)
+    assert cleared[0]["owner_id"] is None
+    assert cleared[0]["owner_name"] is None
+
+
 def test_update_nonexistent_bank_account_raises(tmp_db):
     with pytest.raises(ValueError):
         db.update_bank_account(9999, {"excluded_from_net_worth": 1}, tmp_db)
@@ -389,6 +404,18 @@ def test_patch_bank_account_route_toggles_net_worth_exclude(client):
     assert resp.status_code == 200
     account = next(a for a in resp.get_json()["accounts"] if a["id"] == account_id)
     assert account["excluded_from_net_worth"] == 1
+
+
+def test_patch_bank_account_route_updates_owner(client):
+    member_resp = client.post("/api/household-members", json={"name": "Dad"})
+    owner_id = member_resp.get_json()["members"][0]["id"]
+    create_resp = client.post("/api/bank-accounts", json={"name": "Checking"})
+    account_id = create_resp.get_json()["accounts"][0]["id"]
+    resp = client.patch(f"/api/bank-accounts/{account_id}", json={"owner_id": owner_id})
+    assert resp.status_code == 200
+    account = next(a for a in resp.get_json()["accounts"] if a["id"] == account_id)
+    assert account["owner_id"] == owner_id
+    assert account["owner_name"] == "Dad"
 
 
 def test_patch_bank_account_route_toggles_cash_flow_exclude(client):

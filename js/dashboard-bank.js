@@ -8,6 +8,7 @@ let bankDisplayTx = [];   // after filters (incl. excluded when status allows)
 let bankFilteredTx = [];  // bankDisplayTx minus excluded — feeds charts/cards
 let bankMonthlyChart, bankNetChart, bankCategoryChart, bankDescChart, bankAccountChart;
 let bankFiltersInitialized = false;
+let bankMembers = [];
 
 // Accounts marked "holding only" (excluded_from_cash_flow) are still full
 // bank_accounts for Net Worth purposes and remain fully manageable in the
@@ -27,11 +28,11 @@ async function loadBankAccountsPanel() {
         fetch('/api/bank-transactions'),
     ]);
     currentBankAccounts = await accountsResp.json();
-    const members = await membersResp.json();
+    bankMembers = await membersResp.json();
     bankAllTransactions = cashFlowTransactions(await txResp.json());
 
     const ownerOpts = '<option value="">No owner</option>' +
-        members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+        bankMembers.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
     document.getElementById('newBankAccountOwnerInput').innerHTML = ownerOpts;
     document.getElementById('bankRiskTooltip').title = RISK_LEVEL_TOOLTIP;
     cancelBankAccountRiskEdit();
@@ -65,6 +66,23 @@ async function reloadBankTransactions() {
 
 // ── Account management ────────────────────────────────────────────────
 
+function bankOwnerOptions(selectedId) {
+    return '<option value="">No owner</option>' + bankMembers.map(m =>
+        `<option value="${m.id}"${String(selectedId) === String(m.id) ? ' selected' : ''}>${escapeHtml(m.name)}</option>`
+    ).join('');
+}
+
+async function updateBankAccountOwner(id, ownerId) {
+    const resp = await fetch(`/api/bank-accounts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner_id: ownerId }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) { alert(result.error || 'Failed to update owner'); return; }
+    reloadBankTransactions();
+}
+
 function renderBankAccountsList() {
     const list = document.getElementById('bankAccountsList');
     if (!currentBankAccounts.length) {
@@ -74,7 +92,8 @@ function renderBankAccountsList() {
     list.innerHTML = currentBankAccounts.map(a => `
         <span class="cat-pill"${a.excluded_from_net_worth ? ' style="opacity:0.55;"' : ''}>
             ${escapeHtml(a.name)}
-            <span class="cat-pill-count">${a.account_number ? '*' + escapeHtml(a.account_number) + ' · ' : ''}${a.owner_name ? escapeHtml(a.owner_name) : 'No owner'} · Risk: ${escapeHtml(RISK_LEVEL_LABELS[a.risk_level])}${a.current_balance != null ? ` · ${formatCurrency(a.current_balance)}` : ''}${a.excluded_from_net_worth ? ' · ⊘ excluded from Net Worth' : ''}${a.excluded_from_cash_flow ? ' · 🙈 holding only' : ''}</span>
+            <span class="cat-pill-count">${a.account_number ? '*' + escapeHtml(a.account_number) + ' · ' : ''}Risk: ${escapeHtml(RISK_LEVEL_LABELS[a.risk_level])}${a.current_balance != null ? ` · ${formatCurrency(a.current_balance)}` : ''}${a.excluded_from_net_worth ? ' · ⊘ excluded from Net Worth' : ''}${a.excluded_from_cash_flow ? ' · 🙈 holding only' : ''}</span>
+            <select class="tx-cat-select" title="Owner" onchange="updateBankAccountOwner(${a.id}, this.value || null)">${bankOwnerOptions(a.owner_id)}</select>
             <button class="cat-pill-del" title="Update balance" onclick="openBankBalanceModal(${a.id})" style="color:var(--text-secondary);">📈</button>
             <button class="cat-pill-del" title="${a.excluded_from_cash_flow ? 'Show in Bank Accounts cash-flow view' : 'Hide from Bank Accounts cash-flow view — for a holding-only account with no real transaction activity'}" onclick="toggleBankAccountCashFlowExclude(${a.id})" style="color:var(--text-secondary);">${a.excluded_from_cash_flow ? '👁' : '🙈'}</button>
             <button class="cat-pill-del" title="Edit risk" onclick="startEditBankAccountRisk(${a.id})" style="color:var(--text-secondary);">✎</button>

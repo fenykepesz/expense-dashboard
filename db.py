@@ -1656,7 +1656,7 @@ def delete_bank_account(account_id, db_path=None):
 
 
 BANK_ACCOUNT_EDITABLE_FIELDS = {
-    "excluded_from_net_worth", "risk_level", "risk_note", "excluded_from_cash_flow",
+    "excluded_from_net_worth", "risk_level", "risk_note", "excluded_from_cash_flow", "owner_id",
 }
 
 
