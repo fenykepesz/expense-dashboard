@@ -137,6 +137,20 @@ with a top-level net worth view. Decided so far:
   dropdown) — no login/auth, stays a single local tool operated by one person
 - **Frontend**: split `index.html`'s inline JS into per-dashboard files before/while adding
   the new dashboards, rather than growing one monolithic file further
+- [x] **Bank accounts: "last updated" now means date of import, not date of the transaction (v1.31.1)**
+  — immediate correction to v1.31.0: after seeing it live, the user clarified what they actually
+  wanted was "when did I last add data for this account" (a routine/freshness question — did I
+  remember to import this month's statement) rather than "what date does the balance reflect" (what
+  v1.31.0 shipped). Swapped the source column in both `get_bank_accounts()` and
+  `get_net_worth_series()`'s correlated subqueries from `bt.date` to `bt.imported_at` (still the
+  identical query in both places, still never able to disagree with each other) — field renamed
+  `latest_transaction_date` → `last_imported_date` throughout to stop the name itself suggesting the
+  old meaning. Manual entries already stamp a real `imported_at` at add-time via the same
+  `insert_bank_transactions()` path imports use, so the "did I touch this" question is answered
+  consistently whether the data came from a file or was typed in by hand. Verified against real
+  data: all 3 of the user's real accounts show `2026-09-04` (imported together, same day) —
+  confirmed by test that this is genuine per-account tracking, not a coincidence baked into the
+  code, by asserting two accounts imported on different days show different dates.
 - [x] **Bank accounts: "last updated" date, per account, everywhere the balance shows up (v1.31.0)**
   — user asked how to update a bank account's balance, which surfaced that there was no way to see
   WHEN a shown balance was actually current as of — Funds already have this (Manage Funds' "Latest

@@ -708,14 +708,18 @@ function sortBankColumn(col) {
 // One small "updated DD/MM/YYYY" pill per account — always reflects every
 // active account, independent of whatever the account filter currently
 // shows in the table below, so it's a quick-glance summary rather than a
-// filtered view. Same latest_transaction_date value db.py computes for the
-// Net Worth item pills (netWorthSubLine), so the two can never disagree.
+// filtered view. This is the date the user last IMPORTED/added data for
+// that account (imported_at), not the date of its most recent transaction
+// — a deliberate choice: the user wants "did I remember to update this,"
+// not "what date does the balance reflect." Same last_imported_date value
+// db.py computes for the Net Worth item pills (netWorthSubLine), so the
+// two can never disagree.
 function renderBankUpdatedPills() {
     const container = document.getElementById('bankUpdatedPills');
     if (!container) return;
     container.innerHTML = currentBankAccounts.map(a => `
         <span class="excluded-pill" style="background:var(--table-header-bg);color:var(--text-secondary);border-color:var(--border-color);">
-            ${escapeHtml(a.name)}: ${a.latest_transaction_date ? escapeHtml(a.latest_transaction_date) : 'no data yet'}
+            ${escapeHtml(a.name)}: ${a.last_imported_date ? escapeHtml(a.last_imported_date) : 'no data yet'}
         </span>
     `).join('');
 }

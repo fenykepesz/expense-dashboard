@@ -45,9 +45,11 @@ function netWorthSubLine(s) {
     if (s.kind === 'stock' && s.holding_type) {
         parts.push(STOCK_HOLDING_TYPE_LABELS[s.holding_type] || s.holding_type);
     }
-    // Bank accounts only, for now — the date their balance last actually
-    // moved (most recent transaction on file), same value shown next to
-    // the Bank Accounts tab's transaction list so the two can never disagree.
+    // Bank accounts only, for now — the date the user last imported/added
+    // data for that account (not the date of its most recent transaction —
+    // deliberately: "did I remember to update this" matters more here than
+    // "what date does the balance reflect"), same value shown next to the
+    // Bank Accounts tab's transaction list so the two can never disagree.
     if (s.kind === 'bank' && s.latest_date) {
         parts.push(`updated ${s.latest_date}`);
     }
